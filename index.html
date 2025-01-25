@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIOS Desktop</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="chat.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="aios.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+</head>
+<body class="dark-mode">
+    <!-- Floating Window -->
+    <div id="aios-container"></div>
+
+    <!-- Chat Root Container -->
+    <div id="chat-root"></div>
+
+    <!-- Taskbar -->
+    <div class="taskbar">
+        <div class="taskbar-icons">
+            <button id="app-icon" class="taskbar-icon">
+                <img src="aios.png" width="24" height="24" alt="App Logo">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </button>
+            <button id="chat-icon" class="taskbar-icon">
+                <i class="fas fa-comments"></i>
+            </button>
+            <button id="terminal-icon" class="taskbar-icon">
+                <i class="fas fa-terminal"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="window-controls">
+        <button id="theme-toggle" class="theme-toggle window-control-btn">
+            <i class="fas fa-sun"></i>
+        </button>
+        <button id="minimize-window" class="window-control-btn">
+            <i class="fas fa-minus"></i>
+        </button>
+        <button id="resize-window" class="window-control-btn">
+            <i class="fas fa-expand"></i>
+        </button>
+        <button id="close-window" class="window-control-btn">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <script src="renderer.js"></script>
+    <script src="chat.js"></script>
+    <script src="window-controls.js"></script>
+    <script src="aios.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+</body>
+</html>

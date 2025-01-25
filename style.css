@@ -1,0 +1,161 @@
+:root {
+    --bg-color: #ffffff;
+    --text-color: #333333;
+    --taskbar-bg: #f0f0f0;
+    --window-bg: #ffffff;
+    --border-color: #dddddd;
+    --icon-color: #666666;
+    --icon-hover: #333333;
+    --shadow-color: rgba(0, 0, 0, 0.1);
+}
+
+.dark-mode {
+    --bg-color: #1a1a1a;
+    --text-color: #ffffff;
+    --taskbar-bg: #2d2d2d;
+    --window-bg: #2d2d2d;
+    --border-color: #404040;
+    --icon-color: #cccccc;
+    --icon-hover: #ffffff;
+    --shadow-color: rgba(0, 0, 0, 0.3);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    height: 100vh;
+    overflow: hidden;
+    position: relative;
+}
+
+.taskbar {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--taskbar-bg);
+    padding: 8px 16px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px var(--shadow-color);
+}
+
+.taskbar-icons {
+    display: flex;
+    gap: 16px;
+}
+
+.taskbar-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    color: var(--icon-color);
+    transition: all 0.2s ease;
+}
+
+.taskbar-icon:hover {
+    background-color: var(--shadow-color);
+    color: var(--icon-hover);
+}
+
+.floating-window {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--window-bg);
+    border-radius: 12px;
+    box-shadow: 0 4px 24px var(--shadow-color);
+    width: 400px;
+    height: 300px;
+    border: 1px solid var(--border-color);
+}
+
+.window-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.window-title {
+    font-weight: 600;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-color);
+    font-size: 20px;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.close-btn:hover {
+    background-color: var(--shadow-color);
+}
+
+.window-content {
+    padding: 16px;
+}
+
+.hidden {
+    display: none;
+}
+
+.theme-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    color: var(--icon-color);
+    transition: all 0.2s ease;
+}
+
+.theme-toggle:hover {
+    background-color: var(--shadow-color);
+    color: var(--icon-hover);
+}
+/* Window controls */
+.window-controls {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    gap: 12px;
+    z-index: 1000;
+}
+
+.window-control-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    color: var(--icon-color);
+    transition: all 0.2s ease;
+}
+
+.window-control-btn:hover {
+    background-color: var(--shadow-color);
+    color: var(--icon-hover);
+}
+
+/* Update theme toggle position to align with controls */
+.theme-toggle {
+    position: static; /* Remove fixed positioning */
+}

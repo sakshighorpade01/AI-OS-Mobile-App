@@ -1,0 +1,73 @@
+.floating-window {
+    position: fixed;
+    bottom: 100px;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--window-bg);
+    border-radius: 12px;
+    box-shadow: 0 4px 24px var(--shadow-color);
+    width: 80%;
+    height: 750px;
+    border: 1px solid var(--border-color);
+    z-index: 100; /* Add this to keep window above other elements */
+    margin-top: 40px; /* Add top margin */
+}
+
+.window-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.window-title {
+    font-weight: 600;
+}
+
+.window-content {
+    display: flex;
+    height: calc(100% - 53px);
+}
+
+.sidebar {
+    width: 200px; /* Increased width for better visibility */
+    border-right: 1px solid var(--border-color);
+    padding: 20px;
+}
+
+.sidebar-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.above-option {
+    padding: 12px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s ease-in-out;
+    user-select: none;
+    font-size: 15px;
+}
+
+.above-option:hover {
+    background-color: var(--shadow-color);
+    transform: translateY(-1px);
+}
+
+.above-option:active {
+    background-color: var(--shadow-color);
+    transform: translateY(1px);
+}
+
+.main-content {
+    flex: 1;
+    padding: 24px;
+}
+
+/* Add this to ensure window controls stay below */
+.window-controls {
+    z-index: 50;
+}

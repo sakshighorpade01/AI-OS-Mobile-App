@@ -100,13 +100,35 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
         }
 
         if (typeof message === 'object' && message.content) {
-            // Process markdown while preserving whitespace
-            const renderedContent = marked.parse(message.content, {
-                breaks: false,  // Don't add line breaks
-                gfm: true      // Use GitHub Flavored Markdown
-            });
-            messageDiv.innerHTML += renderedContent;
+            // Process markdown with table support
+            const markedOptions = {
+                breaks: true,
+                gfm: true,
+                tables: true,
+                renderer: new marked.Renderer()
+            };
+
+            // Custom table renderer
+            markedOptions.renderer.table = function(header, body) {
+                return `<div class="table-container"><table>
+                    <thead>${header}</thead>
+                    <tbody>${body}</tbody>
+                </table></div>`;
+            };
+
+            // Process content
+            const renderedContent = marked.parse(message.content, markedOptions);
             
+            // Clean up and standardize table formatting
+            const cleanedContent = renderedContent
+                .replace(/\|(\s*[-:]+[-| :]*)\|/g, (match) => {
+                    // Standardize separator rows in markdown tables
+                    return match.replace(/\s+/g, '');
+                });
+
+            messageDiv.innerHTML += cleanedContent;
+            
+            // Highlight code blocks
             messageDiv.querySelectorAll('pre code').forEach((block) => {
                 hljs.highlightElement(block);
             });

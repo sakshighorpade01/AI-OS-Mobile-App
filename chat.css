@@ -304,28 +304,30 @@
 }
 
 .message-bot code {
-    background: rgba(0, 0, 0, 0.15);
-    padding: 2px 6px;
-    border-radius: 4px;
     font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-    font-size: 13px;
-    white-space: pre;
+    font-size: 0.9em;
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.1);
 }
 
 .message-bot pre code {
     background: none;
     padding: 0;
-    font-size: 13px;
 }
 
 .message-bot p {
-    margin: 0;           /* Remove default paragraph margins */
-    white-space: normal; /* Allow text to flow naturally */
-    display: inline;     /* Keep paragraphs in a continuous flow */
+    margin: 0; 
+    padding: 0;
+    display: inline;
+}
+
+.message-bot p + p {
+    margin-left: 0.3em;
 }
 
 .message-bot br {
-    display: none;      /* Remove extra line breaks */
+    display: none;
 }
 
 .message-bot ul, .message-bot ol {
@@ -340,11 +342,78 @@
 .message-bot h1,
 .message-bot h2,
 .message-bot h3,
+.message-bot h4,
+.message-bot h5,
+.message-bot h6,
+.message-bot ul,
+.message-bot ol,
 .message-bot pre,
+.message-bot blockquote,
+.message-bot table {
+    display: block;
+    margin: 1em 0;
+}
+
 .message-bot ul,
 .message-bot ol {
-    display: block;
-    margin-top: 1em;
+    padding-left: 1.5em;
+}
+
+.message-bot pre {
+    margin: 1em 0;
+    padding: 1em;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    overflow-x: auto;
+}
+
+.message-bot li {
+    display: list-item;
+    margin: 0.5em 0;
+}
+
+.message-bot table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1em 0;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.message-bot th,
+.message-bot td {
+    padding: 8px 12px;
+    text-align: left;
+    border: 1px solid var(--border-color);
+}
+
+.message-bot th {
+    background: rgba(255, 255, 255, 0.1);
+    font-weight: 600;
+}
+
+.message-bot tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+/* Add horizontal scroll for wide tables */
+.message-bot .table-container {
+    width: 100%;
+    overflow-x: auto;
+    margin: 1em 0;
+}
+
+/* Preserve table whitespace */
+.message-bot td,
+.message-bot th {
+    white-space: nowrap;
+}
+
+/* Ensure proper table cell spacing */
+.message-bot td + td,
+.message-bot th + th {
+    border-left: 1px solid var(--border-color);
 }
 
 /* Utilities */

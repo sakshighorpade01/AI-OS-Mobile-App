@@ -298,7 +298,6 @@
     color: var(--text-color);
     padding: 16px;
     border-radius: 12px 12px 12px 0;
-    white-space: pre-wrap;
     word-break: break-word;
     line-height: 1.6;
     font-size: 14px;
@@ -313,15 +312,6 @@
     white-space: pre;
 }
 
-.message-bot pre {
-    background: rgba(0, 0, 0, 0.15);
-    padding: 16px;
-    border-radius: 8px;
-    overflow-x: auto;
-    margin: 12px 0;
-    white-space: pre;
-}
-
 .message-bot pre code {
     background: none;
     padding: 0;
@@ -329,7 +319,13 @@
 }
 
 .message-bot p {
-    margin: 12px 0;
+    margin: 0;           /* Remove default paragraph margins */
+    white-space: normal; /* Allow text to flow naturally */
+    display: inline;     /* Keep paragraphs in a continuous flow */
+}
+
+.message-bot br {
+    display: none;      /* Remove extra line breaks */
 }
 
 .message-bot ul, .message-bot ol {
@@ -341,9 +337,14 @@
     margin: 6px 0;
 }
 
-.message-bot h1, .message-bot h2, .message-bot h3 {
-    margin: 16px 0 8px;
-    font-weight: 600;
+.message-bot h1,
+.message-bot h2,
+.message-bot h3,
+.message-bot pre,
+.message-bot ul,
+.message-bot ol {
+    display: block;
+    margin-top: 1em;
 }
 
 /* Utilities */

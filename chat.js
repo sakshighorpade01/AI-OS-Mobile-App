@@ -95,22 +95,19 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
         if (!messageDiv) {
             messageDiv = document.createElement('div');
             messageDiv.className = 'message message-bot';
-            // Add pre-wrap styling
-            messageDiv.style.whiteSpace = 'pre-wrap';
-            messageDiv.style.wordBreak = 'break-word';
             chatMessages.appendChild(messageDiv);
             ongoingStreams[messageId] = messageDiv;
         }
 
         if (typeof message === 'object' && message.content) {
-            // Preserve newlines and spaces in markdown parsing
+            // Process markdown while preserving whitespace
             const renderedContent = marked.parse(message.content, {
-                breaks: true,
-                gfm: true
+                breaks: false,  // Don't add line breaks
+                gfm: true      // Use GitHub Flavored Markdown
             });
             messageDiv.innerHTML += renderedContent;
             
-            messageDiv.querySelectorAll('pre code:not(.hljs)').forEach((block) => {
+            messageDiv.querySelectorAll('pre code').forEach((block) => {
                 hljs.highlightElement(block);
             });
         }
@@ -121,19 +118,14 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
     } else {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${isUser ? 'message-user' : 'message-bot'}`;
-        // Add pre-wrap styling for bot messages
-        if (!isUser) {
-            messageDiv.style.whiteSpace = 'pre-wrap';
-            messageDiv.style.wordBreak = 'break-word';
-        }
         
         if (isUser) {
             messageDiv.textContent = message;
         } else {
             if (typeof message === 'object' && message.content) {
-                // Preserve newlines and spaces in markdown parsing
+                // Process markdown while preserving natural text flow
                 messageDiv.innerHTML = marked.parse(message.content, {
-                    breaks: true, 
+                    breaks: false,
                     gfm: true
                 });
                 messageDiv.querySelectorAll('pre code').forEach((block) => {

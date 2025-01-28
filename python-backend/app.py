@@ -13,20 +13,26 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
-# Connection Manager to manage agent sessions
 class ConnectionManager:
     def __init__(self):
         self.sessions = {}
         self.lock = threading.Lock()
-
-    def initialize_session(self, sid, config):
+        
+    def create_session(self, sid, config):
+        """Creates a new agent session with the given config"""
         with self.lock:
+            if sid in self.sessions:
+                self.terminate_session(sid)
+                
+            agent = self.create_agent(config)
             self.sessions[sid] = {
-                "agent": self.create_agent(config),
-                "config": config
+                "agent": agent,
+                "config": config,
+                "initialized": True
             }
-            logging.info(f"Initialized session {sid} with config {config}")
-
+            logging.info(f"Created new session {sid} with config {config}")
+            return agent
+            
     def create_agent(self, config):
         return get_llm_os(
             calculator=config.get("calculator", False),
@@ -39,30 +45,33 @@ class ConnectionManager:
             debug_mode=False
         )
 
-    def reset_session(self, sid, config):
+    def terminate_session(self, sid):
+        """Terminates an existing session and cleans up resources"""
         with self.lock:
             if sid in self.sessions:
-                self.sessions[sid]["agent"] = self.create_agent(config)
-                self.sessions[sid]["config"] = config
-                logging.info(f"Session {sid} reinitialized with new config {config}")
+                # Clean up agent resources if needed
+                agent = self.sessions[sid].get("agent")
+                if agent:
+                    # Add any cleanup needed for agent
+                    pass
+                del self.sessions[sid]
+                logging.info(f"Terminated session {sid}")
 
-    def get_agent(self, sid):
-        return self.sessions.get(sid, {}).get("agent")
+    def get_session(self, sid):
+        """Gets the session for a given sid"""
+        return self.sessions.get(sid)
 
     def remove_session(self, sid):
-        with self.lock:
-            if sid in self.sessions:
-                del self.sessions[sid]
-                logging.info(f"Session {sid} removed")
+        """Removes a session on disconnect"""
+        self.terminate_session(sid)
 
 connection_manager = ConnectionManager()
 
-# WebSocket Event Handlers
 @socketio.on("connect")
 def on_connect():
     sid = request.sid
     logging.info(f"Client connected: {sid}")
-    connection_manager.initialize_session(sid, config={})
+    # Only send connection confirmation, don't create session
     emit("status", {"message": "Connected to server"})
 
 @socketio.on("disconnect")
@@ -76,28 +85,41 @@ def on_send_message(data):
     sid = request.sid
     try:
         data = json.loads(data)
-        msg_type = data.get("type", "message")
-        config = data.get("config", {})
-        agent = connection_manager.get_agent(sid)
+        message = data.get("message", "")
+        
+        # Check if this is a new chat request
+        if data.get("type") == "new_chat":
+            connection_manager.terminate_session(sid)
+            emit("status", {"message": "Session terminated"}, room=sid)
+            return
 
-        if msg_type == "reinitialize":
-            connection_manager.reset_session(sid, config)
-            emit("status", {"message": "Session reinitialized"}, room=sid)
-        elif msg_type == "message" and agent:
-            message_id = str(uuid.uuid4())
-            user_message = data.get("message", "")
-
-            responses = []
-            stream = agent.run(user_message, stream=True)
-            for chunk in stream:
-                if chunk and chunk.content:
-                    responses.append({"id": message_id, "content": chunk.content, "streaming": True})
-            responses.append({"id": message_id, "content": "", "done": True})
-
-            for response in responses:
-                emit("response", response, room=sid)
+        session = connection_manager.get_session(sid)
+        if not session:
+            # Only create session if we have a real message
+            if not message:
+                return
+                
+            config = data.get("config", {})
+            agent = connection_manager.create_session(sid, config)
         else:
-            emit("error", {"message": "Agent not initialized"}, room=sid)
+            agent = session["agent"]
+
+        message_id = str(uuid.uuid4())
+        
+        responses = []
+        stream = agent.run(message, stream=True)
+        for chunk in stream:
+            if chunk and chunk.content:
+                responses.append({
+                    "id": message_id, 
+                    "content": chunk.content,
+                    "streaming": True
+                })
+        responses.append({"id": message_id, "content": "", "done": True})
+        
+        for response in responses:
+            emit("response", response, room=sid)
+                
     except Exception as e:
         logging.error(f"Error processing message: {e}")
         emit("error", {"message": str(e)}, room=sid)

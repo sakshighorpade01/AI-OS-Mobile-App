@@ -1,73 +1,172 @@
 .floating-window {
     position: fixed;
-    bottom: 100px;
-    top: 15px;
+    top: 50%;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translate(-50%, -50%);
+    width: 480px;
+    height: 560px;
     background-color: var(--window-bg);
     border-radius: 12px;
-    box-shadow: 0 4px 24px var(--shadow-color);
-    width: 80%;
-    height: 750px;
+    box-shadow: 0 8px 32px var(--shadow-color);
     border: 1px solid var(--border-color);
-    z-index: 100; /* Add this to keep window above other elements */
-    margin-top: 40px; /* Add top margin */
+    z-index: 1000;
 }
 
 .window-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px;
+    padding: 16px 20px;
     border-bottom: 1px solid var(--border-color);
 }
 
 .window-title {
+    font-size: 18px;
     font-weight: 600;
 }
 
-.window-content {
-    display: flex;
-    height: calc(100% - 53px);
-}
-
-.sidebar {
-    width: 200px; /* Increased width for better visibility */
-    border-right: 1px solid var(--border-color);
-    padding: 20px;
-}
-
-.sidebar-options {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.above-option {
-    padding: 12px;
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
     cursor: pointer;
+    color: var(--text-color);
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.close-btn:hover {
+    opacity: 1;
+}
+
+.window-content {
+    padding: 20px;
+    height: calc(100% - 60px);
+    overflow-y: auto;
+}
+
+/* Tabs */
+.tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 12px;
+}
+
+.tab-btn {
+    background: none;
+    border: none;
+    padding: 8px 16px;
+    cursor: pointer;
+    color: var(--text-color);
+    opacity: 0.7;
+    transition: all 0.2s;
     border-radius: 6px;
-    transition: all 0.2s ease-in-out;
-    user-select: none;
-    font-size: 15px;
 }
 
-.above-option:hover {
+.tab-btn.active {
+    opacity: 1;
     background-color: var(--shadow-color);
-    transform: translateY(-1px);
 }
 
-.above-option:active {
-    background-color: var(--shadow-color);
-    transform: translateY(1px);
+/* Tab Content */
+.tab-content {
+    display: none;
 }
 
-.main-content {
-    flex: 1;
-    padding: 24px;
+.tab-content.active {
+    display: block;
 }
 
-/* Add this to ensure window controls stay below */
-.window-controls {
-    z-index: 50;
+/* Form Styles */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+.form-group textarea {
+    height: 120px;
+    resize: vertical;
+}
+
+.save-btn,
+.submit-btn {
+    background-color: #007AFF;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.save-btn:hover,
+.submit-btn:hover {
+    opacity: 0.9;
+}
+
+.danger-btn {
+    background-color: #FF3B30;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    margin-bottom: 12px;
+    width: 100%;
+}
+
+.danger-btn:hover {
+    opacity: 0.9;
+}
+
+/* About Tab */
+.version {
+    color: var(--text-color);
+    opacity: 0.7;
+    margin: 8px 0;
+}
+
+.about-links {
+    margin-top: 20px;
+}
+
+.link {
+    color: #007AFF;
+    text-decoration: none;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.link:hover {
+    text-decoration: underline;
+}
+
+/* File Upload */
+.file-hint {
+    font-size: 12px;
+    opacity: 0.7;
+    margin-top: 4px;
+}
+
+/* Animation */
+.hidden {
+    display: none;
 }

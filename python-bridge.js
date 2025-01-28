@@ -6,24 +6,27 @@ class PythonBridge {
     constructor(mainWindow) {
         this.pythonProcess = null;
         this.mainWindow = mainWindow;
-        this.messageQueue = [];
-        this.isProcessing = false;
-        this.responseBuffer = '';
+        this.initialized = false;
     }
 
     start() {
+        if (this.pythonProcess) return;
+        
         const pythonPath = path.join(__dirname, 'python-backend', 'app.py');
         
         this.pythonProcess = spawn('python', [pythonPath], {
             stdio: ['pipe', 'pipe', 'pipe']
         });
-    
-        // Log stdout instead of parsing
+
+        this.setupEventListeners();
+    }
+
+    setupEventListeners() {
         this.pythonProcess.stdout.on('data', (data) => {
             console.log(`Python stdout: ${data}`);
+            this.mainWindow.webContents.send('python-response', data.toString());
         });
     
-        // Log stderr instead of emitting errors
         this.pythonProcess.stderr.on('data', (data) => {
             console.error(`Python stderr: ${data}`);
         });
@@ -31,18 +34,20 @@ class PythonBridge {
         this.pythonProcess.on('close', (code) => {
             console.log(`Python process exited with code ${code}`);
             this.pythonProcess = null;
+            this.initialized = false;
         });
 
-        // Set up IPC listener
+        // Only establish connection, don't create agent yet
         ipcMain.on('python-message', (event, message) => {
             this.sendMessage(message);
         });
+
+        this.initialized = true;
     }
 
     sendMessage(message) {
         if (!this.pythonProcess) {
-            console.error('Python process not started');
-            return;
+            this.start();
         }
 
         try {
@@ -57,6 +62,7 @@ class PythonBridge {
         if (this.pythonProcess) {
             this.pythonProcess.kill();
             this.pythonProcess = null;
+            this.initialized = false;
         }
     }
 }

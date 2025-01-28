@@ -1,30 +1,76 @@
-<!DOCTYPE html>
 <div id="floating-window" class="floating-window hidden">
     <div class="window-header">
-        <span class="window-title">AIOS</span>
-        <button id="close-window" class="close-btn">×</button>
+        <div class="window-title">Account Settings</div>
+        <button class="close-btn" id="close-aios">×</button>
     </div>
     <div class="window-content">
-        <div class="sidebar">
-            <div class="sidebar-options">
-                <div class="above-option">
-                    <span>Profile</span>
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="profile">Profile</button>
+            <button class="tab-btn" data-tab="account">Account</button>
+            <button class="tab-btn" data-tab="about">About</button>
+            <button class="tab-btn" data-tab="support">Support</button>
+        </div>
+        
+        <!-- Profile Tab -->
+        <div class="tab-content active" id="profile-tab">
+            <form id="profile-form">
+                <div class="form-group">
+                    <label for="fullName">Full Name</label>
+                    <input type="text" id="fullName" placeholder="Enter your full name">
                 </div>
-                <div class="above-option">
-                    <span>About</span>
+                <div class="form-group">
+                    <label for="nickname">What should we call you?</label>
+                    <input type="text" id="nickname" placeholder="Enter your preferred name">
                 </div>
-                <div class="above-option">
-                    <span>Settings</span>
+                <div class="form-group">
+                    <label for="occupation">What do you do?</label>
+                    <input type="text" id="occupation" placeholder="Enter your occupation">
                 </div>
-                <div class="above-option">
-                    <span>Help</span>
-                </div>
+                <button type="submit" class="save-btn">Save Changes</button>
+            </form>
+        </div>
+
+        <!-- Account Tab -->
+        <div class="tab-content" id="account-tab">
+            <div class="form-group">
+                <label>Email ID</label>
+                <p class="email-display" id="userEmail">user@example.com</p>
+            </div>
+            <button class="danger-btn" id="logout-btn">Log Out</button>
+            <button class="danger-btn" id="delete-account-btn">Delete Account</button>
+        </div>
+
+        <!-- About Tab -->
+        <div class="tab-content" id="about-tab">
+            <h3>AIOS Desktop</h3>
+            <p class="version">Version 1.0.0</p>
+            <p class="description">
+                A modern desktop application for managing your account and preferences.
+            </p>
+            <div class="about-links">
+                <a href="#" class="link">Privacy Policy</a>
+                <a href="#" class="link">Terms of Service</a>
             </div>
         </div>
-        <div class="main-content">
-            <div id="content-area">
-                Select an option from the sidebar to view content.
-            </div>
+
+        <!-- Support Tab -->
+        <div class="tab-content" id="support-tab">
+            <form id="support-form">
+                <div class="form-group">
+                    <label for="subject">Subject</label>
+                    <input type="text" id="subject" placeholder="Enter subject">
+                </div>
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" placeholder="Describe your issue or feedback"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="screenshot">Upload Screenshot</label>
+                    <input type="file" id="screenshot" accept=".jpg,.png,.gif,.txt">
+                    <p class="file-hint">Supported formats: .jpg, .png, .gif, .txt</p>
+                </div>
+                <button type="submit" class="submit-btn">Submit</button>
+            </form>
         </div>
     </div>
 </div>

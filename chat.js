@@ -13,6 +13,7 @@ let chatConfig = {
 
 let socket = null;
 let ongoingStreams = {};
+let sessionActive = false;
 
 function connectSocket() {
     socket = io('http://localhost:8765', {
@@ -26,6 +27,7 @@ function connectSocket() {
     socket.on('connect', () => {
         console.log('Connected to server');
         document.querySelectorAll('.connection-error').forEach(e => e.remove());
+        sessionActive = false; // Reset session state on new connection
     });
 
     socket.on('response', (data) => { 
@@ -45,11 +47,13 @@ function connectSocket() {
 
     socket.on('disconnect', (reason) => {
         console.log('Disconnected:', reason);
+        sessionActive = false;
         showConnectionError();
     });
 
     socket.on('connect_error', (error) => {
         console.error('Connection Error:', error);
+        sessionActive = false;
         showConnectionError();
     });
 }
@@ -128,6 +132,7 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
+
 function handleSendMessage() {
     const floatingInput = document.getElementById('floating-input');
     const sendMessageBtn = document.getElementById('send-message');
@@ -143,12 +148,17 @@ function handleSendMessage() {
     const messageId = Date.now().toString();
     const messageData = {
         message: message,
-        id: messageId,
-        config: {
+        id: messageId
+    };
+
+    // Only send config on first message of new session
+    if (!sessionActive) {
+        messageData.config = {
             use_memory: chatConfig.memory,
             ...chatConfig.tools
-        }
-    };
+        };
+        sessionActive = true;
+    }
 
     try {
         socket.emit('send_message', JSON.stringify(messageData));
@@ -220,31 +230,17 @@ function init() {
         newChatBtn: document.querySelector('.add-btn')
     };
 
-    if (!elements.container || !elements.messages || !elements.input || !elements.sendBtn) {
-        console.error('Required chat elements not found');
-        return;
-    }
-
     initializeToolsMenu();
     handleMemoryToggle();
     connectSocket();
 
     elements.sendBtn.addEventListener('click', handleSendMessage);
+
     elements.input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSendMessage();
         }
-    });
-
-    elements.minimizeBtn.addEventListener('click', () => {
-        elements.container.classList.add('hidden');
-        document.getElementById('floating-input-container').classList.add('hidden');
-    });
-
-    elements.closeBtn.addEventListener('click', () => {
-        elements.container.classList.add('hidden');
-        document.getElementById('floating-input-container').classList.add('hidden');
     });
 
     elements.newChatBtn.addEventListener('click', () => {
@@ -268,19 +264,42 @@ function init() {
         });
         
         document.querySelectorAll('.tools-menu input[type="checkbox"]').forEach(checkbox => {
-            checkbox.checked = false;
+            checkbox.checked = chatConfig.tools[checkbox.id] || false;
         });
     
         // Send reinitialize request with flattened config
         if (socket?.connected) {
             socket.emit('send_message', JSON.stringify({
-                type: 'reinitialize',
-                config: {
-                    use_memory: chatConfig.memory,
-                    ...chatConfig.tools
-                }
+                type: 'new_chat'
             }));
+            sessionActive = false;
         }
+
+        elements.minimizeBtn.addEventListener('click', () => {
+            elements.container.classList.add('hidden');
+            document.getElementById('floating-input-container').classList.add('hidden');
+        });
+    
+        elements.closeBtn.addEventListener('click', () => {
+            elements.container.classList.add('hidden');
+            document.getElementById('floating-input-container').classList.add('hidden');
+        });
+    });
+
+    // Send initial config on connection
+    socket.on('connect', () => {
+        socket.emit('send_message', JSON.stringify({
+            type: 'initialize',
+            config: {
+                calculator: true,
+                ddg_search: true,
+                python_assistant: true,
+                investment_assistant: true,
+                shell_tools: true,
+                web_crawler: true,
+                use_memory: chatConfig.memory
+            }
+        }));
     });
 }
 

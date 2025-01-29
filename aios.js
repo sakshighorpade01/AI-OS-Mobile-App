@@ -1,107 +1,26 @@
-const { spawn } = require('child_process');
-const path = require('path');
-
-class BackendManager {
-    constructor() {
-        this.serverProcess = null;
-        this.isServerRunning = false;
-    }
-
-    startBackend() {
-        const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
-
-
-        const serverScript = path.join(__dirname, 'python-backend', 'server.py');
-
-        try {
-            this.serverProcess = spawn(pythonCommand, [serverScript]);
-            this.isServerRunning = true;
-
-            this.serverProcess.stdout.on('data', (data) => {
-                console.log(`Backend output: ${data}`);
-            });
-
-            this.serverProcess.stderr.on('data', (data) => {
-                console.error(`Backend error: ${data}`);
-            });
-
-            this.serverProcess.on('close', (code) => {
-                console.log(`Backend process exited with code ${code}`);
-                this.isServerRunning = false;
-            });
-
-            process.on('exit', () => {
-                this.stopBackend();
-            });
-
-        } catch (error) {
-            console.error('Failed to start backend:', error);
-            throw error;
-        }
-    }
-
-    stopBackend() {
-        if (this.serverProcess && this.isServerRunning) {
-            this.serverProcess.kill();
-            this.isServerRunning = false;
-        }
-    }
-}
-
 class AIOS {
     constructor() {
         this.initialized = false;
         this.currentTab = 'profile';
         this.elements = {};
+        this.fs = require('fs');
+        this.path = require('path');
+        this.userDataPath = this.path.join(__dirname, 'userData');
         this.userData = this.loadUserData();
-        this.API_URL = 'http://localhost:5000/api';
-        this.backendManager = new BackendManager();
     }
 
-    async init() {
+    init() {
         if (this.initialized) return;
 
-        try {
-            // Start backend server
-            await this.startBackendServer();
-
-            this.cacheElements();
-            this.setupEventListeners();
-            this.loadSavedData();
-            this.initialized = true;
-        } catch (error) {
-            console.error('Failed to initialize AIOS:', error);
-            this.showErrorMessage('Failed to start the application. Please check the console for details.');
+        // Create userData directory if it doesn't exist
+        if (!this.fs.existsSync(this.userDataPath)) {
+            this.fs.mkdirSync(this.userDataPath, { recursive: true });
         }
-    }
 
-    async startBackendServer() {
-        try {
-            this.backendManager.startBackend();
-            
-            // Wait for backend to be ready
-            await this.waitForBackend();
-            console.log('Backend server started successfully');
-        } catch (error) {
-            console.error('Failed to start backend server:', error);
-            throw error;
-        }
-    }
-
-    async waitForBackend(retries = 5) {
-        for (let i = 0; i < retries; i++) {
-            try {
-                const response = await fetch(`${this.API_URL}/status`);
-                if (response.ok) {
-                    return true;
-                }
-            } catch (error) {
-                if (i === retries - 1) {
-                    throw new Error('Backend server failed to start');
-                }
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-        }
+        this.cacheElements();
+        this.setupEventListeners();
+        this.loadSavedData();
+        this.initialized = true;
     }
 
     cacheElements() {
@@ -114,11 +33,13 @@ class AIOS {
             supportForm: document.getElementById('support-form'),
             logoutBtn: document.getElementById('logout-btn'),
             deleteAccountBtn: document.getElementById('delete-account-btn'),
+            // Profile elements
             fullName: document.getElementById('fullName'),
             nickname: document.getElementById('nickname'),
             occupation: document.getElementById('occupation'),
             saveProfileBtn: document.getElementById('save-profile'),
             userEmail: document.getElementById('userEmail'),
+            // Support elements
             subject: document.getElementById('subject'),
             description: document.getElementById('description'),
             screenshot: document.getElementById('screenshot')
@@ -126,32 +47,66 @@ class AIOS {
     }
 
     setupEventListeners() {
-        this.elements.closeBtn?.addEventListener('click', () => this.hideWindow());
-
-        this.elements.tabs?.forEach(tab => {
-            tab.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
+        // Close button
+        this.elements.closeBtn?.addEventListener('click', () => {
+            this.hideWindow();
         });
 
+        // Tab switching
+        this.elements.tabs?.forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                this.switchTab(e.target.dataset.tab);
+            });
+        });
+
+        // Profile form submission
         this.elements.profileForm?.addEventListener('submit', (e) => {
             e.preventDefault();
             this.handleProfileSubmit();
         });
 
+        // Support form submission
         this.elements.supportForm?.addEventListener('submit', (e) => {
             e.preventDefault();
             this.handleSupportSubmit();
         });
 
-        this.elements.logoutBtn?.addEventListener('click', () => this.handleLogout());
+        // Account actions
+        this.elements.logoutBtn?.addEventListener('click', () => {
+            this.handleLogout();
+        });
 
-        this.elements.deleteAccountBtn?.addEventListener('click', () => this.handleDeleteAccount());
+        this.elements.deleteAccountBtn?.addEventListener('click', () => {
+            this.handleDeleteAccount();
+        });
 
-        this.elements.screenshot?.addEventListener('change', (e) => this.handleFileUpload(e));
+        // Screenshot upload handling
+        if (this.elements.screenshot) {
+            this.elements.screenshot.addEventListener('change', (e) => {
+                this.handleFileUpload(e);
+            });
+        }
     }
 
     loadUserData() {
-        const savedData = localStorage.getItem('aiosUserData');
-        return savedData ? JSON.parse(savedData) : {
+        try {
+            const profilePath = this.path.join(this.userDataPath, 'profile.json');
+            if (this.fs.existsSync(profilePath)) {
+                const data = this.fs.readFileSync(profilePath, 'utf8');
+                return {
+                    ...JSON.parse(data),
+                    account: { email: 'user@example.com' },
+                    about: {
+                        version: '1.0.0',
+                        lastUpdate: new Date().toISOString()
+                    }
+                };
+            }
+        } catch (error) {
+            console.error('Error loading user data:', error);
+        }
+
+        return {
             profile: {
                 fullName: '',
                 nickname: '',
@@ -168,10 +123,26 @@ class AIOS {
     }
 
     saveUserData() {
-        localStorage.setItem('aiosUserData', JSON.stringify(this.userData));
+        try {
+            const profilePath = this.path.join(this.userDataPath, 'profile.json');
+            const profileData = {
+                profile: this.userData.profile,
+                lastUpdate: new Date().toISOString()
+            };
+            
+            this.fs.writeFileSync(
+                profilePath,
+                JSON.stringify(profileData, null, 2),
+                'utf8'
+            );
+        } catch (error) {
+            console.error('Error saving user data:', error);
+            this.showErrorMessage('Failed to save profile data');
+        }
     }
 
     loadSavedData() {
+        // Load profile data
         if (this.elements.fullName) {
             this.elements.fullName.value = this.userData.profile.fullName;
         }
@@ -186,38 +157,16 @@ class AIOS {
         }
     }
 
-    async handleProfileSubmit() {
-        const profileData = {
+    handleProfileSubmit() {
+        // Save profile data only when form is submitted
+        this.userData.profile = {
             fullName: this.elements.fullName?.value || '',
             nickname: this.elements.nickname?.value || '',
             occupation: this.elements.occupation?.value || ''
         };
-
-        // Save to localStorage
-        this.userData.profile = profileData;
+        
         this.saveUserData();
-
-        try {
-            // Send to backend
-            const response = await fetch(`${this.API_URL}/profile`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(profileData)
-            });
-
-            const data = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(data.message || 'Failed to save profile to server');
-            }
-
-            this.showSuccessMessage('Profile saved successfully to both local storage and server');
-        } catch (error) {
-            console.error('Error saving profile to server:', error);
-            this.showSuccessMessage('Profile saved locally but failed to save to server');
-        }
+        this.showSuccessMessage('Profile saved successfully');
     }
 
     handleSupportSubmit() {
@@ -227,15 +176,27 @@ class AIOS {
             timestamp: new Date().toISOString()
         };
 
-        const feedbackHistory = JSON.parse(localStorage.getItem('aiosFeedback') || '[]');
-        feedbackHistory.push(formData);
-        localStorage.setItem('aiosFeedback', JSON.stringify(feedbackHistory));
+        try {
+            const feedbackPath = this.path.join(this.userDataPath, 'feedback.json');
+            let feedbackHistory = [];
+            
+            if (this.fs.existsSync(feedbackPath)) {
+                feedbackHistory = JSON.parse(this.fs.readFileSync(feedbackPath, 'utf8'));
+            }
+            
+            feedbackHistory.push(formData);
+            this.fs.writeFileSync(feedbackPath, JSON.stringify(feedbackHistory, null, 2), 'utf8');
 
-        if (this.elements.supportForm) {
-            this.elements.supportForm.reset();
+            // Clear form
+            if (this.elements.supportForm) {
+                this.elements.supportForm.reset();
+            }
+
+            this.showSuccessMessage('Feedback submitted successfully');
+        } catch (error) {
+            console.error('Error saving feedback:', error);
+            this.showErrorMessage('Failed to submit feedback');
         }
-
-        this.showSuccessMessage('Feedback submitted successfully');
     }
 
     handleLogout() {
@@ -248,15 +209,29 @@ class AIOS {
 
     handleDeleteAccount() {
         if (confirm('Are you sure you want to delete your account? This will permanently remove all your data and cannot be undone.')) {
-            localStorage.removeItem('aiosUserData');
-            localStorage.removeItem('aiosFeedback');
-            sessionStorage.clear();
-            
-            this.userData = this.loadUserData();
-            this.loadSavedData();
-            
-            this.showSuccessMessage('Account deleted successfully');
-            this.hideWindow();
+            try {
+                // Delete all data files
+                const profilePath = this.path.join(this.userDataPath, 'profile.json');
+                const feedbackPath = this.path.join(this.userDataPath, 'feedback.json');
+
+                if (this.fs.existsSync(profilePath)) {
+                    this.fs.unlinkSync(profilePath);
+                }
+                if (this.fs.existsSync(feedbackPath)) {
+                    this.fs.unlinkSync(feedbackPath);
+                }
+                
+                sessionStorage.clear();
+                
+                this.userData = this.loadUserData(); // Reset to default
+                this.loadSavedData(); // Reload UI with defaults
+                
+                this.showSuccessMessage('Account deleted successfully');
+                this.hideWindow();
+            } catch (error) {
+                console.error('Error deleting account:', error);
+                this.showErrorMessage('Failed to delete account data');
+            }
         }
     }
 
@@ -267,17 +242,30 @@ class AIOS {
             const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
             
             if (validTypes.includes(fileExtension)) {
+                // Create preview if it's an image
                 if (fileExtension !== '.txt') {
                     this.createImagePreview(file);
                 }
                 
-                this.userData.currentUpload = {
-                    name: file.name,
-                    type: fileExtension,
-                    size: file.size,
-                    timestamp: new Date().toISOString()
-                };
-                this.saveUserData();
+                // Store file metadata
+                const uploadPath = this.path.join(this.userDataPath, 'uploads.json');
+                try {
+                    let uploads = [];
+                    if (this.fs.existsSync(uploadPath)) {
+                        uploads = JSON.parse(this.fs.readFileSync(uploadPath, 'utf8'));
+                    }
+                    
+                    uploads.push({
+                        name: file.name,
+                        type: fileExtension,
+                        size: file.size,
+                        timestamp: new Date().toISOString()
+                    });
+                    
+                    this.fs.writeFileSync(uploadPath, JSON.stringify(uploads, null, 2), 'utf8');
+                } catch (error) {
+                    console.error('Error saving upload metadata:', error);
+                }
             } else {
                 alert('Invalid file type. Please upload .jpg, .png, .gif, or .txt files only.');
                 event.target.value = '';
@@ -347,7 +335,7 @@ class AIOS {
             top: 20px;
             right: 20px;
             padding: 12px 24px;
-            background-color: ${type === 'success' ? '#4CAF50' : '#FF3B30'};
+            background-color: ${type === 'success' ? '#4CAF50' : '#f44336'};
             color: white;
             border-radius: 4px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.2);
@@ -371,5 +359,3 @@ class AIOS {
 
 // Initialize AIOS
 window.AIOS = new AIOS();
-// Start the application
-window.AIOS.init().catch(console.error);

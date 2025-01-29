@@ -1,23 +1,28 @@
 :root {
-    --bg-color: #ffffff;
-    --text-color: #333333;
-    --taskbar-bg: #f0f0f0;
-    --window-bg: #ffffff;
-    --border-color: #dddddd;
-    --icon-color: #666666;
-    --icon-hover: #333333;
-    --shadow-color: rgba(0, 0, 0, 0.1);
+    /* Modern color palette */
+    --bg-color: #f8f9fc;
+    --text-color: #2d3748;
+    --taskbar-bg: rgba(255, 255, 255, 0.85);
+    --window-bg: rgba(255, 255, 255, 0.95);
+    --border-color: rgba(226, 232, 240, 0.8);
+    --icon-color: #718096;
+    --icon-hover: #4a5568;
+    --shadow-color: rgba(0, 0, 0, 0.08);
+    --accent-color: #6366f1;
+    --accent-hover: #4f46e5;
 }
 
 .dark-mode {
-    --bg-color: #1a1a1a;
-    --text-color: #ffffff;
-    --taskbar-bg: #2d2d2d;
-    --window-bg: #2d2d2d;
-    --border-color: #404040;
-    --icon-color: #cccccc;
-    --icon-hover: #ffffff;
-    --shadow-color: rgba(0, 0, 0, 0.3);
+    --bg-color: #0f172a;
+    --text-color: #e2e8f0;
+    --taskbar-bg: rgba(30, 41, 59, 0.85);
+    --window-bg: rgba(30, 41, 59, 0.95);
+    --border-color: rgba(51, 65, 85, 0.8);
+    --icon-color: #94a3b8;
+    --icon-hover: #e2e8f0;
+    --shadow-color: rgba(0, 0, 0, 0.25);
+    --accent-color: #818cf8;
+    --accent-hover: #6366f1;
 }
 
 * {
@@ -33,111 +38,104 @@ body {
     height: 100vh;
     overflow: hidden;
     position: relative;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/* Enhanced Taskbar */
 .taskbar {
     position: fixed;
-    bottom: 20px;
+    bottom: 24px;
     left: 50%;
     transform: translateX(-50%);
     background-color: var(--taskbar-bg);
-    padding: 8px 16px;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px var(--shadow-color);
+    padding: 8px 20px;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px var(--shadow-color);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
 }
 
 .taskbar-icons {
     display: flex;
-    gap: 16px;
+    gap: 20px;
+    align-items: center;
 }
 
 .taskbar-icon {
     background: none;
     border: none;
     cursor: pointer;
-    padding: 8px;
-    border-radius: 8px;
+    padding: 10px;
+    border-radius: 12px;
     color: var(--icon-color);
     transition: all 0.2s ease;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .taskbar-icon:hover {
-    background-color: var(--shadow-color);
-    color: var(--icon-hover);
+    background-color: var(--accent-color);
+    color: white;
+    transform: translateY(-2px);
 }
 
+.taskbar-icon:active {
+    transform: translateY(0px);
+}
+
+.taskbar-icon i {
+    font-size: 1.2rem;
+}
+
+/* Enhanced Floating Window */
 .floating-window {
     position: fixed;
     bottom: 100px;
     left: 50%;
     transform: translateX(-50%);
     background-color: var(--window-bg);
-    border-radius: 12px;
-    box-shadow: 0 4px 24px var(--shadow-color);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px var(--shadow-color);
     width: 400px;
     height: 300px;
     border: 1px solid var(--border-color);
+    backdrop-filter: blur(12px);
+    transition: all 0.3s ease;
 }
 
 .window-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px;
+    padding: 16px;
     border-bottom: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px 16px 0 0;
 }
 
 .window-title {
     font-weight: 600;
+    font-size: 0.95rem;
+    letter-spacing: 0.01em;
 }
 
-.close-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--text-color);
-    font-size: 20px;
-    padding: 4px 8px;
-    border-radius: 4px;
-}
-
-.close-btn:hover {
-    background-color: var(--shadow-color);
-}
-
-.window-content {
-    padding: 16px;
-}
-
-.hidden {
-    display: none;
-}
-
-.theme-toggle {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 8px;
-    color: var(--icon-color);
-    transition: all 0.2s ease;
-}
-
-.theme-toggle:hover {
-    background-color: var(--shadow-color);
-    color: var(--icon-hover);
-}
-/* Window controls */
+/* Enhanced Window Controls */
 .window-controls {
     position: fixed;
-    top: 20px;
-    right: 20px;
+    top: 24px;
+    right: 24px;
     display: flex;
-    gap: 12px;
+    gap: 16px;
     z-index: 1000;
+    background-color: var(--taskbar-bg);
+    padding: 8px;
+    border-radius: 12px;
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 16px var(--shadow-color);
 }
 
 .window-control-btn {
@@ -148,14 +146,99 @@ body {
     border-radius: 8px;
     color: var(--icon-color);
     transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .window-control-btn:hover {
-    background-color: var(--shadow-color);
-    color: var(--icon-hover);
+    color: var(--accent-color);
+    transform: translateY(-1px);
 }
 
-/* Update theme toggle position to align with controls */
+.window-control-btn:active {
+    transform: translateY(0px);
+}
+
+#close-window:hover {
+    background-color: #ef4444;
+    color: white;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--icon-color);
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.floating-window {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Glass Morphism Effects */
+.taskbar,
+.window-controls,
+.floating-window {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+/* Theme Toggle Enhancement */
 .theme-toggle {
-    position: static; /* Remove fixed positioning */
+    position: relative;
+    overflow: hidden;
+}
+
+.theme-toggle i {
+    transition: all 0.3s ease;
+}
+
+.theme-toggle:hover i {
+    color: var(--accent-color);
+    transform: rotate(180deg);
+}
+
+/* Focus States */
+.taskbar-icon:focus,
+.window-control-btn:focus {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .taskbar {
+        bottom: 16px;
+        padding: 6px 16px;
+    }
+    
+    .window-controls {
+        top: 16px;
+        right: 16px;
+    }
 }

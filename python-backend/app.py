@@ -5,6 +5,9 @@ from flask import Flask, request
 from flask_socketio import SocketIO, emit
 from assistant import get_llm_os
 import threading
+from concurrent.futures import ThreadPoolExecutor
+import traceback
+from queue import Queue
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -13,56 +16,78 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
+class IsolatedAssistant:
+    def __init__(self):
+        self.executor = ThreadPoolExecutor(max_workers=1)
+        self.response_queue = Queue()
+        
+    def run_safely(self, agent, message):
+        """Runs agent in isolated thread and handles crashes"""
+        try:
+            future = self.executor.submit(agent.run, message, stream=True)
+            for chunk in future.result():
+                if chunk and chunk.content:
+                    yield {"content": chunk.content, "streaming": True}
+            yield {"content": "", "done": True}
+            
+        except Exception as e:
+            error_msg = f"Tool error: {str(e)}\n{traceback.format_exc()}"
+            logging.error(error_msg)
+            yield {"content": "An error occurred while processing your request. Starting a new session...", 
+                  "error": True, "done": True}
+            # Signal need for session reset
+            yield {"reset_session": True}
+
+    def terminate(self):
+        self.executor.shutdown(wait=False)
+
 class ConnectionManager:
     def __init__(self):
         self.sessions = {}
         self.lock = threading.Lock()
+        self.isolated_assistants = {}
         
     def create_session(self, sid, config):
-        """Creates a new agent session with the given config"""
         with self.lock:
             if sid in self.sessions:
                 self.terminate_session(sid)
-                
-            agent = self.create_agent(config)
+            
+            agent = get_llm_os(
+                calculator=config.get("calculator", False),
+                web_crawler=config.get("web_crawler", False),
+                ddg_search=config.get("ddg_search", False),
+                shell_tools=config.get("shell_tools", False),
+                python_assistant=config.get("python_assistant", False),
+                investment_assistant=config.get("investment_assistant", False),
+                use_memory=config.get("use_memory", False),
+                debug_mode=False
+            )
+            
             self.sessions[sid] = {
                 "agent": agent,
                 "config": config,
                 "initialized": True
             }
+            
+            # Create isolated assistant for this session
+            self.isolated_assistants[sid] = IsolatedAssistant()
+            
             logging.info(f"Created new session {sid} with config {config}")
             return agent
-            
-    def create_agent(self, config):
-        return get_llm_os(
-            calculator=config.get("calculator", False),
-            web_crawler=config.get("web_crawler", False),
-            ddg_search=config.get("ddg_search", False),
-            shell_tools=config.get("shell_tools", False),
-            python_assistant=config.get("python_assistant", False),
-            investment_assistant=config.get("investment_assistant", False),
-            use_memory=config.get("use_memory", False),
-            debug_mode=False
-        )
 
     def terminate_session(self, sid):
-        """Terminates an existing session and cleans up resources"""
         with self.lock:
             if sid in self.sessions:
-                # Clean up agent resources if needed
-                agent = self.sessions[sid].get("agent")
-                if agent:
-                    # Add any cleanup needed for agent
-                    pass
+                if sid in self.isolated_assistants:
+                    self.isolated_assistants[sid].terminate()
+                    del self.isolated_assistants[sid]
                 del self.sessions[sid]
                 logging.info(f"Terminated session {sid}")
 
     def get_session(self, sid):
-        """Gets the session for a given sid"""
         return self.sessions.get(sid)
 
     def remove_session(self, sid):
-        """Removes a session on disconnect"""
         self.terminate_session(sid)
 
 connection_manager = ConnectionManager()
@@ -71,7 +96,6 @@ connection_manager = ConnectionManager()
 def on_connect():
     sid = request.sid
     logging.info(f"Client connected: {sid}")
-    # Only send connection confirmation, don't create session
     emit("status", {"message": "Connected to server"})
 
 @socketio.on("disconnect")
@@ -87,7 +111,7 @@ def on_send_message(data):
         data = json.loads(data)
         message = data.get("message", "")
         
-        # Check if this is a new chat request
+        # Handle new chat requests
         if data.get("type") == "new_chat":
             connection_manager.terminate_session(sid)
             emit("status", {"message": "Session terminated"}, room=sid)
@@ -95,34 +119,33 @@ def on_send_message(data):
 
         session = connection_manager.get_session(sid)
         if not session:
-            # Only create session if we have a real message
             if not message:
                 return
-                
             config = data.get("config", {})
             agent = connection_manager.create_session(sid, config)
         else:
             agent = session["agent"]
 
         message_id = str(uuid.uuid4())
+        isolated_assistant = connection_manager.isolated_assistants.get(sid)
         
-        responses = []
-        stream = agent.run(message, stream=True)
-        for chunk in stream:
-            if chunk and chunk.content:
-                responses.append({
-                    "id": message_id, 
-                    "content": chunk.content,
-                    "streaming": True
-                })
-        responses.append({"id": message_id, "content": "", "done": True})
-        
-        for response in responses:
-            emit("response", response, room=sid)
+        if not isolated_assistant:
+            emit("error", {"message": "Session error. Starting new chat...", "reset": True})
+            connection_manager.terminate_session(sid)
+            return
+
+        for response in isolated_assistant.run_safely(agent, message):
+            if response.get("reset_session"):
+                connection_manager.terminate_session(sid)
+                emit("error", {"message": "Session reset required", "reset": True})
+                return
+                
+            emit("response", {**response, "id": message_id}, room=sid)
                 
     except Exception as e:
-        logging.error(f"Error processing message: {e}")
-        emit("error", {"message": str(e)}, room=sid)
+        logging.error(f"Error in message handler: {e}\n{traceback.format_exc()}")
+        emit("error", {"message": "AI service error. Starting new chat...", "reset": True})
+        connection_manager.terminate_session(sid)
 
 if __name__ == "__main__":
     logging.info("Starting server on port 8765")

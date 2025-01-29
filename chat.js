@@ -27,13 +27,26 @@ function connectSocket() {
     socket.on('connect', () => {
         console.log('Connected to server');
         document.querySelectorAll('.connection-error').forEach(e => e.remove());
-        sessionActive = false; // Reset session state on new connection
+        sessionActive = false; 
     });
 
     socket.on('response', (data) => { 
         console.log('Raw response:', data); 
         try {
-            handleSocketResponse(data);
+            const isStreaming = data.streaming || false;
+            const isDone = data.done || false;
+            const messageId = data.id;
+            
+            if (isStreaming) {
+                addMessage(data, false, true, messageId, isDone);
+            } else if (data.content || data.message) {
+                addMessage(data, false);
+            }
+            
+            // Re-enable UI after response
+            document.getElementById('floating-input').disabled = false;
+            document.getElementById('send-message').disabled = false;
+            
         } catch (error) {
             console.error('Error handling response:', error);
             addMessage('Error processing response', false);
@@ -41,14 +54,27 @@ function connectSocket() {
     });
 
     socket.on('error', (error) => {
-        console.error('Socket error:', error);
-        addMessage(`Error: ${error.message}`, false);
+        console.error('Error:', error);
+        addMessage(error.message || 'An error occurred', false);
+        
+        // Reset UI and start new chat if needed
+        document.getElementById('floating-input').disabled = false;
+        document.getElementById('send-message').disabled = false;
+        
+        if (error.reset) {
+            sessionActive = false;
+            document.querySelector('.add-btn').click();
+        }
     });
 
-    socket.on('disconnect', (reason) => {
-        console.log('Disconnected:', reason);
+    socket.on('disconnect', () => {
         sessionActive = false;
-        showConnectionError();
+        if (!document.querySelector('.connection-error')) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'connection-error';
+            errorDiv.textContent = 'Connecting to server...';
+            document.body.appendChild(errorDiv);
+        }
     });
 
     socket.on('connect_error', (error) => {
@@ -65,24 +91,6 @@ function showConnectionError() {
         errorDiv.textContent = 'Connecting to server...';
         document.body.appendChild(errorDiv);
     }
-}
-
-function handleSocketResponse(response) {
-    const isStreaming = response.streaming || false;
-    const isDone = response.done || false;
-    const messageId = response.id;
-    
-    if (isStreaming) {
-        addMessage(response, false, true, messageId, isDone);
-    } else if (response.content || response.message) {
-        addMessage(response, false);
-    }
-    
-    // Re-enable input after processing
-    const floatingInput = document.getElementById('floating-input');
-    const sendMessageBtn = document.getElementById('send-message');
-    if (floatingInput) floatingInput.disabled = false;
-    if (sendMessageBtn) sendMessageBtn.disabled = false;
 }
 
 function addMessage(message, isUser, isStreaming = false, messageId = null, isDone = false) {

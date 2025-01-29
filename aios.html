@@ -4,73 +4,109 @@
         <button class="close-btn" id="close-aios">×</button>
     </div>
     <div class="window-content">
-        <div class="tabs">
-            <button class="tab-btn active" data-tab="profile">Profile</button>
-            <button class="tab-btn" data-tab="account">Account</button>
-            <button class="tab-btn" data-tab="about">About</button>
-            <button class="tab-btn" data-tab="support">Support</button>
-        </div>
-        
-        <!-- Profile Tab -->
-        <div class="tab-content active" id="profile-tab">
-            <form id="profile-form">
-                <div class="form-group">
-                    <label for="fullName">Full Name</label>
-                    <input type="text" id="fullName" placeholder="Enter your full name">
-                </div>
-                <div class="form-group">
-                    <label for="nickname">What should we call you?</label>
-                    <input type="text" id="nickname" placeholder="Enter your preferred name">
-                </div>
-                <div class="form-group">
-                    <label for="occupation">What do you do?</label>
-                    <input type="text" id="occupation" placeholder="Enter your occupation">
-                </div>
-                <button type="submit" class="save-btn">Save Changes</button>
-            </form>
-        </div>
-
-        <!-- Account Tab -->
-        <div class="tab-content" id="account-tab">
-            <div class="form-group">
-                <label>Email ID</label>
-                <p class="email-display" id="userEmail">user@example.com</p>
+        <div class="split-layout">
+            <!-- Left Side - Navigation Tabs -->
+            <div class="tabs-sidebar">
+                <button class="tab-btn active" data-tab="profile">
+                    <i class="fas fa-user"></i>
+                    Profile
+                </button>
+                <button class="tab-btn" data-tab="account">
+                    <i class="fas fa-cog"></i>
+                    Account
+                </button>
+                <button class="tab-btn" data-tab="about">
+                    <i class="fas fa-info-circle"></i>
+                    About
+                </button>
+                <button class="tab-btn" data-tab="support">
+                    <i class="fas fa-question-circle"></i>
+                    Support
+                </button>
             </div>
-            <button class="danger-btn" id="logout-btn">Log Out</button>
-            <button class="danger-btn" id="delete-account-btn">Delete Account</button>
-        </div>
 
-        <!-- About Tab -->
-        <div class="tab-content" id="about-tab">
-            <h3>AIOS Desktop</h3>
-            <p class="version">Version 1.0.0</p>
-            <p class="description">
-                A modern desktop application for managing your account and preferences.
-            </p>
-            <div class="about-links">
-                <a href="#" class="link">Privacy Policy</a>
-                <a href="#" class="link">Terms of Service</a>
+            <!-- Right Side - Tab Content -->
+            <div class="tab-content-area">
+                <!-- Profile Tab -->
+                <div class="tab-content active" id="profile-tab">
+                    <h3>Profile Information</h3>
+                    <form id="profile-form">
+                        <div class="form-group">
+                            <label for="fullName">Full Name</label>
+                            <input type="text" id="fullName" placeholder="Enter your full name">
+                        </div>
+                        <div class="form-group">
+                            <label for="nickname">What should we call you?</label>
+                            <input type="text" id="nickname" placeholder="Enter your preferred name">
+                        </div>
+                        <div class="form-group">
+                            <label for="occupation">What do you do?</label>
+                            <input type="text" id="occupation" placeholder="Enter your occupation">
+                        </div>
+                        <button type="submit" class="save-btn">Save Changes</button>
+                    </form>
+                </div>
+
+                <!-- Account Tab -->
+                <div class="tab-content" id="account-tab">
+                    <h3>Account Settings</h3>
+                    <div class="form-group">
+                        <label>Email ID</label>
+                        <p class="email-display" id="userEmail">user@example.com</p>
+                    </div>
+                    <div class="account-actions">
+                        <button class="secondary-btn" id="logout-btn">
+                            <i class="fas fa-sign-out-alt"></i>
+                            Log Out
+                        </button>
+                        <button class="danger-btn" id="delete-account-btn">
+                            <i class="fas fa-trash-alt"></i>
+                            Delete Account
+                        </button>
+                    </div>
+                </div>
+
+                <!-- About Tab -->
+                <div class="tab-content" id="about-tab">
+                    <h3>About AIOS Desktop</h3>
+                    <div class="about-content">
+                        <p class="version">Version 1.0.0</p>
+                        <p class="description">
+                            A modern desktop application for managing your account and preferences.
+                            Built with Electron for optimal performance and user experience.
+                        </p>
+                        <div class="about-links">
+                            <a href="#" class="link">Privacy Policy</a>
+                            <a href="#" class="link">Terms of Service</a>
+                            <a href="#" class="link">Documentation</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Support Tab -->
+                <div class="tab-content" id="support-tab">
+                    <h3>Support & Feedback</h3>
+                    <form id="support-form">
+                        <div class="form-group">
+                            <label for="subject">Subject</label>
+                            <input type="text" id="subject" placeholder="Enter subject">
+                        </div>
+                        <div class="form-group">
+                            <label for="description">Description</label>
+                            <textarea id="description" placeholder="Describe your issue or feedback"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="screenshot">Upload Screenshot</label>
+                            <div class="upload-container">
+                                <input type="file" id="screenshot" accept=".jpg,.png,.gif,.txt">
+                                <p class="file-hint">Supported formats: .jpg, .png, .gif, .txt</p>
+                            </div>
+                            <div class="screenshot-preview"></div>
+                        </div>
+                        <button type="submit" class="submit-btn">Submit Feedback</button>
+                    </form>
+                </div>
             </div>
-        </div>
-
-        <!-- Support Tab -->
-        <div class="tab-content" id="support-tab">
-            <form id="support-form">
-                <div class="form-group">
-                    <label for="subject">Subject</label>
-                    <input type="text" id="subject" placeholder="Enter subject">
-                </div>
-                <div class="form-group">
-                    <label for="description">Description</label>
-                    <textarea id="description" placeholder="Describe your issue or feedback"></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="screenshot">Upload Screenshot</label>
-                    <input type="file" id="screenshot" accept=".jpg,.png,.gif,.txt">
-                    <p class="file-hint">Supported formats: .jpg, .png, .gif, .txt</p>
-                </div>
-                <button type="submit" class="submit-btn">Submit</button>
-            </form>
         </div>
     </div>
 </div>

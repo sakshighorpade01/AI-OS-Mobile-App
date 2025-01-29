@@ -384,3 +384,15 @@
         width: 90%;
     }
 }
+
+.connection-error {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: #3b60db;
+    color: white;
+    padding: 8px 15px;
+    border-radius: 5px;
+    font-size: 0.9em;
+    z-index: 1000;
+}

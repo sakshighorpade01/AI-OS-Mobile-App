@@ -60,7 +60,7 @@ class ConnectionManager:
                 python_assistant=config.get("python_assistant", False),
                 investment_assistant=config.get("investment_assistant", False),
                 use_memory=config.get("use_memory", False),
-                debug_mode=False
+                debug_mode=True
             )
             
             self.sessions[sid] = {

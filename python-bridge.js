@@ -15,7 +15,12 @@ class PythonBridge {
         const pythonPath = path.join(__dirname, 'python-backend', 'app.py');
         
         this.pythonProcess = spawn('python', [pythonPath], {
-            stdio: ['pipe', 'pipe', 'pipe']
+            stdio: ['pipe', 'pipe', 'pipe'],
+            env: {
+                ...process.env,
+                PYTHONIOENCODING: 'utf-8', // Add this line
+                PYTHONUTF8: '1'            // Add this line for Python 3.7+
+            }
         });
 
         this.setupEventListeners();

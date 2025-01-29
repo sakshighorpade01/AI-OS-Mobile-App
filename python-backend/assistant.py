@@ -97,13 +97,6 @@ def get_llm_os(
             "Use the Calculator tool for mathematical operations. Available functions: add, subtract, multiply, divide, exponentiate, factorial, is_prime, square_root"
         )
 
-    if web_crawler:
-        crawl_tool = Crawl4aiTools(max_length=None)
-        tools.append(crawl_tool)
-        extra_instructions.append(
-            "Use the web_crawler tool when any URL is provided. Example: web_crawler(url='https://example.com')"
-        )
-
     if ddg_search:
         ddg_tool = DuckDuckGo(fixed_max_results=10)
         tools.append(ddg_tool)
@@ -130,6 +123,28 @@ def get_llm_os(
         team.append(_python_assistant)
         extra_instructions.append("To write and run python code, delegate the task to the `Python Assistant`.")
 
+    if web_crawler:
+        _web_crawler = Agent(
+            name="Web Crawler",
+            role="Extract information from a given URL",
+            model=Gemini(id="gemini-2.0-flash-exp"),
+            description="You are a web crawler that can extract information from a given URL.",
+            instructions=[
+                "For a given URL, extract relevant information and summarize the content.",
+                "Provide the user with the extracted information in a clear and concise manner.",
+            ],
+            tools=[Crawl4aiTools(max_length=None)],
+            markdown=True,
+            add_datetime_to_instructions=True,
+            debug_mode=debug_mode,
+        )
+        team.append(_web_crawler)
+        extra_instructions.extend(
+            [
+                "To extract information from a URL, delegate the task to the `Web Crawler`.",
+                "Provide the user with the extracted information in a clear and concise manner.",
+            ]
+        )
 
     if investment_assistant:
         _investment_assistant = Agent(

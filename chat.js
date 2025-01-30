@@ -1,4 +1,6 @@
 // chat.js
+import { messageFormatter } from './message-formatter.js';
+
 let chatConfig = {
     memory: false,
     tools: {
@@ -33,23 +35,21 @@ function connectSocket() {
     socket.on('response', (data) => { 
         console.log('Raw response:', data); 
         try {
+            if (!data) return;
+            
             const isStreaming = data.streaming || false;
             const isDone = data.done || false;
             const messageId = data.id;
             
-            if (isStreaming) {
-                addMessage(data, false, true, messageId, isDone);
-            } else if (data.content || data.message) {
-                addMessage(data, false);
+            if (isStreaming || data.content) {
+                addMessage(data, false, isStreaming, messageId, isDone);
             }
-            
-            // Re-enable UI after response
-            document.getElementById('floating-input').disabled = false;
-            document.getElementById('send-message').disabled = false;
             
         } catch (error) {
             console.error('Error handling response:', error);
             addMessage('Error processing response', false);
+            document.getElementById('floating-input').disabled = false;
+            document.getElementById('send-message').disabled = false;
         }
     });
 
@@ -95,6 +95,12 @@ function showConnectionError() {
 
 function addMessage(message, isUser, isStreaming = false, messageId = null, isDone = false) {
     const chatMessages = document.getElementById('chat-messages');
+    const inputElement = document.getElementById('floating-input');
+    const sendButton = document.getElementById('send-message');
+    
+    // Always ensure input is enabled when adding new messages
+    inputElement.disabled = false;
+    sendButton.disabled = false;
     
     if (isStreaming && !isUser) {
         if (!messageId) return;
@@ -108,41 +114,16 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
         }
 
         if (typeof message === 'object' && message.content) {
-            // Process markdown with table support
-            const markedOptions = {
-                breaks: true,
-                gfm: true,
-                tables: true,
-                renderer: new marked.Renderer()
-            };
-
-            // Custom table renderer
-            markedOptions.renderer.table = function(header, body) {
-                return `<div class="table-container"><table>
-                    <thead>${header}</thead>
-                    <tbody>${body}</tbody>
-                </table></div>`;
-            };
-
-            // Process content
-            const renderedContent = marked.parse(message.content, markedOptions);
+            const formattedContent = messageFormatter.formatStreaming(message.content, messageId);
+            messageDiv.innerHTML = formattedContent;
             
-            // Clean up and standardize table formatting
-            const cleanedContent = renderedContent
-                .replace(/\|(\s*[-:]+[-| :]*)\|/g, (match) => {
-                    // Standardize separator rows in markdown tables
-                    return match.replace(/\s+/g, '');
-                });
-
-            messageDiv.innerHTML += cleanedContent;
-            
-            // Highlight code blocks
-            messageDiv.querySelectorAll('pre code').forEach((block) => {
-                hljs.highlightElement(block);
-            });
+            if (messageDiv.querySelector('.mermaid')) {
+                mermaid.init(undefined, messageDiv.querySelectorAll('.mermaid'));
+            }
         }
 
         if (isDone) {
+            messageFormatter.finishStreaming(messageId);
             delete ongoingStreams[messageId];
         }
     } else {
@@ -151,25 +132,38 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
         
         if (isUser) {
             messageDiv.textContent = message;
-        } else {
-            if (typeof message === 'object' && message.content) {
-                // Process markdown while preserving natural text flow
-                messageDiv.innerHTML = marked.parse(message.content, {
-                    breaks: false,
-                    gfm: true
-                });
-                messageDiv.querySelectorAll('pre code').forEach((block) => {
-                    hljs.highlightElement(block);
-                });
-            } else {
-                messageDiv.textContent = message;
+        } else if (typeof message === 'object' && message.content) {
+            messageDiv.innerHTML = messageFormatter.format(message.content);
+            
+            if (messageDiv.querySelector('.mermaid')) {
+                mermaid.init(undefined, messageDiv.querySelectorAll('.mermaid'));
             }
+        } else if (typeof message === 'string') {
+            messageDiv.textContent = message;
         }
         
         chatMessages.appendChild(messageDiv);
     }
+    
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
+
+function onSendMessage(data) {
+    try {
+        socket.emit('send_message', JSON.stringify({
+            message: data.message,
+            config: !sessionActive ? {
+                use_memory: chatConfig.memory,
+                ...chatConfig.tools
+            } : undefined,
+            id: data.id
+        }));
+    } catch (error) {
+        console.error('Error sending message:', error);
+        addMessage('Error sending message', false);
+    }
+}
+
 
 function handleSendMessage() {
     const floatingInput = document.getElementById('floating-input');
@@ -178,18 +172,17 @@ function handleSendMessage() {
     
     if (!message || !socket?.connected) return;
     
+    // Only disable input while sending
     floatingInput.disabled = true;
     sendMessageBtn.disabled = true;
     
     addMessage(message, true);
     
-    const messageId = Date.now().toString();
     const messageData = {
         message: message,
-        id: messageId
+        id: Date.now().toString()
     };
 
-    // Only send config on first message of new session
     if (!sessionActive) {
         messageData.config = {
             use_memory: chatConfig.memory,
@@ -283,7 +276,17 @@ function init() {
 
     elements.newChatBtn.addEventListener('click', () => {
         const chatMessages = document.getElementById('chat-messages');
+        const inputElement = document.getElementById('floating-input');
+        const sendButton = document.getElementById('send-message');
+        
+        // Clear chat and enable inputs
         chatMessages.innerHTML = '';
+        inputElement.disabled = false;
+        sendButton.disabled = false;
+        
+        // Reset session state
+        sessionActive = false;
+        ongoingStreams = {};
         
         chatConfig = {
             memory: false,
@@ -305,39 +308,60 @@ function init() {
             checkbox.checked = chatConfig.tools[checkbox.id] || false;
         });
     
-        // Send reinitialize request with flattened config
         if (socket?.connected) {
             socket.emit('send_message', JSON.stringify({
                 type: 'new_chat'
             }));
-            sessionActive = false;
         }
-
-        elements.minimizeBtn.addEventListener('click', () => {
-            elements.container.classList.add('hidden');
-            document.getElementById('floating-input-container').classList.add('hidden');
-        });
-    
-        elements.closeBtn.addEventListener('click', () => {
-            elements.container.classList.add('hidden');
-            document.getElementById('floating-input-container').classList.add('hidden');
-        });
     });
 
-    // Send initial config on connection
+    // Socket event handlers
     socket.on('connect', () => {
-        socket.emit('send_message', JSON.stringify({
-            type: 'initialize',
-            config: {
-                calculator: true,
-                ddg_search: true,
-                python_assistant: true,
-                investment_assistant: true,
-                shell_tools: true,
-                web_crawler: true,
-                use_memory: chatConfig.memory
+        console.log('Connected to server');
+        document.querySelectorAll('.connection-error').forEach(e => e.remove());
+        sessionActive = false;
+        
+        // Enable inputs on connect
+        elements.input.disabled = false;
+        elements.sendBtn.disabled = false;
+    });
+
+    socket.on('response', (data) => { 
+        console.log('Raw response:', data); 
+        try {
+            if (!data) return;
+            
+            const isStreaming = data.streaming || false;
+            const isDone = data.done || false;
+            const messageId = data.id;
+            
+            if (isStreaming || data.content) {
+                addMessage(data, false, isStreaming, messageId, isDone);
             }
-        }));
+            
+            // Enable inputs after response
+            elements.input.disabled = false;
+            elements.sendBtn.disabled = false;
+            
+        } catch (error) {
+            console.error('Error handling response:', error);
+            addMessage('Error processing response', false);
+            elements.input.disabled = false;
+            elements.sendBtn.disabled = false;
+        }
+    });
+
+    socket.on('error', (error) => {
+        console.error('Error:', error);
+        addMessage(error.message || 'An error occurred', false);
+        
+        elements.input.disabled = false;
+        elements.sendBtn.disabled = false;
+        
+        if (error.reset) {
+            sessionActive = false;
+            document.querySelector('.add-btn').click();
+        }
     });
 }
 

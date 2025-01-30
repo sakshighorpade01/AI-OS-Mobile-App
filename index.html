@@ -50,6 +50,40 @@
     </div>
 
     <script src="renderer.js"></script>
+    <script>
+        // Configure highlight.js
+        hljs.configure({
+            cssSelector: 'pre code',
+            ignoreUnescapedHTML: true,
+            languages: ['javascript', 'python', 'bash', 'json', 'html', 'css']
+        });
+    
+        // Configure mermaid
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: document.body.classList.contains('dark-mode') ? 'dark' : 'default',
+            securityLevel: 'loose',
+            fontFamily: 'inherit'
+        });
+    
+        // Update mermaid theme when switching between light/dark mode
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.target.classList.contains('dark-mode')) {
+                    mermaid.initialize({ theme: 'dark' });
+                } else {
+                    mermaid.initialize({ theme: 'default' });
+                }
+            });
+        });
+    
+        observer.observe(document.body, {
+            attributes: true,
+            attributeFilter: ['class']
+        });
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.2.4/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>

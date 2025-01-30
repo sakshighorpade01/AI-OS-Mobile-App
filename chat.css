@@ -182,7 +182,7 @@
     background-color: rgba(255, 255, 255, 0.02);
     color: var(--text-color);
     font-family: inherit;
-    max-height: 150px;
+    max-height: 200px;
     font-size: 0.95rem;
     min-height: 48px;
     transition: all 0.2s ease;
@@ -455,4 +455,52 @@
 .hljs {
     background: transparent !important;
     color: var(--code-text-color, inherit) !important;
+}
+
+.notification-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 400px;
+}
+
+.notification {
+    background-color: var(--window-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    box-shadow: 0 4px 12px var(--shadow-color);
+    transform: translateX(120%);
+    opacity: 0;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.notification.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.notification-error {
+    border-left: 4px solid #ef4444;
+}
+
+.notification i {
+    color: #ef4444;
+    font-size: 1.2rem;
+}
+
+.notification-text {
+    color: var(--text-color);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    flex-grow: 1;
 }

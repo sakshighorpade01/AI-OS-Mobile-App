@@ -56,7 +56,7 @@ function connectSocket() {
     socket.on('error', (error) => {
         console.error('Error:', error);
         addMessage(error.message || 'An error occurred', false);
-        
+        showNotification(error.message || 'An error occurred. Starting new session.');
         // Reset UI and start new chat if needed
         document.getElementById('floating-input').disabled = false;
         document.getElementById('send-message').disabled = false;
@@ -250,6 +250,69 @@ function handleMemoryToggle() {
     });
 }
 
+function terminateSession() {
+    sessionActive = false;
+    ongoingStreams = {};
+    
+    if (socket?.connected) {
+        socket.emit('send_message', JSON.stringify({
+            type: 'new_chat'  
+        }));
+    }
+}
+
+function initializeAutoExpandingTextarea() {
+    const textarea = document.getElementById('floating-input');
+    
+    textarea.addEventListener('input', function() {
+        // Reset height to auto to get correct scrollHeight
+        this.style.height = 'auto';
+        // Set new height based on scrollHeight
+        this.style.height = (this.scrollHeight) + 'px';
+    });
+}
+
+function showNotification(message, type = 'error', duration = 10000) {
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    
+    const icon = document.createElement('i');
+    icon.className = type === 'error' ? 'fas fa-exclamation-circle' : 'fas fa-info-circle';
+    
+    const textDiv = document.createElement('div');
+    textDiv.className = 'notification-text';
+    textDiv.textContent = message;
+    
+    notification.appendChild(icon);
+    notification.appendChild(textDiv);
+    
+    // Add to notification container or create if doesn't exist
+    let container = document.querySelector('.notification-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'notification-container';
+        document.body.appendChild(container);
+    }
+    
+    container.appendChild(notification);
+    
+    // Animate in
+    setTimeout(() => {
+        notification.classList.add('show');
+    }, 100);
+    
+    // Remove after duration
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => {
+            notification.remove();
+            if (container.children.length === 0) {
+                container.remove();
+            }
+        }, 300);
+    }, duration);
+}
+
 function init() {
     const elements = {
         container: document.getElementById('chat-container'),
@@ -264,6 +327,7 @@ function init() {
     initializeToolsMenu();
     handleMemoryToggle();
     connectSocket();
+    initializeAutoExpandingTextarea();
 
     elements.sendBtn.addEventListener('click', handleSendMessage);
 
@@ -274,7 +338,34 @@ function init() {
     elements.closeBtn?.addEventListener('click', () => {
         window.stateManager.setState({ isChatOpen: false });
         elements.messages.innerHTML = '';
-    });
+        terminateSession();
+        
+        // Reset chat configuration
+        chatConfig = {
+            memory: false,
+            tools: {
+                calculator: true,
+                ddg_search: true,
+                python_assistant: true,
+                investment_assistant: true,
+                shell_tools: true,
+                web_crawler: true
+            }
+        };
+        
+        // Reset UI state
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        document.querySelectorAll('.tools-menu input[type="checkbox"]').forEach(checkbox => {
+            checkbox.checked = chatConfig.tools[checkbox.id] || false;
+        });
+        
+        // Enable inputs
+        elements.input.disabled = false;
+        elements.sendBtn.disabled = false;
+    });    
 
     elements.input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -335,34 +426,9 @@ function init() {
         elements.sendBtn.disabled = false;
     });
 
-    socket.on('response', (data) => { 
-        console.log('Raw response:', data); 
-        try {
-            if (!data) return;
-            
-            const isStreaming = data.streaming || false;
-            const isDone = data.done || false;
-            const messageId = data.id;
-            
-            if (isStreaming || data.content) {
-                addMessage(data, false, isStreaming, messageId, isDone);
-            }
-            
-            // Enable inputs after response
-            elements.input.disabled = false;
-            elements.sendBtn.disabled = false;
-            
-        } catch (error) {
-            console.error('Error handling response:', error);
-            addMessage('Error processing response', false);
-            elements.input.disabled = false;
-            elements.sendBtn.disabled = false;
-        }
-    });
-
     socket.on('error', (error) => {
         console.error('Error:', error);
-        addMessage(error.message || 'An error occurred', false);
+        showNotification(error.message || 'An error occurred. Starting new session.');
         
         elements.input.disabled = false;
         elements.sendBtn.disabled = false;

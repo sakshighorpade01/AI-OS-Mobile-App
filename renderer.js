@@ -110,10 +110,16 @@ class UIManager {
                         this.updateWindowControls(state.isWindowMaximized);
                         break;
                     case 'isChatOpen':
+                        if (state.isChatOpen && state.isAIOSOpen) {
+                            this.state.setState({ isAIOSOpen: false });
+                        }
                         this.updateChatVisibility(state.isChatOpen);
                         this.updateTaskbarPosition(state.isChatOpen);
                         break;
                     case 'isAIOSOpen':
+                        if (state.isAIOSOpen && state.isChatOpen) {
+                            this.state.setState({ isChatOpen: false });
+                        }
                         this.updateAIOSVisibility(state.isAIOSOpen);
                         break;
                 }
@@ -160,11 +166,8 @@ class UIManager {
     updateTaskbarPosition(isChatOpen) {
         const taskbar = document.querySelector('.taskbar');
         if (taskbar) {
-            if (isChatOpen) {
-                taskbar.classList.add('chat-open');
-            } else {
-                taskbar.classList.remove('chat-open');
-            }
+            taskbar.style.transition = 'all 0.3s ease';
+            taskbar.classList.toggle('chat-open', isChatOpen);
         }
     }
 }
@@ -172,6 +175,7 @@ class UIManager {
 // Initialize application
 document.addEventListener('DOMContentLoaded', () => {
     const stateManager = new StateManager();
+    window.stateManager = stateManager;
     const uiManager = new UIManager(stateManager);
 
     // Load AIOS content

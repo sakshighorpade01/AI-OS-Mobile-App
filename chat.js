@@ -267,6 +267,15 @@ function init() {
 
     elements.sendBtn.addEventListener('click', handleSendMessage);
 
+    elements.minimizeBtn?.addEventListener('click', () => {
+        window.stateManager.setState({ isChatOpen: false });
+    });
+
+    elements.closeBtn?.addEventListener('click', () => {
+        window.stateManager.setState({ isChatOpen: false });
+        elements.messages.innerHTML = '';
+    });
+
     elements.input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();

@@ -256,7 +256,7 @@ function terminateSession() {
     
     if (socket?.connected) {
         socket.emit('send_message', JSON.stringify({
-            type: 'new_chat'  
+            type: 'terminate_session'
         }));
     }
 }
@@ -338,33 +338,7 @@ function init() {
     elements.closeBtn?.addEventListener('click', () => {
         window.stateManager.setState({ isChatOpen: false });
         elements.messages.innerHTML = '';
-        terminateSession();
-        
-        // Reset chat configuration
-        chatConfig = {
-            memory: false,
-            tools: {
-                calculator: true,
-                ddg_search: true,
-                python_assistant: true,
-                investment_assistant: true,
-                shell_tools: true,
-                web_crawler: true
-            }
-        };
-        
-        // Reset UI state
-        document.querySelectorAll('.tool-btn').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        
-        document.querySelectorAll('.tools-menu input[type="checkbox"]').forEach(checkbox => {
-            checkbox.checked = chatConfig.tools[checkbox.id] || false;
-        });
-        
-        // Enable inputs
-        elements.input.disabled = false;
-        elements.sendBtn.disabled = false;
+        terminateSession(); // Add this line
     });    
 
     elements.input.addEventListener('keypress', (e) => {

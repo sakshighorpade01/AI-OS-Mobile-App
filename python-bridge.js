@@ -18,8 +18,8 @@ class PythonBridge {
             stdio: ['pipe', 'pipe', 'pipe'],
             env: {
                 ...process.env,
-                PYTHONIOENCODING: 'utf-8', // Add this line
-                PYTHONUTF8: '1'            // Add this line for Python 3.7+
+                PYTHONIOENCODING: 'utf-8', 
+                PYTHONUTF8: '1'          
             }
         });
 
@@ -42,7 +42,6 @@ class PythonBridge {
             this.initialized = false;
         });
 
-        // Only establish connection, don't create agent yet
         ipcMain.on('python-message', (event, message) => {
             this.sendMessage(message);
         });

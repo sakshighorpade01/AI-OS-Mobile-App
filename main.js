@@ -23,11 +23,9 @@ function createWindow() {
     mainWindow.maximize();
     mainWindow.loadFile('index.html');
 
-    // Initialize Python bridge with mainWindow reference
     pythonBridge = new PythonBridge(mainWindow);
     pythonBridge.start();
 
-    // Existing IPC handlers
     ipcMain.on('minimize-window', () => {
         mainWindow.minimize();
     });

@@ -1,4 +1,3 @@
-// renderer.js
 class StateManager {
     constructor() {
         this._state = {
@@ -46,7 +45,6 @@ class UIManager {
     }
 
     init() {
-        // Cache DOM elements
         this.elements = {
             appIcon: document.getElementById('app-icon'),
             chatIcon: document.getElementById('chat-icon'),
@@ -63,7 +61,6 @@ class UIManager {
     setupEventListeners() {
         const { ipcRenderer } = require('electron');
 
-        // Window controls
         this.elements.minimizeBtn?.addEventListener('click', () => {
             ipcRenderer.send('minimize-window');
         });
@@ -76,13 +73,11 @@ class UIManager {
             ipcRenderer.send('close-window');
         });
 
-        // Theme toggle
         this.elements.themeToggle?.addEventListener('click', () => {
             const currentState = this.state.getState();
             this.state.setState({ isDarkMode: !currentState.isDarkMode });
         });
 
-        // App icons
         this.elements.appIcon?.addEventListener('click', () => {
             const currentState = this.state.getState();
             this.state.setState({ isAIOSOpen: !currentState.isAIOSOpen });
@@ -93,7 +88,6 @@ class UIManager {
             this.state.setState({ isChatOpen: !currentState.isChatOpen });
         });
 
-        // IPC listeners
         ipcRenderer.on('window-state-changed', (_, isMaximized) => {
             this.state.setState({ isWindowMaximized: isMaximized });
         });
@@ -172,20 +166,16 @@ class UIManager {
     }
 }
 
-// Initialize application
 document.addEventListener('DOMContentLoaded', () => {
     const stateManager = new StateManager();
     window.stateManager = stateManager;
     const uiManager = new UIManager(stateManager);
 
-    // Load AIOS content
     loadAIOS().then(() => {
         if (window.AIOS) {
             window.AIOS.init();
         }
     });
-
-    // Load chat content
     loadChat().then(() => {
         if (window.chatModule) {
             window.chatModule.init();
@@ -193,7 +183,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Helper functions
 async function loadAIOS() {
     try {
         const response = await fetch('aios.html');

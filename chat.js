@@ -1,4 +1,3 @@
-// chat.js
 import { messageFormatter } from './message-formatter.js';
 import ContextHandler from './context-handler.js';
 
@@ -175,25 +174,21 @@ function handleSendMessage() {
 
     const selectedSessions = contextHandler.getSelectedSessions();
     if (selectedSessions && selectedSessions.length > 0) {
-        // Create formatted context string
         const contextStr = selectedSessions.map(session => {
-            // Only include if session has interactions
             if (!session.interactions || !session.interactions.length) return '';
             
-            // Format each interaction
             const formattedInteractions = session.interactions.map(interaction => {
                 return `User: ${interaction.user_input}\nAssistant: ${interaction.llm_output}`;
             }).join('\n\n');
             
             return formattedInteractions;
-        }).filter(Boolean).join('\n---\n'); // Separate sessions with delimiter
+        }).filter(Boolean).join('\n---\n');
         
-        // Only add if we have valid context
         if (contextStr) {
             messageData.context = contextStr;
         }
     }
-    
+
     try {
         console.log('Sending message with data:', messageData);
         socket.emit('send_message', JSON.stringify(messageData));
@@ -388,8 +383,7 @@ function init() {
             }));
         }
     });
-
-    // Socket event handlers
+    
     socket.on('connect', () => {
         console.log('Connected to server');
         document.querySelectorAll('.connection-error').forEach(e => e.remove());

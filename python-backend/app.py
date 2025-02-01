@@ -9,10 +9,8 @@ from concurrent.futures import ThreadPoolExecutor
 import traceback
 from queue import Queue
 
-# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Flask and SocketIO setup
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
@@ -21,10 +19,15 @@ class IsolatedAssistant:
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.response_queue = Queue()
         
-    def run_safely(self, agent, message):
+    def run_safely(self, agent, message, context=None):
         """Runs agent in isolated thread and handles crashes"""
         try:
-            future = self.executor.submit(agent.run, message, stream=True)
+            if context:
+                complete_message = f"Previous conversation context:\n{context}\n\nCurrent message: {message}"
+            else:
+                complete_message = message
+
+            future = self.executor.submit(agent.run, complete_message, stream=True)
             for chunk in future.result():
                 if chunk and chunk.content:
                     yield {"content": chunk.content, "streaming": True}
@@ -35,7 +38,6 @@ class IsolatedAssistant:
             logging.error(error_msg)
             yield {"content": "An error occurred while processing your request. Starting a new session...", 
                   "error": True, "done": True}
-            # Signal need for session reset
             yield {"reset_session": True}
 
     def terminate(self):
@@ -69,7 +71,6 @@ class ConnectionManager:
                 "initialized": True
             }
             
-            # Create isolated assistant for this session
             self.isolated_assistants[sid] = IsolatedAssistant()
             
             logging.info(f"Created new session {sid} with config {config}")
@@ -110,9 +111,10 @@ def on_send_message(data):
     try:
         data = json.loads(data)
         message = data.get("message", "")
-        
-        # Handle new chat requests
-        if data.get("type") == "new_chat":
+        context = data.get("context", "")
+        message_type = data.get("type", "")
+
+        if message_type == "terminate_session" or message_type == "new_chat":
             connection_manager.terminate_session(sid)
             emit("status", {"message": "Session terminated"}, room=sid)
             return
@@ -133,8 +135,8 @@ def on_send_message(data):
             emit("error", {"message": "Session error. Starting new chat...", "reset": True})
             connection_manager.terminate_session(sid)
             return
-
-        for response in isolated_assistant.run_safely(agent, message):
+        
+        for response in isolated_assistant.run_safely(agent, message, context):
             if response.get("reset_session"):
                 connection_manager.terminate_session(sid)
                 emit("error", {"message": "Session reset required", "reset": True})

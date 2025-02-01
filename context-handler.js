@@ -1,4 +1,3 @@
-// context-handler.js
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
@@ -369,11 +368,8 @@ class ContextHandler {
         }, duration);
     }
 
-    // Getter for selected sessions (to be used by chat.js)
     getSelectedSessions() {
         return this.selectedContextSessions;
     }
 }
-
-// Export the ContextHandler class
 export default ContextHandler;

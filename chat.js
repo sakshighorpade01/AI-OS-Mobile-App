@@ -313,6 +313,152 @@ function showNotification(message, type = 'error', duration = 10000) {
     }, duration);
 }
 
+const fs = require('fs');
+const path = require('path');
+
+function loadSessions() {
+    const contextPath = path.join(__dirname, 'context');
+    const sessionsContainer = document.querySelector('.context-content');
+    
+    // Clear the grid template columns style if it was set
+    sessionsContainer.style.gridTemplateColumns = 'repeat(auto-fill, minmax(280px, 1fr))';
+    sessionsContainer.innerHTML = '';
+
+    try {
+        if (!fs.existsSync(contextPath)) {
+            console.error('Context directory does not exist');
+            sessionsContainer.innerHTML = '<div class="session-item">No sessions directory found</div>';
+            return;
+        }
+
+        const files = fs.readdirSync(contextPath)
+            .filter(file => file.endsWith('.json'))
+            .sort((a, b) => {
+                return fs.statSync(path.join(contextPath, b)).mtime.getTime() - 
+                       fs.statSync(path.join(contextPath, a)).mtime.getTime();
+            });
+        
+        if (files.length === 0) {
+            sessionsContainer.innerHTML = '<div class="session-item">No sessions found</div>';
+            return;
+        }
+
+        files.forEach(file => {
+            try {
+                const filePath = path.join(contextPath, file);
+                const data = fs.readFileSync(filePath, 'utf8');
+                const session = JSON.parse(data);
+                
+                const sessionItem = document.createElement('div');
+                sessionItem.className = 'session-item';
+                
+                const sessionName = file.replace('.json', '')
+                                      .split('_')
+                                      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                                      .join(' ');
+                
+                const creationDate = new Date(session.created_at || fs.statSync(filePath).mtime);
+                const formattedDate = creationDate.toLocaleDateString() + ' ' + 
+                                    creationDate.toLocaleTimeString();
+                
+                sessionItem.innerHTML = `
+                    <h3>${sessionName}</h3>
+                    <div class="session-meta">
+                        <div class="meta-item">
+                            <i class="far fa-clock"></i>
+                            <span>${formattedDate}</span>
+                        </div>
+                        <div class="meta-item">
+                            <i class="far fa-comments"></i>
+                            <span>${session.interactions?.length || 0} messages</span>
+                        </div>
+                    </div>
+                `;
+                
+                sessionItem.onclick = () => showSessionDetails(filePath);
+                sessionsContainer.appendChild(sessionItem);
+            } catch (err) {
+                console.error(`Error loading session ${file}:`, err);
+            }
+        });
+    } catch (err) {
+        console.error('Error loading sessions:', err);
+        sessionsContainer.innerHTML = '<div class="session-item">Error loading sessions</div>';
+    }
+}
+
+function showSessionDetails(filePath) {
+    try {
+        const data = fs.readFileSync(filePath, 'utf8');
+        const session = JSON.parse(data);
+        const content = document.querySelector('.context-content');
+        
+        content.style.gridTemplateColumns = '1fr';
+        
+        const sessionName = path.basename(filePath, '.json')
+                              .split('_')
+                              .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                              .join(' ');
+        
+        content.innerHTML = `
+            <div class="session-details-view">
+                <div class="session-header">
+                    <button class="back-button" id="back-to-sessions">
+                        <i class="fas fa-arrow-left"></i>
+                        Back
+                    </button>
+                </div>
+                
+                <div class="conversation-history">
+                    <div class="conversation-header">
+                        <h3>Conversation History</h3>
+                    </div>
+                    <div class="conversation-messages">
+                        ${session.interactions?.map(interaction => `
+                            <div class="message-entry">
+                                <div class="message-user">
+                                    <span class="message-label">User Input:</span>
+                                    ${interaction.user_input}
+                                </div>
+                                <div class="message-assistant">
+                                    <span class="message-label">Assistant:</span>
+                                    ${interaction.llm_output[0]}
+                                </div>
+                            </div>
+                        `).join('\n') || 'No messages in this session'}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('back-to-sessions').addEventListener('click', (e) => {
+            e.preventDefault();
+            loadSessions();
+        });
+        
+    } catch (err) {
+        console.error('Error showing session details:', err);
+        document.querySelector('.context-content').innerHTML = `
+            <div class="session-details-view">
+                <button class="back-button" id="back-to-sessions">
+                    <i class="fas fa-arrow-left"></i>
+                    Back to Sessions
+                </button>
+                <div class="session-info">
+                    <h3>Error</h3>
+                    <p>Unable to load session details. Please try again.</p>
+                </div>
+            </div>
+        `;
+        
+        // Add event listener to the back button in error state
+        document.getElementById('back-to-sessions').addEventListener('click', (e) => {
+            e.preventDefault();
+            loadSessions();
+        });
+    }
+}
+
 function init() {
     const elements = {
         container: document.getElementById('chat-container'),
@@ -328,6 +474,18 @@ function init() {
     handleMemoryToggle();
     connectSocket();
     initializeAutoExpandingTextarea();
+
+    const contextBtn = document.querySelector('[data-tool="context"]');
+    const contextWindow = document.getElementById('context-window');
+    
+    contextBtn.addEventListener('click', () => {
+        contextWindow.classList.remove('hidden');
+        loadSessions();
+    });
+
+    document.querySelector('.close-context-btn').addEventListener('click', () => {
+        contextWindow.classList.add('hidden');
+    });
 
     elements.sendBtn.addEventListener('click', handleSendMessage);
 

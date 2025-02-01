@@ -67,6 +67,10 @@
                     </div>
                 </div>
             </div>
+            <button class="tool-btn" data-tool="context">
+                <i class="fas fa-history"></i>
+                Context
+            </button>
         </div>
     </div>
 </div>
@@ -85,3 +89,19 @@
         <i class="fas fa-paper-plane"></i>
     </button>
 </div>
+
+<!-- Context Window -->
+<div id="context-window" class="context-window hidden">
+    <div class="context-header">
+        <h2>Chat Sessions</h2>
+        <button class="close-context-btn">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="context-content">
+        <!-- Sessions will be loaded here -->
+    </div>
+</div>
+
+<!-- Notification Container -->
+<div class="notification-container"></div>

@@ -174,11 +174,28 @@ function handleSendMessage() {
     }
 
     const selectedSessions = contextHandler.getSelectedSessions();
-    if (selectedSessions?.length > 0) {
-        messageData.context = selectedSessions;
+    if (selectedSessions && selectedSessions.length > 0) {
+        // Create formatted context string
+        const contextStr = selectedSessions.map(session => {
+            // Only include if session has interactions
+            if (!session.interactions || !session.interactions.length) return '';
+            
+            // Format each interaction
+            const formattedInteractions = session.interactions.map(interaction => {
+                return `User: ${interaction.user_input}\nAssistant: ${interaction.llm_output}`;
+            }).join('\n\n');
+            
+            return formattedInteractions;
+        }).filter(Boolean).join('\n---\n'); // Separate sessions with delimiter
+        
+        // Only add if we have valid context
+        if (contextStr) {
+            messageData.context = contextStr;
+        }
     }
-
+    
     try {
+        console.log('Sending message with data:', messageData);
         socket.emit('send_message', JSON.stringify(messageData));
     } catch (error) {
         console.error('Error sending message:', error);

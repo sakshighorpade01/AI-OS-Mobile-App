@@ -14,6 +14,10 @@
         <div class="chat-messages" id="chat-messages">
             <!-- Messages will be populated here -->
         </div>
+        <div class="context-active-indicator">
+            <i class="fas fa-link"></i>
+            <span class="context-count"></span>
+        </div>
         <div class="chat-tools">
             <button class="tool-btn" data-tool="memory">
                 <i class="fas fa-memory"></i>
@@ -93,15 +97,77 @@
 <!-- Context Window -->
 <div id="context-window" class="context-window hidden">
     <div class="context-header">
-        <h2>Chat Sessions</h2>
-        <button class="close-context-btn">
-            <i class="fas fa-times"></i>
-        </button>
+        <div class="header-left">
+            <h2>Chat Sessions</h2>
+            <!-- New Sync Button -->
+            <button class="sync-context-btn" title="Sync Sessions">
+                <i class="fas fa-sync"></i>
+            </button>
+        </div>
+        <div class="header-right">
+            <button class="close-context-btn">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
     </div>
     <div class="context-content">
         <!-- Sessions will be loaded here -->
     </div>
 </div>
+
+<!-- Session Detail Template -->
+<template id="session-detail-template">
+    <div class="session-details-view">
+        <div class="session-header">
+            <button class="back-button">
+                <i class="fas fa-arrow-left"></i>
+                Back
+            </button>
+            <h3></h3>
+        </div>
+        <div class="conversation-history">
+            <div class="conversation-header">
+                <h3>Conversation History</h3>
+            </div>
+            <div class="conversation-messages">
+                <!-- Messages will be populated here -->
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- Session Item Template -->
+<template id="session-item-template">
+    <div class="session-item">
+        <div class="session-select">
+            <input type="checkbox" class="session-checkbox" />
+        </div>
+        <div class="session-content">
+            <h3></h3>
+            <div class="session-meta">
+                <div class="meta-item">
+                    <i class="far fa-clock"></i>
+                    <span class="session-date"></span>
+                </div>
+                <div class="meta-item">
+                    <i class="far fa-comments"></i>
+                    <span class="message-count"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- Selection Controls Template -->
+<template id="selection-controls-template">
+    <div class="selection-controls">
+        <div class="selection-actions hidden">
+            <span class="selected-count">0 selected</span>
+            <button class="use-selected-btn">Use Selected</button>
+            <button class="clear-selection-btn">Clear</button>
+        </div>
+    </div>
+</template>
 
 <!-- Notification Container -->
 <div class="notification-container"></div>

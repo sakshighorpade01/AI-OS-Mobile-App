@@ -150,14 +150,23 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
 
 function onSendMessage(data) {
     try {
-        socket.emit('send_message', JSON.stringify({
+        const messageData = {
             message: data.message,
             config: !sessionActive ? {
                 use_memory: chatConfig.memory,
                 ...chatConfig.tools
             } : undefined,
             id: data.id
-        }));
+        };
+
+        // Add selected context if available
+        if (window.selectedContextSessions?.length > 0) {
+            messageData.context = window.selectedContextSessions.map(session => ({
+                interactions: session.interactions
+            }));
+        }
+
+        socket.emit('send_message', JSON.stringify(messageData));
     } catch (error) {
         console.error('Error sending message:', error);
         addMessage('Error sending message', false);
@@ -172,23 +181,35 @@ function handleSendMessage() {
     
     if (!message || !socket?.connected) return;
     
-    // Only disable input while sending
     floatingInput.disabled = true;
     sendMessageBtn.disabled = true;
     
     addMessage(message, true);
     
+    // Create the base message data
     const messageData = {
         message: message,
         id: Date.now().toString()
     };
 
+    // Add configuration for new sessions
     if (!sessionActive) {
         messageData.config = {
             use_memory: chatConfig.memory,
             ...chatConfig.tools
         };
         sessionActive = true;
+    }
+
+    // Add selected context if available
+    if (window.selectedContextSessions?.length > 0) {
+        messageData.context = window.selectedContextSessions.map(session => ({
+            interactions: session.interactions.map(interaction => ({
+                user_input: interaction.user_input,
+                llm_output: interaction.llm_output
+            }))
+        }));
+        console.log('Sending message with context:', messageData); // Debug log
     }
 
     try {
@@ -315,12 +336,34 @@ function showNotification(message, type = 'error', duration = 10000) {
 
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
+
+function syncSessions() {
+    // Adjust the command if you need to use 'python3' instead of 'python'
+    const pythonProcess = spawn('python', ['python-backend/context_manager.py']);
+    
+    pythonProcess.stdout.on('data', (data) => {
+        console.log(`Sync stdout: ${data}`);
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+        console.error(`Sync stderr: ${data}`);
+    });
+    
+    pythonProcess.on('close', (code) => {
+        console.log(`Sync process exited with code ${code}`);
+        // Optionally notify the user of a successful sync
+        showNotification('Sessions synced successfully!', 'info', 3000);
+        // Optionally reload sessions
+        loadSessions();
+    });
+}
+
 
 function loadSessions() {
     const contextPath = path.join(__dirname, 'context');
     const sessionsContainer = document.querySelector('.context-content');
     
-    // Clear the grid template columns style if it was set
     sessionsContainer.style.gridTemplateColumns = 'repeat(auto-fill, minmax(280px, 1fr))';
     sessionsContainer.innerHTML = '';
 
@@ -343,6 +386,18 @@ function loadSessions() {
             return;
         }
 
+        // Add header with selection controls
+        const selectionHeader = document.createElement('div');
+        selectionHeader.className = 'selection-controls';
+        selectionHeader.innerHTML = `
+            <div class="selection-actions hidden">
+                <span class="selected-count">0 selected</span>
+                <button class="use-selected-btn">Use Selected</button>
+                <button class="clear-selection-btn">Clear</button>
+            </div>
+        `;
+        sessionsContainer.appendChild(selectionHeader);
+
         files.forEach(file => {
             try {
                 const filePath = path.join(contextPath, file);
@@ -351,6 +406,7 @@ function loadSessions() {
                 
                 const sessionItem = document.createElement('div');
                 sessionItem.className = 'session-item';
+                sessionItem.dataset.filepath = filePath;
                 
                 const sessionName = file.replace('.json', '')
                                       .split('_')
@@ -362,29 +418,119 @@ function loadSessions() {
                                     creationDate.toLocaleTimeString();
                 
                 sessionItem.innerHTML = `
-                    <h3>${sessionName}</h3>
-                    <div class="session-meta">
-                        <div class="meta-item">
-                            <i class="far fa-clock"></i>
-                            <span>${formattedDate}</span>
-                        </div>
-                        <div class="meta-item">
-                            <i class="far fa-comments"></i>
-                            <span>${session.interactions?.length || 0} messages</span>
+                    <div class="session-select">
+                        <input type="checkbox" class="session-checkbox" />
+                    </div>
+                    <div class="session-content">
+                        <h3>${sessionName}</h3>
+                        <div class="session-meta">
+                            <div class="meta-item">
+                                <i class="far fa-clock"></i>
+                                <span>${formattedDate}</span>
+                            </div>
+                            <div class="meta-item">
+                                <i class="far fa-comments"></i>
+                                <span>${session.interactions?.length || 0} messages</span>
+                            </div>
                         </div>
                     </div>
                 `;
                 
-                sessionItem.onclick = () => showSessionDetails(filePath);
+                const checkbox = sessionItem.querySelector('.session-checkbox');
+                const contentArea = sessionItem.querySelector('.session-content');
+                
+                checkbox.addEventListener('change', (e) => {
+                    e.stopPropagation();
+                    sessionItem.classList.toggle('selected', checkbox.checked);
+                    updateSelectionUI();
+                });
+                
+                contentArea.onclick = () => showSessionDetails(filePath);
                 sessionsContainer.appendChild(sessionItem);
             } catch (err) {
                 console.error(`Error loading session ${file}:`, err);
             }
         });
+
+        // Initialize selection controls
+        initializeSelectionControls();
     } catch (err) {
         console.error('Error loading sessions:', err);
         sessionsContainer.innerHTML = '<div class="session-item">Error loading sessions</div>';
     }
+}
+
+function initializeSelectionControls() {
+    const selectionActions = document.querySelector('.selection-actions');
+    const clearBtn = document.querySelector('.clear-selection-btn');
+    const useSelectedBtn = document.querySelector('.use-selected-btn');
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            document.querySelectorAll('.session-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            document.querySelectorAll('.session-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            window.selectedContextSessions = null;
+            updateContextIndicator();
+            updateSelectionUI();
+        });
+    }
+
+    if (useSelectedBtn) {
+        useSelectedBtn.addEventListener('click', () => {
+            const selectedSessions = getSelectedSessionsData();
+            if (selectedSessions.length > 0) {
+                window.selectedContextSessions = selectedSessions;
+                document.getElementById('context-window').classList.add('hidden');
+                updateContextIndicator();
+                showNotification(`${selectedSessions.length} sessions selected as context`, 'info', 3000);
+            }
+        });
+    }
+}
+
+function updateSelectionUI() {
+    const selectionActions = document.querySelector('.selection-actions');
+    const selectedCount = document.querySelectorAll('.session-checkbox:checked').length;
+    
+    if (selectedCount > 0) {
+        selectionActions.classList.remove('hidden');
+        selectionActions.querySelector('.selected-count').textContent = 
+            `${selectedCount} selected`;
+    } else {
+        selectionActions.classList.add('hidden');
+    }
+}
+
+function getSelectedSessionsData() {
+    const selectedSessions = [];
+    document.querySelectorAll('.session-checkbox:checked').forEach(checkbox => {
+        const sessionItem = checkbox.closest('.session-item');
+        const filePath = sessionItem.dataset.filepath;
+        try {
+            const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            if (data && data.interactions) {
+                selectedSessions.push({
+                    interactions: data.interactions.map(interaction => ({
+                        user_input: interaction.user_input,
+                        llm_output: interaction.llm_output
+                    }))
+                });
+            }
+        } catch (err) {
+            console.error(`Error reading session data: ${filePath}`, err);
+            showNotification(`Error reading session data: ${err.message}`, 'error');
+        }
+    });
+    return selectedSessions;
+}
+
+function clearSelectedContext() {
+    window.selectedContextSessions = null;
+    updateContextIndicator();
 }
 
 function showSessionDetails(filePath) {
@@ -393,6 +539,7 @@ function showSessionDetails(filePath) {
         const session = JSON.parse(data);
         const content = document.querySelector('.context-content');
         
+        // Use a single column layout for the details view
         content.style.gridTemplateColumns = '1fr';
         
         const sessionName = path.basename(filePath, '.json')
@@ -407,6 +554,7 @@ function showSessionDetails(filePath) {
                         <i class="fas fa-arrow-left"></i>
                         Back
                     </button>
+                    <h3>${sessionName}</h3>
                 </div>
                 
                 <div class="conversation-history">
@@ -414,23 +562,26 @@ function showSessionDetails(filePath) {
                         <h3>Conversation History</h3>
                     </div>
                     <div class="conversation-messages">
-                        ${session.interactions?.map(interaction => `
-                            <div class="message-entry">
-                                <div class="message-user">
-                                    <span class="message-label">User Input:</span>
-                                    ${interaction.user_input}
+                        ${session.interactions && session.interactions.length 
+                            ? session.interactions.map(interaction => `
+                                <div class="message-entry">
+                                    <div class="message-content">
+                                        <span class="message-label">User Input:</span>
+                                        ${interaction.user_input}
+                                        <br>
+                                        <span class="message-label">Assistant:</span>
+                                        ${interaction.llm_output[0]}
+                                    </div>
                                 </div>
-                                <div class="message-assistant">
-                                    <span class="message-label">Assistant:</span>
-                                    ${interaction.llm_output[0]}
-                                </div>
-                            </div>
-                        `).join('\n') || 'No messages in this session'}
+                              `).join('')
+                            : '<div class="message-entry">No messages in this session</div>'
+                        }
                     </div>
                 </div>
             </div>
         `;
 
+        // Bind the back button event
         document.getElementById('back-to-sessions').addEventListener('click', (e) => {
             e.preventDefault();
             loadSessions();
@@ -451,11 +602,24 @@ function showSessionDetails(filePath) {
             </div>
         `;
         
-        // Add event listener to the back button in error state
+        // Bind the back button event in error state
         document.getElementById('back-to-sessions').addEventListener('click', (e) => {
             e.preventDefault();
             loadSessions();
         });
+    }
+}
+
+function updateContextIndicator() {
+    const indicator = document.querySelector('.context-active-indicator');
+    const sessionCount = window.selectedContextSessions?.length || 0;
+    
+    if (indicator) {
+        indicator.classList.toggle('visible', sessionCount > 0);
+        const countSpan = indicator.querySelector('.context-count');
+        if (countSpan) {
+            countSpan.textContent = sessionCount > 0 ? `${sessionCount} sessions in context` : '';
+        }
     }
 }
 
@@ -467,7 +631,8 @@ function init() {
         sendBtn: document.getElementById('send-message'),
         minimizeBtn: document.getElementById('minimize-chat'),
         closeBtn: document.getElementById('close-chat'),
-        newChatBtn: document.querySelector('.add-btn')
+        newChatBtn: document.querySelector('.add-btn'),
+        contextIndicator: document.querySelector('.context-active-indicator')
     };
 
     initializeToolsMenu();
@@ -487,6 +652,14 @@ function init() {
         contextWindow.classList.add('hidden');
     });
 
+    const syncBtn = document.querySelector('.sync-context-btn');
+    if (syncBtn) {
+        syncBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            syncSessions();
+        });
+    }
+
     elements.sendBtn.addEventListener('click', handleSendMessage);
 
     elements.minimizeBtn?.addEventListener('click', () => {
@@ -496,8 +669,11 @@ function init() {
     elements.closeBtn?.addEventListener('click', () => {
         window.stateManager.setState({ isChatOpen: false });
         elements.messages.innerHTML = '';
-        terminateSession(); // Add this line
+        clearSelectedContext();
+        updateContextIndicator(); // Update indicator when closing chat
+        terminateSession();
     });    
+
 
     elements.input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -510,7 +686,7 @@ function init() {
         const chatMessages = document.getElementById('chat-messages');
         const inputElement = document.getElementById('floating-input');
         const sendButton = document.getElementById('send-message');
-        
+
         // Clear chat and enable inputs
         chatMessages.innerHTML = '';
         inputElement.disabled = false;
@@ -519,7 +695,9 @@ function init() {
         // Reset session state
         sessionActive = false;
         ongoingStreams = {};
-        
+        clearSelectedContext();
+        updateContextIndicator();
+
         chatConfig = {
             memory: false,
             tools: {
@@ -539,7 +717,7 @@ function init() {
         document.querySelectorAll('.tools-menu input[type="checkbox"]').forEach(checkbox => {
             checkbox.checked = chatConfig.tools[checkbox.id] || false;
         });
-    
+
         if (socket?.connected) {
             socket.emit('send_message', JSON.stringify({
                 type: 'new_chat'
@@ -567,9 +745,12 @@ function init() {
         
         if (error.reset) {
             sessionActive = false;
+            clearSelectedContext();
+            updateContextIndicator(); // Update indicator on error reset
             document.querySelector('.add-btn').click();
         }
     });
+    updateContextIndicator();
 }
 
 window.chatModule = { init };

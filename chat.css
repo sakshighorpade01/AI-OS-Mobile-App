@@ -824,3 +824,66 @@
     padding: 8px 16px;
     border-top: 1px solid var(--border-color);
 }
+
+.selected-context-viewer {
+    position: fixed;
+    right: 0;
+    top: 0;
+    width: 400px;
+    height: 100vh;
+    background: var(--window-bg);
+    border-left: 1px solid var(--border-color);
+    z-index: 1000;
+    transition: transform 0.3s ease;
+    transform: translateX(100%);
+}
+
+.selected-context-viewer.visible {
+    transform: translateX(0);
+}
+
+.context-viewer-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.context-viewer-content {
+    padding: 16px;
+    overflow-y: auto;
+    height: calc(100vh - 60px);
+}
+
+.close-viewer-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--text-color);
+}
+.context-active-indicator.clickable:hover {
+    background: rgba(var(--accent-color-rgb), 0.2);
+}
+
+.session-block {
+    margin-bottom: 20px;
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.interaction {
+    margin: 10px 0;
+    padding: 8px;
+    border-left: 2px solid var(--accent-color);
+}
+
+.user-message, .assistant-message {
+    padding: 5px 0;
+}
+
+.user-message strong, .assistant-message strong {
+    color: var(--accent-color);
+}

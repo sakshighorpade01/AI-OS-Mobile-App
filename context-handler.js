@@ -16,9 +16,61 @@ class ContextHandler {
             closeContextBtn: document.querySelector('.close-context-btn'),
             syncBtn: document.querySelector('.sync-context-btn'),
             indicator: document.querySelector('.context-active-indicator'),
-            sessionsContainer: document.querySelector('.context-content')
+            sessionsContainer: document.querySelector('.context-content'),
+            contextViewer: document.getElementById('selected-context-viewer')
         };
+
+        if (this.elements.indicator) {
+            this.elements.indicator.classList.add('clickable');
+            this.elements.indicator.style.cursor = 'pointer';
+            this.elements.indicator.addEventListener('click', () => {
+                console.log('Indicator clicked'); // Debug log
+                this.toggleContextViewer();
+            });
+        }
+    
+        // Add close button listener for viewer
+        const closeViewerBtn = document.querySelector('.close-viewer-btn');
+        if (closeViewerBtn) {
+            closeViewerBtn.addEventListener('click', () => this.hideContextViewer());
+        }
+    
     }
+
+    toggleContextViewer() {
+        if (!this.selectedContextSessions?.length) return;
+        
+        const viewer = this.elements.contextViewer;
+        if (viewer.classList.contains('visible')) {
+            this.hideContextViewer();
+        } else {
+            this.showContextViewer();
+        }
+    }
+
+    showContextViewer() {
+        const viewer = this.elements.contextViewer;
+        const content = viewer.querySelector('.context-viewer-content');
+        
+        content.innerHTML = this.selectedContextSessions.map((session, index) => `
+            <div class="session-block">
+                <h4>Session ${index + 1}</h4>
+                ${session.interactions.map(int => `
+                    <div class="interaction">
+                        <div class="user-message"><strong>User:</strong> ${int.user_input}</div>
+                        <div class="assistant-message"><strong>Assistant:</strong> ${int.llm_output}</div>
+                    </div>
+                `).join('')}
+            </div>
+        `).join('');
+    
+        viewer.classList.add('visible');
+    }
+    
+    hideContextViewer() {
+        this.elements.contextViewer.classList.remove('visible');
+    }
+    
 
     bindEvents() {
         this.elements.contextBtn.addEventListener('click', () => {
@@ -318,6 +370,7 @@ class ContextHandler {
         this.selectedContextSessions = null;
         this.updateContextIndicator();
         this.updateSelectionUI();
+        this.hideContextViewer();
     }
 
     updateContextIndicator() {

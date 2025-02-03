@@ -37,6 +37,11 @@
     padding: 10px;
     z-index: 999;
     animation: slideIn 0.3s ease-out;
+    transition: transform 0.3s ease;
+}
+
+.chat-container.context-open {
+    transform: translateX(-75%); /* Move left when context viewer opens */
 }
 
 @keyframes slideIn {
@@ -84,8 +89,7 @@
     gap: 12px;
 }
 
-.minimize-btn,
-.close-btn {
+.minimize-btn {
     background: none;
     border: none;
     cursor: pointer;
@@ -97,12 +101,6 @@
 
 .minimize-btn:hover {
     background-color: var(--shadow-color);
-    transform: translateY(-1px);
-}
-
-.close-btn:hover {
-    background-color: #ef4444;
-    color: white;
     transform: translateY(-1px);
 }
 
@@ -159,6 +157,7 @@
     bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
+    transition: transform 0.3s ease;
     width: 45%;
     background-color: var(--window-bg);
     border-radius: 16px;
@@ -171,6 +170,10 @@
     align-items: flex-end;
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+}
+
+.floating-input-container.context-open {
+    transform: translateX(-75%); /* Match chat container movement */
 }
 
 .floating-input {
@@ -828,18 +831,20 @@
 .selected-context-viewer {
     position: fixed;
     right: 0;
-    top: 0;
+    top: 50%;
+    transform: translate(100%, -50%);
     width: 400px;
-    height: 100vh;
+    height: 80vh;
     background: var(--window-bg);
-    border-left: 1px solid var(--border-color);
+    border-radius: 16px 0 0 16px;
+    border: 1px solid var(--border-color);
+    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.1);
     z-index: 1000;
     transition: transform 0.3s ease;
-    transform: translateX(100%);
 }
 
 .selected-context-viewer.visible {
-    transform: translateX(0);
+    transform: translate(0, -50%);
 }
 
 .context-viewer-header {
@@ -886,4 +891,114 @@
 
 .user-message strong, .assistant-message strong {
     color: var(--accent-color);
+}
+
+/* Context Viewer Floating Window */
+.selected-context-viewer {
+    position: fixed;
+    right: 50px;
+    top: 50%;
+    transform: translate(150%, -50%); 
+    width: 500px;
+    height: 80vh;
+    background: var(--window-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    transition: transform 0.3s ease;
+}
+
+.selected-context-viewer.visible {
+    transform: translate(0, -50%);
+}
+
+/* Chat container shift animation */
+#chat-container.context-open {
+    transform: translateX(-200px);
+    transition: transform 0.3s ease;
+}
+
+#floating-input-container.context-open {
+    transform: translateX(-200px);
+    transition: transform 0.3s ease;
+}
+
+/* Improved viewer header */
+.context-viewer-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 12px 12px 0 0;
+}
+
+.context-viewer-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 500;
+}
+
+/* Enhanced viewer content */
+.context-viewer-content {
+    padding: 20px;
+    overflow-y: auto;
+    height: calc(100% - 70px);
+}
+
+.session-block {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.session-block h4 {
+    margin: 0 0 10px;
+    color: var(--accent-color);
+    font-size: 0.9rem;
+}
+
+.interaction {
+    padding: 10px;
+    border-left: 2px solid var(--accent-color);
+    margin: 15px 0;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 0 8px 8px 0;
+}
+
+.context-active-indicator {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(var(--accent-color-rgb), 0.1);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.context-active-indicator.visible {
+    display: flex;
+}
+
+.context-active-indicator:hover {
+    background: rgba(var(--accent-color-rgb), 0.15);
+    transform: translateY(-1px);
+}
+
+.close-viewer-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: var(--text-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.close-viewer-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
 }

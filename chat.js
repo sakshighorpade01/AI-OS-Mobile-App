@@ -312,7 +312,6 @@ function init() {
         input: document.getElementById('floating-input'),
         sendBtn: document.getElementById('send-message'),
         minimizeBtn: document.getElementById('minimize-chat'),
-        closeBtn: document.getElementById('close-chat'),
         newChatBtn: document.querySelector('.add-btn')
     };
 
@@ -329,13 +328,6 @@ function init() {
     elements.minimizeBtn?.addEventListener('click', () => {
         window.stateManager.setState({ isChatOpen: false });
     });
-
-    elements.closeBtn?.addEventListener('click', () => {
-        window.stateManager.setState({ isChatOpen: false });
-        elements.messages.innerHTML = '';
-        contextHandler.clearSelectedContext();
-        terminateSession();
-    });    
 
     elements.input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {

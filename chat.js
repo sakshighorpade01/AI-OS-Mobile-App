@@ -337,6 +337,7 @@ function init() {
     });
 
     elements.newChatBtn.addEventListener('click', () => {
+        terminateSession();
         const chatMessages = document.getElementById('chat-messages');
         const inputElement = document.getElementById('floating-input');
         const sendButton = document.getElementById('send-message');
@@ -368,12 +369,6 @@ function init() {
         document.querySelectorAll('.tools-menu input[type="checkbox"]').forEach(checkbox => {
             checkbox.checked = chatConfig.tools[checkbox.id] || false;
         });
-
-        if (socket?.connected) {
-            socket.emit('send_message', JSON.stringify({
-                type: 'new_chat'
-            }));
-        }
     });
     
     socket.on('connect', () => {

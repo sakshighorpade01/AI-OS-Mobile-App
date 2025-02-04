@@ -73,7 +73,6 @@ def get_llm_os(
             "You have access to long-term memory. Use the `search_knowledge_base` tool to search your memory for relevant information."
         )
     else:
-        # Provide basic memory configuration when memory features are disabled
         memory = AgentMemory(
             create_user_memories=False,
             update_user_memories_after_run=False,

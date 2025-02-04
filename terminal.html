@@ -1,0 +1,24 @@
+<div id="terminal-container" class="hidden">
+    <div class="terminal-header">
+        <div class="terminal-tabs">
+            <button class="tab-btn active" data-log="all">All Logs</button>
+            <button class="tab-btn" data-log="debug">Debug</button>
+            <button class="tab-btn" data-log="info">Info</button>
+            <button class="tab-btn" data-log="error">Error</button>
+        </div>
+        <div class="terminal-controls">
+            <button id="clear-terminal" title="Clear Terminal">
+                <i class="fas fa-trash"></i>
+            </button>
+            <button id="download-logs" title="Download Logs">
+                <i class="fas fa-download"></i>
+            </button>
+            <button id="close-terminal" title="Close Terminal">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    <div class="terminal-content">
+        <div class="log-container"></div>
+    </div>
+</div>

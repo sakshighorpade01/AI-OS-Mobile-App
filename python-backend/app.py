@@ -9,7 +9,20 @@ from concurrent.futures import ThreadPoolExecutor
 import traceback
 from queue import Queue
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+class SocketIOHandler(logging.Handler):
+    def emit(self, record):
+        try:
+            emit_log(record.levelname.lower(), record.getMessage())
+        except Exception:
+            pass
+
+logger.addHandler(SocketIOHandler())
+
+def emit_log(level, message):
+    socketio.emit('log', {'level': level, 'message': message})
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
@@ -35,7 +48,7 @@ class IsolatedAssistant:
             
         except Exception as e:
             error_msg = f"Tool error: {str(e)}\n{traceback.format_exc()}"
-            logging.error(error_msg)
+            logger.error(error_msg)
             yield {"content": "An error occurred while processing your request. Starting a new session...", 
                   "error": True, "done": True}
             yield {"reset_session": True}
@@ -73,7 +86,7 @@ class ConnectionManager:
             
             self.isolated_assistants[sid] = IsolatedAssistant()
             
-            logging.info(f"Created new session {sid} with config {config}")
+            logger.info(f"Created new session {sid} with config {config}")
             return agent
 
     def terminate_session(self, sid):
@@ -83,7 +96,7 @@ class ConnectionManager:
                     self.isolated_assistants[sid].terminate()
                     del self.isolated_assistants[sid]
                 del self.sessions[sid]
-                logging.info(f"Terminated session {sid}")
+                logger.info(f"Terminated session {sid}")
 
     def get_session(self, sid):
         return self.sessions.get(sid)
@@ -96,13 +109,13 @@ connection_manager = ConnectionManager()
 @socketio.on("connect")
 def on_connect():
     sid = request.sid
-    logging.info(f"Client connected: {sid}")
+    logger.info(f"Client connected: {sid}")
     emit("status", {"message": "Connected to server"})
 
 @socketio.on("disconnect")
 def on_disconnect():
     sid = request.sid
-    logging.info(f"Client disconnected: {sid}")
+    logger.info(f"Client disconnected: {sid}")
     connection_manager.remove_session(sid)
 
 @socketio.on("send_message")
@@ -145,10 +158,10 @@ def on_send_message(data):
             emit("response", {**response, "id": message_id}, room=sid)
                 
     except Exception as e:
-        logging.error(f"Error in message handler: {e}\n{traceback.format_exc()}")
+        logger.error(f"Error in message handler: {e}\n{traceback.format_exc()}")
         emit("error", {"message": "AI service error. Starting new chat...", "reset": True})
         connection_manager.terminate_session(sid)
 
 if __name__ == "__main__":
-    logging.info("Starting server on port 8765")
+    logger.info("Starting server on port 8765")
     socketio.run(app, host="0.0.0.0", port=8765)

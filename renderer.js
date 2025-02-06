@@ -1,10 +1,12 @@
+//renderer.js
 class StateManager {
     constructor() {
         this._state = {
             isDarkMode: true,
             isWindowMaximized: false,
             isChatOpen: false,
-            isAIOSOpen: false
+            isAIOSOpen: false,
+            isTerminalOpen: false
         };
         
         this.subscribers = new Set();
@@ -51,7 +53,8 @@ class UIManager {
             themeToggle: document.getElementById('theme-toggle'),
             minimizeBtn: document.getElementById('minimize-window'),
             resizeBtn: document.getElementById('resize-window'),
-            closeBtn: document.getElementById('close-window')
+            closeBtn: document.getElementById('close-window'),
+            terminalIcon: document.getElementById('terminal-icon')
         };
 
         this.setupEventListeners();
@@ -88,6 +91,11 @@ class UIManager {
             this.state.setState({ isChatOpen: !currentState.isChatOpen });
         });
 
+        this.elements.terminalIcon.addEventListener('click', () => {
+            const currentState = this.state.getState();
+            this.state.setState({ isTerminalOpen: !currentState.isTerminalOpen });
+        });
+
         ipcRenderer.on('window-state-changed', (_, isMaximized) => {
             this.state.setState({ isWindowMaximized: isMaximized });
         });
@@ -116,9 +124,19 @@ class UIManager {
                         }
                         this.updateAIOSVisibility(state.isAIOSOpen);
                         break;
+                    case 'isTerminalOpen':
+                        this.updateTerminalVisibility(state.isTerminalOpen);
+                        break;
                 }
             });
         });
+    }
+
+    updateTerminalVisibility(isOpen) {
+        const terminalContainer = document.getElementById('terminal-container');
+        if (terminalContainer) {
+            terminalContainer.classList.toggle('hidden', !isOpen);
+        }
     }
     
     updateTheme(isDarkMode) {
@@ -171,6 +189,12 @@ document.addEventListener('DOMContentLoaded', () => {
     window.stateManager = stateManager;
     const uiManager = new UIManager(stateManager);
 
+    loadTerminal().then(() => {
+        if (window.terminalLogger) {
+            window.terminalLogger.init();
+        }
+    });
+
     loadAIOS().then(() => {
         if (window.AIOS) {
             window.AIOS.init();
@@ -202,3 +226,17 @@ async function loadChat() {
         console.error('Error loading chat:', error);
     }
 }
+
+async function loadTerminal() {
+    try {
+        const response = await fetch('terminal.html');
+        const html = await response.text();
+        const terminalRoot = document.getElementById('terminal-root'); // Use existing element
+        //terminalRoot.id = 'terminal-root'; // No longer needed
+        //document.body.appendChild(terminalRoot); // No longer appending
+        terminalRoot.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading terminal:', error);
+    }
+}
+  

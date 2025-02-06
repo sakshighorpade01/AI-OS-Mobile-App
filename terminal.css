@@ -1,30 +1,38 @@
+/* terminal.css */
 #terminal-container {
     position: fixed;
-    bottom: 48px;
+    bottom: 60px; /* Adjust as needed */
     right: 20px;
-    width: 600px;
-    height: 400px;
-    background-color: #1e1e1e;
+    width: 800px;
+    height: 500px;
+    background: #1e1e1e;
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    font-family: 'Fira Code', monospace;
     display: flex;
     flex-direction: column;
-    z-index: 1000;
+    z-index: 1000; /* Ensure it's above other elements */
+    transition: transform 0.3s ease; /* Smooth transition */
 }
 
 #terminal-container.hidden {
-    display: none;
+    transform: translateY(150%); /* Hide by moving down */
 }
 
 .terminal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px;
-    background-color: #252526;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
+    padding: 8px 12px;
+    background: #252526;
+    border-radius: 8px 8px 0 0;
     border-bottom: 1px solid #333;
+}
+
+.terminal-title {
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
 }
 
 .terminal-tabs {
@@ -34,15 +42,17 @@
 
 .tab-btn {
     padding: 4px 12px;
-    background: transparent;
+    background: #333;
     border: none;
-    color: #ccc;
-    cursor: pointer;
     border-radius: 4px;
+    color: #888;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 12px;
 }
 
 .tab-btn.active {
-    background: #0066cc;
+    background: #007acc;
     color: white;
 }
 
@@ -51,65 +61,121 @@
     gap: 8px;
 }
 
-.terminal-controls button {
-    background: transparent;
+.terminal-control {
+    background: none;
     border: none;
-    color: #ccc;
+    color: #888;
+    padding: 4px;
     cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 4px;
+    transition: color 0.2s;
 }
 
-.terminal-controls button:hover {
+.terminal-control:hover {
+    color: #fff;
+}
+
+.terminal-search {
+    padding: 8px 12px;
+    background: #252526;
+    border-bottom: 1px solid #333;
+}
+
+.search-input {
+    width: 100%;
+    padding: 6px 12px;
     background: #333;
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #fff;
+    font-size: 12px;
 }
 
-.terminal-content {
+.terminal-body {
     flex: 1;
     overflow-y: auto;
-    padding: 12px;
-    font-family: 'Consolas', monospace;
-    font-size: 13px;
-    line-height: 1.4;
+    padding: 10px;
+    background: #1a1a1a;
 }
 
 .log-container {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
 }
 
 .log-entry {
     display: flex;
-    gap: 8px;
-    padding: 2px 4px;
+    gap: 12px;
+    padding: 4px 8px;
+    font-size: 12px;
+    line-height: 1.4;
     border-radius: 4px;
+    transition: background-color 0.2s;
 }
 
 .log-entry:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: #252526;
 }
 
-.log-time {
-    color: #666;
-    font-size: 0.9em;
+.log-timestamp {
+    color: #888;
     min-width: 80px;
 }
 
 .log-level {
     min-width: 60px;
     font-weight: bold;
+    text-transform: uppercase;
 }
 
-.log-level.debug { color: #6495ED; }
-.log-level.info { color: #90EE90; }
-.log-level.error { color: #FF6B6B; }
+.log-source {
+    color: #888;
+    min-width: 100px;
+}
+
+.log-level.debug { color: #4fc3f7; }
+.log-level.info { color: #73d487; }
+.log-level.error { color: #ff5252; }
 
 .log-message {
-    color: #ddd;
+    color: #d4d4d4;
+    white-space: pre-wrap;
     word-break: break-word;
+    flex: 1;
 }
 
-.log-entry.filtered {
-    display: none;
+.log-metadata {
+    color: #888;
+    font-size: 11px;
+    margin-left: 12px;
+}
+
+.terminal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #252526;
+    border-top: 1px solid #333;
+}
+
+.log-counters {
+    display: flex;
+    gap: 12px;
+}
+
+.log-counter {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: #333;
+}
+
+.log-counter.debug { color: #4fc3f7; }
+.log-counter.info { color: #73d487; }
+.log-counter.error { color: #ff5252; }
+
+.terminal-status {
+    color: #888;
+    font-size: 11px;
 }

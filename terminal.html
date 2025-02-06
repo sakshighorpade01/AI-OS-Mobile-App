@@ -1,3 +1,4 @@
+<!-- terminal.html -->
 <div id="terminal-container" class="hidden">
     <div class="terminal-header">
         <div class="terminal-tabs">
@@ -7,18 +8,34 @@
             <button class="tab-btn" data-log="error">Error</button>
         </div>
         <div class="terminal-controls">
-            <button id="clear-terminal" title="Clear Terminal">
-                <i class="fas fa-trash"></i>
+            <button class="terminal-control" id="clear-terminal" title="Clear logs">
+                <i class="fas fa-eraser"></i>
             </button>
-            <button id="download-logs" title="Download Logs">
-                <i class="fas fa-download"></i>
+            <button class="terminal-control" id="export-logs" title="Export logs">
+                <i class="fas fa-file-export"></i>
             </button>
-            <button id="close-terminal" title="Close Terminal">
+            <button class="terminal-control" id="close-terminal" title="Close terminal">
                 <i class="fas fa-times"></i>
             </button>
         </div>
     </div>
-    <div class="terminal-content">
+    
+    <div class="terminal-search">
+        <input type="text" id="log-search" class="search-input" placeholder="Search logs...">
+    </div>
+    
+    <div class="terminal-body">
         <div class="log-container"></div>
+    </div>
+    
+    <div class="terminal-footer">
+        <div class="log-counters">
+            <span class="log-counter debug">Debug: 0</span>
+            <span class="log-counter info">Info: 0</span>
+            <span class="log-counter error">Error: 0</span>
+        </div>
+        <div class="terminal-status">
+            Connected to logging service
+        </div>
     </div>
 </div>

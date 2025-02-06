@@ -1,3 +1,4 @@
+//python-bridge.js
 const { spawn } = require('child_process');
 const path = require('path');
 const { ipcMain } = require('electron');
@@ -85,7 +86,13 @@ class PythonBridge {
         this.ws.on('message', (data) => {
             try {
                 const message = JSON.parse(data);
-                this.mainWindow.webContents.send('python-response', message);
+                 // Centralized Message Handling
+                if (message.type === 'log') {
+                    this.mainWindow.webContents.send('python-log', message); // Send to terminal
+                } else {
+                    this.mainWindow.webContents.send('python-response', message); // Send to chat
+                }
+
             } catch (error) {
                 console.error('Error parsing WebSocket message:', error);
             }

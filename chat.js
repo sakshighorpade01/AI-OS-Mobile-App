@@ -30,22 +30,21 @@ function connectSocket() {
     socket.on('connect', () => {
         console.log('Connected to server');
         document.querySelectorAll('.connection-error').forEach(e => e.remove());
-        sessionActive = false; 
+        sessionActive = false;
     });
 
-    socket.on('response', (data) => { 
-        console.log('Raw response:', data); 
+    socket.on('response', (data) => {
         try {
             if (!data) return;
-            
+
             const isStreaming = data.streaming || false;
             const isDone = data.done || false;
             const messageId = data.id;
-            
+
             if (isStreaming || data.content) {
                 addMessage(data, false, isStreaming, messageId, isDone);
             }
-            
+
         } catch (error) {
             console.error('Error handling response:', error);
             addMessage('Error processing response', false);
@@ -60,7 +59,7 @@ function connectSocket() {
         showNotification(error.message || 'An error occurred. Starting new session.');
         document.getElementById('floating-input').disabled = false;
         document.getElementById('send-message').disabled = false;
-        
+
         if (error.reset) {
             sessionActive = false;
             document.querySelector('.add-btn').click();
@@ -97,10 +96,10 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
     const chatMessages = document.getElementById('chat-messages');
     const inputElement = document.getElementById('floating-input');
     const sendButton = document.getElementById('send-message');
-    
+
     inputElement.disabled = false;
     sendButton.disabled = false;
-    
+
     if (isStreaming && !isUser) {
         if (!messageId) return;
 
@@ -115,7 +114,7 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
         if (typeof message === 'object' && message.content) {
             const formattedContent = messageFormatter.formatStreaming(message.content, messageId);
             messageDiv.innerHTML = formattedContent;
-            
+
             if (messageDiv.querySelector('.mermaid')) {
                 mermaid.init(undefined, messageDiv.querySelectorAll('.mermaid'));
             }
@@ -128,22 +127,22 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
     } else {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${isUser ? 'message-user' : 'message-bot'}`;
-        
+
         if (isUser) {
             messageDiv.textContent = message;
         } else if (typeof message === 'object' && message.content) {
             messageDiv.innerHTML = messageFormatter.format(message.content);
-            
+
             if (messageDiv.querySelector('.mermaid')) {
                 mermaid.init(undefined, messageDiv.querySelectorAll('.mermaid'));
             }
         } else if (typeof message === 'string') {
             messageDiv.textContent = message;
         }
-        
+
         chatMessages.appendChild(messageDiv);
     }
-    
+
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
@@ -151,14 +150,14 @@ function handleSendMessage() {
     const floatingInput = document.getElementById('floating-input');
     const sendMessageBtn = document.getElementById('send-message');
     const message = floatingInput.value.trim();
-    
+
     if (!message || !socket?.connected) return;
-    
+
     floatingInput.disabled = true;
     sendMessageBtn.disabled = true;
-    
+
     addMessage(message, true);
-    
+
     const messageData = {
         message: message,
         id: Date.now().toString()
@@ -176,14 +175,14 @@ function handleSendMessage() {
     if (selectedSessions && selectedSessions.length > 0) {
         const contextStr = selectedSessions.map(session => {
             if (!session.interactions || !session.interactions.length) return '';
-            
+
             const formattedInteractions = session.interactions.map(interaction => {
                 return `User: ${interaction.user_input}\nAssistant: ${interaction.llm_output}`;
             }).join('\n\n');
-            
+
             return formattedInteractions;
         }).filter(Boolean).join('\n---\n');
-        
+
         if (contextStr) {
             messageData.context = contextStr;
         }
@@ -198,16 +197,15 @@ function handleSendMessage() {
         floatingInput.disabled = false;
         sendMessageBtn.disabled = false;
     }
-    
+
     floatingInput.value = '';
     floatingInput.style.height = 'auto';
 }
-
 function initializeToolsMenu() {
     const toolsBtn = document.querySelector('[data-tool="tools"]');
     const toolsMenu = toolsBtn.querySelector('.tools-menu');
     const checkboxes = toolsMenu.querySelectorAll('input[type="checkbox"]');
-    
+
     checkboxes.forEach(checkbox => {
         checkbox.checked = chatConfig.tools[checkbox.id] || false;
     });
@@ -252,7 +250,7 @@ function handleMemoryToggle() {
 function terminateSession() {
     sessionActive = false;
     ongoingStreams = {};
-    
+
     if (socket?.connected) {
         socket.emit('send_message', JSON.stringify({
             type: 'terminate_session'
@@ -262,7 +260,7 @@ function terminateSession() {
 
 function initializeAutoExpandingTextarea() {
     const textarea = document.getElementById('floating-input');
-    
+
     textarea.addEventListener('input', function() {
         this.style.height = 'auto';
         this.style.height = (this.scrollHeight) + 'px';
@@ -272,28 +270,28 @@ function initializeAutoExpandingTextarea() {
 function showNotification(message, type = 'error', duration = 10000) {
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
-    
+
     const icon = document.createElement('i');
     icon.className = type === 'error' ? 'fas fa-exclamation-circle' : 'fas fa-info-circle';
-    
+
     const textDiv = document.createElement('div');
     textDiv.className = 'notification-text';
     textDiv.textContent = message;
-    
+
     notification.appendChild(icon);
     notification.appendChild(textDiv);
-    
+
     let container = document.querySelector('.notification-container');
     if (!container) {
         container = document.createElement('div');
         container.className = 'notification-container';
         document.body.appendChild(container);
     }
-    
+
     container.appendChild(notification);
-    
+
     setTimeout(() => notification.classList.add('show'), 100);
-    
+
     setTimeout(() => {
         notification.classList.remove('show');
         setTimeout(() => {
@@ -315,7 +313,6 @@ function init() {
         newChatBtn: document.querySelector('.add-btn')
     };
 
-    // Initialize context handler
     contextHandler = new ContextHandler();
 
     initializeToolsMenu();
@@ -345,7 +342,7 @@ function init() {
         chatMessages.innerHTML = '';
         inputElement.disabled = false;
         sendButton.disabled = false;
-        
+
         sessionActive = false;
         ongoingStreams = {};
         contextHandler.clearSelectedContext();
@@ -361,21 +358,21 @@ function init() {
                 web_crawler: true
             }
         };
-        
+
         document.querySelectorAll('.tool-btn').forEach(btn => {
             btn.classList.remove('active');
         });
-        
+
         document.querySelectorAll('.tools-menu input[type="checkbox"]').forEach(checkbox => {
             checkbox.checked = chatConfig.tools[checkbox.id] || false;
         });
     });
-    
+
     socket.on('connect', () => {
         console.log('Connected to server');
         document.querySelectorAll('.connection-error').forEach(e => e.remove());
         sessionActive = false;
-        
+
         elements.input.disabled = false;
         elements.sendBtn.disabled = false;
     });
@@ -383,10 +380,10 @@ function init() {
     socket.on('error', (error) => {
         console.error('Error:', error);
         showNotification(error.message || 'An error occurred. Starting new session.');
-        
+
         elements.input.disabled = false;
         elements.sendBtn.disabled = false;
-        
+
         if (error.reset) {
             sessionActive = false;
             contextHandler.clearSelectedContext();

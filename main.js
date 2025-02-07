@@ -1,4 +1,3 @@
-// main.js
 const electron = require('electron');
 const { app, BrowserWindow, ipcMain } = electron;
 const path = require('path');
@@ -14,9 +13,10 @@ function createWindow() {
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false,
-            enableRemoteModule: true
+            enableRemoteModule: true,
+            webSecurity: false
         },
-        frame: false,
+        frame: true,
         transparent: true
     });
 

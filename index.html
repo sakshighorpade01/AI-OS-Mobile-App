@@ -1,4 +1,4 @@
-<!--index.html-->
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -12,80 +12,42 @@
     <link rel="stylesheet" href="aios.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+    
 </head>
 <body class="dark-mode">
-    <!-- Floating Window -->
     <div id="aios-container"></div>
-
-    <!-- Chat Root Container -->
     <div id="chat-root"></div>
-
     <div id="terminal-root"></div>
 
-    <!-- Taskbar -->
     <div class="taskbar">
         <div class="taskbar-icons">
-            <button id="app-icon" class="taskbar-icon">
-                <img src="aios.png" width="24" height="24" alt="App Logo">
-                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <button id="app-icon" class="taskbar-icon" aria-label="AIOS Settings">
+                <img src="aios.png" width="24" height="24" alt="AIOS Logo">
             </button>
-            <button id="chat-icon" class="taskbar-icon">
+            <button id="chat-icon" class="taskbar-icon" aria-label="Open Chat">
                 <i class="fas fa-comments"></i>
             </button>
-            <button id="terminal-icon" class="taskbar-icon">
+            <button id="terminal-icon" class="taskbar-icon" aria-label="Open Terminal">
                 <i class="fas fa-terminal"></i>
             </button>
         </div>
     </div>
 
     <div class="window-controls">
-        <button id="theme-toggle" class="theme-toggle window-control-btn">
+        <button id="theme-toggle" class="theme-toggle window-control-btn" aria-label="Toggle Theme">
             <i class="fas fa-sun"></i>
         </button>
-        <button id="minimize-window" class="window-control-btn">
+        <button id="minimize-window" class="window-control-btn" aria-label="Minimize Window">
             <i class="fas fa-minus"></i>
         </button>
-        <button id="resize-window" class="window-control-btn">
+        <button id="resize-window" class="window-control-btn" aria-label="Resize Window">
             <i class="fas fa-expand"></i>
         </button>
-        <button id="close-window" class="window-control-btn">
+        <button id="close-window" class="window-control-btn" aria-label="Close Window">
             <i class="fas fa-times"></i>
         </button>
     </div>
-
     <script src="renderer.js"></script>
-    <script>
-        // Configure highlight.js
-        hljs.configure({
-            cssSelector: 'pre code',
-            ignoreUnescapedHTML: true,
-            languages: ['javascript', 'python', 'bash', 'json', 'html', 'css']
-        });
-    
-        // Configure mermaid
-        mermaid.initialize({
-            startOnLoad: true,
-            theme: document.body.classList.contains('dark-mode') ? 'dark' : 'default',
-            securityLevel: 'loose',
-            fontFamily: 'inherit'
-        });
-    
-        // Update mermaid theme when switching between light/dark mode
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.target.classList.contains('dark-mode')) {
-                    mermaid.initialize({ theme: 'dark' });
-                } else {
-                    mermaid.initialize({ theme: 'default' });
-                }
-            });
-        });
-    
-        observer.observe(document.body, {
-            attributes: true,
-            attributeFilter: ['class']
-        });
-    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.2.4/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
@@ -95,12 +57,45 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/turndown/7.1.2/turndown.min.js"></script>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <script type="module" src="message-formatter.js"></script>
     <script type="module" src="chat.js"></script>
     <script src="aios.js"></script>
     <script src="terminal.js"></script>
+    <script>
+        hljs.configure({
+            cssSelector: 'pre code',
+            ignoreUnescapedHTML: true,
+            languages: ['javascript', 'python', 'bash', 'json', 'html', 'css']
+        });
+
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: document.body.classList.contains('dark-mode') ? 'dark' : 'default',
+            securityLevel: 'loose',
+            fontFamily: 'inherit'
+        });
+
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.target.classList.contains('dark-mode')) {
+                    mermaid.initialize({ theme: 'dark' });
+                } else {
+                    mermaid.initialize({ theme: 'default' });
+                }
+                if(mutation.type === 'attributes' && mutation.attributeName === 'class'){
+                     if (mutation.target.querySelectorAll('.mermaid').length > 0){
+                         mermaid.init(undefined, mutation.target.querySelectorAll('.mermaid'))
+                     }
+                }
+            });
+        });
+
+        observer.observe(document.body, {
+            attributes: true,
+            attributeFilter: ['class'],
+            subtree: true
+        });
+    </script>
 </body>
 </html>

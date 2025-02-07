@@ -217,7 +217,7 @@ def get_llm_os(
         name="AI_OS",
         run_id=run_id,
         user_id=user_id,
-        model=Gemini(id="gemini-2.0-flash-exp", stream=True),
+        model=Gemini(id="gemini-2.0-pro-exp-02-05", stream=True),
         #model=Groq(id="llama-3.3-70b-versatile"),
         description=dedent(
             """\

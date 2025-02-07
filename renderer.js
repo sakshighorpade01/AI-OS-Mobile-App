@@ -1,4 +1,4 @@
-//renderer.js
+// renderer.js
 class StateManager {
     constructor() {
         this._state = {
@@ -8,7 +8,7 @@ class StateManager {
             isAIOSOpen: false,
             isTerminalOpen: false
         };
-        
+
         this.subscribers = new Set();
     }
 
@@ -16,9 +16,9 @@ class StateManager {
         const changedKeys = Object.keys(updates).filter(
             key => this._state[key] !== updates[key]
         );
-        
+
         Object.assign(this._state, updates);
-        
+
         if (changedKeys.length > 0) {
             this.notifySubscribers(changedKeys);
         }
@@ -47,6 +47,11 @@ class UIManager {
     }
 
     init() {
+        this.cacheElements();
+        this.setupEventListeners();
+        this.setupStateSubscription();
+    }
+    cacheElements() {
         this.elements = {
             appIcon: document.getElementById('app-icon'),
             chatIcon: document.getElementById('chat-icon'),
@@ -56,45 +61,22 @@ class UIManager {
             closeBtn: document.getElementById('close-window'),
             terminalIcon: document.getElementById('terminal-icon')
         };
-
-        this.setupEventListeners();
-        this.setupStateSubscription();
     }
 
     setupEventListeners() {
         const { ipcRenderer } = require('electron');
 
-        this.elements.minimizeBtn?.addEventListener('click', () => {
-            ipcRenderer.send('minimize-window');
-        });
+        const addClickHandler = (element, handler) => {
+            element?.addEventListener('click', handler);
+        };
 
-        this.elements.resizeBtn?.addEventListener('click', () => {
-            ipcRenderer.send('toggle-maximize-window');
-        });
-
-        this.elements.closeBtn?.addEventListener('click', () => {
-            ipcRenderer.send('close-window');
-        });
-
-        this.elements.themeToggle?.addEventListener('click', () => {
-            const currentState = this.state.getState();
-            this.state.setState({ isDarkMode: !currentState.isDarkMode });
-        });
-
-        this.elements.appIcon?.addEventListener('click', () => {
-            const currentState = this.state.getState();
-            this.state.setState({ isAIOSOpen: !currentState.isAIOSOpen });
-        });
-
-        this.elements.chatIcon?.addEventListener('click', () => {
-            const currentState = this.state.getState();
-            this.state.setState({ isChatOpen: !currentState.isChatOpen });
-        });
-
-        this.elements.terminalIcon.addEventListener('click', () => {
-            const currentState = this.state.getState();
-            this.state.setState({ isTerminalOpen: !currentState.isTerminalOpen });
-        });
+        addClickHandler(this.elements.minimizeBtn, () => ipcRenderer.send('minimize-window'));
+        addClickHandler(this.elements.resizeBtn, () => ipcRenderer.send('toggle-maximize-window'));
+        addClickHandler(this.elements.closeBtn, () => ipcRenderer.send('close-window'));
+        addClickHandler(this.elements.themeToggle, () => this.state.setState({ isDarkMode: !this.state.getState().isDarkMode }));
+        addClickHandler(this.elements.appIcon, () => this.state.setState({ isAIOSOpen: !this.state.getState().isAIOSOpen }));
+        addClickHandler(this.elements.chatIcon, () => this.state.setState({ isChatOpen: !this.state.getState().isChatOpen }));
+        addClickHandler(this.elements.terminalIcon, () => this.state.setState({ isTerminalOpen: !this.state.getState().isTerminalOpen }));
 
         ipcRenderer.on('window-state-changed', (_, isMaximized) => {
             this.state.setState({ isWindowMaximized: isMaximized });
@@ -112,19 +94,22 @@ class UIManager {
                         this.updateWindowControls(state.isWindowMaximized);
                         break;
                     case 'isChatOpen':
-                        if (state.isChatOpen && state.isAIOSOpen) {
-                            this.state.setState({ isAIOSOpen: false });
+                        if (state.isChatOpen && (state.isAIOSOpen || state.isTerminalOpen)) {
+                            this.state.setState({ isAIOSOpen: false, isTerminalOpen: false });
                         }
                         this.updateChatVisibility(state.isChatOpen);
                         this.updateTaskbarPosition(state.isChatOpen);
                         break;
                     case 'isAIOSOpen':
-                        if (state.isAIOSOpen && state.isChatOpen) {
-                            this.state.setState({ isChatOpen: false });
+                        if (state.isAIOSOpen && (state.isChatOpen || state.isTerminalOpen)) {
+                            this.state.setState({ isChatOpen: false, isTerminalOpen: false });
                         }
                         this.updateAIOSVisibility(state.isAIOSOpen);
                         break;
                     case 'isTerminalOpen':
+                        if (state.isTerminalOpen && (state.isChatOpen || state.isAIOSOpen)) {
+                            this.state.setState({ isChatOpen: false, isAIOSOpen: false });
+                        }
                         this.updateTerminalVisibility(state.isTerminalOpen);
                         break;
                 }
@@ -133,24 +118,20 @@ class UIManager {
     }
 
     updateTerminalVisibility(isOpen) {
-        const terminalContainer = document.getElementById('terminal-container');
-        if (terminalContainer) {
-            terminalContainer.classList.toggle('hidden', !isOpen);
-        }
+        document.getElementById('terminal-container')?.classList.toggle('hidden', !isOpen);
     }
-    
+
     updateTheme(isDarkMode) {
         document.body.classList.toggle('dark-mode', isDarkMode);
-        const icon = this.elements.themeToggle?.querySelector('i');
-        if (icon) {
-            icon.className = isDarkMode ? 'fas fa-sun' : 'fas fa-moon';
+        if (this.elements.themeToggle) {
+          this.elements.themeToggle.querySelector('i').className = isDarkMode ? 'fas fa-sun' : 'fas fa-moon';
         }
+
     }
 
     updateWindowControls(isMaximized) {
-        const icon = this.elements.resizeBtn?.querySelector('i');
-        if (icon) {
-            icon.className = isMaximized ? 'fas fa-compress' : 'fas fa-expand';
+        if(this.elements.resizeBtn){
+          this.elements.resizeBtn.querySelector('i').className = isMaximized ? 'fas fa-compress' : 'fas fa-expand';
         }
     }
 
@@ -168,10 +149,7 @@ class UIManager {
 
     updateAIOSVisibility(isOpen) {
         if (window.AIOS?.initialized) {
-            const floatingWindow = document.getElementById('floating-window');
-            if (floatingWindow) {
-                floatingWindow.classList.toggle('hidden', !isOpen);
-            }
+            document.getElementById('floating-window')?.classList.toggle('hidden', !isOpen);
         }
     }
 
@@ -187,56 +165,19 @@ class UIManager {
 document.addEventListener('DOMContentLoaded', () => {
     const stateManager = new StateManager();
     window.stateManager = stateManager;
-    const uiManager = new UIManager(stateManager);
+    new UIManager(stateManager);
 
-    loadTerminal().then(() => {
-        if (window.terminalLogger) {
-            window.terminalLogger.init();
+    const loadModule = async (name, containerId, initFunc) => {
+        try {
+            const response = await fetch(`${name}.html`);
+            const html = await response.text();
+            document.getElementById(containerId).innerHTML = html;
+            initFunc?.();
+        } catch (error) {
+            console.error(`Error loading ${name}:`, error);
         }
-    });
-
-    loadAIOS().then(() => {
-        if (window.AIOS) {
-            window.AIOS.init();
-        }
-    });
-    loadChat().then(() => {
-        if (window.chatModule) {
-            window.chatModule.init();
-        }
-    });
+    };
+    loadModule('aios', 'aios-container', () => window.AIOS?.init());
+    loadModule('chat', 'chat-root', () => window.chatModule?.init());
+    loadModule('terminal', 'terminal-root', () => window.terminalLogger?.init());
 });
-
-async function loadAIOS() {
-    try {
-        const response = await fetch('aios.html');
-        const html = await response.text();
-        document.getElementById('aios-container').innerHTML = html;
-    } catch (error) {
-        console.error('Error loading AIOS:', error);
-    }
-}
-
-async function loadChat() {
-    try {
-        const response = await fetch('chat.html');
-        const html = await response.text();
-        document.getElementById('chat-root').innerHTML = html;
-    } catch (error) {
-        console.error('Error loading chat:', error);
-    }
-}
-
-async function loadTerminal() {
-    try {
-        const response = await fetch('terminal.html');
-        const html = await response.text();
-        const terminalRoot = document.getElementById('terminal-root'); // Use existing element
-        //terminalRoot.id = 'terminal-root'; // No longer needed
-        //document.body.appendChild(terminalRoot); // No longer appending
-        terminalRoot.innerHTML = html;
-    } catch (error) {
-        console.error('Error loading terminal:', error);
-    }
-}
-  

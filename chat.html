@@ -79,6 +79,10 @@
     <button class="add-btn">
         <i class="fas fa-plus"></i>
     </button>
+    <input type="file" id="file-input" style="display: none;" multiple />
+    <button id="attach-file-btn" class="attach-btn">
+        <i class="fas fa-paperclip"></i>
+    </button>
     <textarea 
         id="floating-input" 
         class="floating-input" 
@@ -165,5 +169,19 @@
         </div>
     </div>
 </template>
+
+<div id="file-preview-sidebar" class="file-preview-sidebar">
+    <div class="file-preview-header">
+        <div class="file-preview-title">
+            Attached Files <span class="file-count">0</span>
+        </div>
+        <button class="close-preview-btn preview-toggle">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="file-preview-content">
+        <!-- File preview items will be dynamically added here -->
+    </div>
+</div>
 
 <div class="notification-container"></div>

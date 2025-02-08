@@ -1,5 +1,6 @@
 import { messageFormatter } from './message-formatter.js';
 import ContextHandler from './context-handler.js';
+import FileAttachmentHandler from './add-files.js';
 
 let chatConfig = {
     memory: false,
@@ -17,6 +18,7 @@ let socket = null;
 let ongoingStreams = {};
 let sessionActive = false;
 let contextHandler = null;
+let fileAttachmentHandler = null;
 
 function connectSocket() {
     socket = io('http://localhost:8765', {
@@ -151,16 +153,23 @@ function handleSendMessage() {
     const sendMessageBtn = document.getElementById('send-message');
     const message = floatingInput.value.trim();
 
-    if (!message || !socket?.connected) return;
+    if (!message && fileAttachmentHandler.getAttachedFiles().length === 0) {
+        return; // Don't send if both are empty
+    }
+
+    if (!socket?.connected) return;
 
     floatingInput.disabled = true;
     sendMessageBtn.disabled = true;
 
-    addMessage(message, true);
+    if (message) {
+        addMessage(message, true);
+    }
 
     const messageData = {
         message: message,
-        id: Date.now().toString()
+        id: Date.now().toString(),
+        files: fileAttachmentHandler.getAttachedFiles()
     };
 
     if (!sessionActive) {
@@ -191,6 +200,7 @@ function handleSendMessage() {
     try {
         console.log('Sending message with data:', messageData);
         socket.emit('send_message', JSON.stringify(messageData));
+        fileAttachmentHandler.clearAttachedFiles();
     } catch (error) {
         console.error('Error sending message:', error);
         addMessage('Error sending message', false);
@@ -250,6 +260,9 @@ function handleMemoryToggle() {
 function terminateSession() {
     sessionActive = false;
     ongoingStreams = {};
+    if (fileAttachmentHandler) {
+        fileAttachmentHandler.clearAttachedFiles();
+    }
 
     if (socket?.connected) {
         socket.emit('send_message', JSON.stringify({
@@ -310,7 +323,8 @@ function init() {
         input: document.getElementById('floating-input'),
         sendBtn: document.getElementById('send-message'),
         minimizeBtn: document.getElementById('minimize-chat'),
-        newChatBtn: document.querySelector('.add-btn')
+        newChatBtn: document.querySelector('.add-btn'),
+        attachBtn: document.getElementById('attach-file-btn')
     };
 
     contextHandler = new ContextHandler();
@@ -319,11 +333,17 @@ function init() {
     handleMemoryToggle();
     connectSocket();
     initializeAutoExpandingTextarea();
+    connectSocket(); 
+    fileAttachmentHandler = new FileAttachmentHandler(socket); 
 
     elements.sendBtn.addEventListener('click', handleSendMessage);
 
     elements.minimizeBtn?.addEventListener('click', () => {
         window.stateManager.setState({ isChatOpen: false });
+    });
+
+    elements.attachBtn.addEventListener('click', () => {
+        fileAttachmentHandler.fileInput.click(); // Directly trigger fileInput
     });
 
     elements.input.addEventListener('keypress', (e) => {

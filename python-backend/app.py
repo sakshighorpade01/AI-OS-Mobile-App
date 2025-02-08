@@ -126,6 +126,7 @@ def on_send_message(data):
         message = data.get("message", "")
         context = data.get("context", "")
         message_type = data.get("type", "")
+        files = data.get("files", [])
 
         if message_type == "terminate_session" or message_type == "new_chat":
             connection_manager.terminate_session(sid)
@@ -134,7 +135,7 @@ def on_send_message(data):
 
         session = connection_manager.get_session(sid)
         if not session:
-            if not message:
+            if not message and not files: #check if files also not exists.
                 return
             config = data.get("config", {})
             agent = connection_manager.create_session(sid, config)
@@ -149,7 +150,11 @@ def on_send_message(data):
             connection_manager.terminate_session(sid)
             return
         
-        for response in isolated_assistant.run_safely(agent, message, context):
+        combined_message = message
+        for file_data in files:
+            combined_message += f"\n\n--- File: {file_data['name']} ---\n{file_data['content']}"
+        
+        for response in isolated_assistant.run_safely(agent, combined_message, context):
             if response.get("reset_session"):
                 connection_manager.terminate_session(sid)
                 emit("error", {"message": "Session reset required", "reset": True})

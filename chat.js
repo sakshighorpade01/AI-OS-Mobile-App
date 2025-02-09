@@ -154,7 +154,7 @@ function handleSendMessage() {
     const message = floatingInput.value.trim();
 
     if (!message && fileAttachmentHandler.getAttachedFiles().length === 0) {
-        return; // Don't send if both are empty
+        return;
     }
 
     if (!socket?.connected) return;
@@ -172,29 +172,31 @@ function handleSendMessage() {
         files: fileAttachmentHandler.getAttachedFiles()
     };
 
+    // Only include context if this is a new session
     if (!sessionActive) {
         messageData.config = {
             use_memory: chatConfig.memory,
             ...chatConfig.tools
         };
-        sessionActive = true;
-    }
+        
+        const selectedSessions = contextHandler.getSelectedSessions();
+        if (selectedSessions && selectedSessions.length > 0) {
+            const contextStr = selectedSessions.map(session => {
+                if (!session.interactions || !session.interactions.length) return '';
 
-    const selectedSessions = contextHandler.getSelectedSessions();
-    if (selectedSessions && selectedSessions.length > 0) {
-        const contextStr = selectedSessions.map(session => {
-            if (!session.interactions || !session.interactions.length) return '';
+                const formattedInteractions = session.interactions.map(interaction => {
+                    return `User: ${interaction.user_input}\nAssistant: ${interaction.llm_output}`;
+                }).join('\n\n');
 
-            const formattedInteractions = session.interactions.map(interaction => {
-                return `User: ${interaction.user_input}\nAssistant: ${interaction.llm_output}`;
-            }).join('\n\n');
+                return formattedInteractions;
+            }).filter(Boolean).join('\n---\n');
 
-            return formattedInteractions;
-        }).filter(Boolean).join('\n---\n');
-
-        if (contextStr) {
-            messageData.context = contextStr;
+            if (contextStr) {
+                messageData.context = contextStr;
+            }
         }
+        
+        sessionActive = true;
     }
 
     try {
@@ -211,6 +213,7 @@ function handleSendMessage() {
     floatingInput.value = '';
     floatingInput.style.height = 'auto';
 }
+
 function initializeToolsMenu() {
     const toolsBtn = document.querySelector('[data-tool="tools"]');
     const toolsMenu = toolsBtn.querySelector('.tools-menu');
@@ -316,6 +319,117 @@ function showNotification(message, type = 'error', duration = 10000) {
     }, duration);
 }
 
+class UnifiedPreviewHandler {
+    constructor(contextHandler, fileAttachmentHandler) {
+        this.contextHandler = contextHandler;
+        this.fileAttachmentHandler = fileAttachmentHandler;
+        this.viewer = document.getElementById('selected-context-viewer');
+        this.initializeViewer();
+    }
+
+    initializeViewer() {
+        // Update viewer HTML structure
+        this.viewer.innerHTML = `
+            <div class="context-viewer-header">
+                <h3>Selected Content Preview</h3>
+                <button class="close-viewer-btn">×</button>
+            </div>
+            <div class="context-viewer-content">
+                <div class="preview-section context-section">
+                    <h4>Selected Context Sessions</h4>
+                    <div class="context-preview-content"></div>
+                </div>
+                <div class="preview-section files-section">
+                    <h4>Attached Files</h4>
+                    <div class="files-preview-content"></div>
+                </div>
+            </div>
+        `;
+
+        this.viewer.querySelector('.close-viewer-btn').addEventListener('click', () => {
+            this.hideViewer();
+        });
+    }
+
+    showViewer() {
+        this.updateContent();
+        this.viewer.classList.add('visible');
+    }
+
+    hideViewer() {
+        this.viewer.classList.remove('visible');
+    }
+
+    updateContent() {
+        this.updateContextContent();
+        this.updateFilesContent();
+    }
+
+    updateContextContent() {
+        const contextContent = this.viewer.querySelector('.context-preview-content');
+        const sessions = this.contextHandler.getSelectedSessions();
+
+        if (!sessions?.length) {
+            contextContent.innerHTML = '<p>No context sessions selected</p>';
+            return;
+        }
+
+        contextContent.innerHTML = sessions.map((session, index) => `
+            <div class="session-block">
+                <h4>Session ${index + 1}</h4>
+                ${session.interactions.map(int => `
+                    <div class="interaction">
+                        <div class="user-message"><strong>User:</strong> ${int.user_input}</div>
+                        <div class="assistant-message"><strong>Assistant:</strong> ${int.llm_output}</div>
+                    </div>
+                `).join('')}
+            </div>
+        `).join('');
+    }
+
+    updateFilesContent() {
+        const filesContent = this.viewer.querySelector('.files-preview-content');
+        const files = this.fileAttachmentHandler.getAttachedFiles();
+
+        if (!files?.length) {
+            filesContent.innerHTML = '<p>No files attached</p>';
+            return;
+        }
+
+        filesContent.innerHTML = files.map((file, index) => `
+            <div class="file-preview-item">
+                <div class="file-preview-header-item">
+                    <div class="file-info">
+                        <i class="${this.fileAttachmentHandler.getFileIcon(file.name)} file-icon"></i>
+                        <span class="file-name">${file.name}</span>
+                    </div>
+                    <div class="file-actions">
+                        <button class="preview-toggle" title="Toggle Preview">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="remove-file" title="Remove File">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="file-preview-content-item">${file.content}</div>
+            </div>
+        `).join('');
+
+        // Add event listeners for file actions
+        filesContent.querySelectorAll('.file-preview-item').forEach((item, index) => {
+            item.querySelector('.preview-toggle').addEventListener('click', () => {
+                item.querySelector('.file-preview-content-item').classList.toggle('visible');
+            });
+
+            item.querySelector('.remove-file').addEventListener('click', () => {
+                this.fileAttachmentHandler.removeFile(index);
+                this.updateContent();
+            });
+        });
+    }
+}
+
 function init() {
     const elements = {
         container: document.getElementById('chat-container'),
@@ -335,6 +449,7 @@ function init() {
     initializeAutoExpandingTextarea();
     connectSocket(); 
     fileAttachmentHandler = new FileAttachmentHandler(socket); 
+    window.unifiedPreviewHandler = new UnifiedPreviewHandler(contextHandler, fileAttachmentHandler);
 
     elements.sendBtn.addEventListener('click', handleSendMessage);
 

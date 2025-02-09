@@ -910,12 +910,12 @@
     color: var(--accent-color);
 }
 
-/* Context Viewer Floating Window */
+/* Update CSS for unified preview */
 .selected-context-viewer {
     position: fixed;
     right: 50px;
     top: 50%;
-    transform: translate(150%, -50%); 
+    transform: translate(150%, -50%);
     width: 500px;
     height: 80vh;
     background: var(--window-bg);
@@ -930,198 +930,36 @@
     transform: translate(0, -50%);
 }
 
-/* Chat container shift animation */
-#chat-container.context-open {
-    transform: translateX(-200px);
-    transition: transform 0.3s ease;
+.preview-section {
+    margin-bottom: 24px;
 }
 
-#floating-input-container.context-open {
-    transform: translateX(-200px);
-    transition: transform 0.3s ease;
-}
-
-/* Improved viewer header */
-.context-viewer-header {
-    padding: 20px;
-    border-bottom: 1px solid var(--border-color);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 12px 12px 0 0;
-}
-
-.context-viewer-header h3 {
-    margin: 0;
-    font-size: 1.1rem;
-    font-weight: 500;
-}
-
-/* Enhanced viewer content */
-.context-viewer-content {
-    padding: 20px;
-    overflow-y: auto;
-    height: calc(100% - 70px);
-}
-
-.session-block {
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 10px;
-    padding: 15px;
-    margin-bottom: 15px;
-}
-
-.session-block h4 {
-    margin: 0 0 10px;
+.preview-section h4 {
     color: var(--accent-color);
-    font-size: 0.9rem;
-}
-
-.interaction {
-    padding: 10px;
-    border-left: 2px solid var(--accent-color);
-    margin: 15px 0;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 0 8px 8px 0;
-}
-
-.context-active-indicator {
-    display: none;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    background: rgba(var(--accent-color-rgb), 0.1);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.context-active-indicator.visible {
-    display: flex;
-}
-
-.context-active-indicator:hover {
-    background: rgba(var(--accent-color-rgb), 0.15);
-    transform: translateY(-1px);
-}
-
-.close-viewer-btn {
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
-    border-radius: 6px;
-    padding: 8px 12px;
-    color: var(--text-color);
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.close-viewer-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
-}
-
-/* Add a style for the attached files preview (optional) */
-.attached-files-preview {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 8px;
-}
-
-.attached-file {
-    background-color: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 4px 8px;
-    font-size: 0.8rem;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.remove-file-btn {
-    cursor: pointer;
-    color: var(--text-color);
-    margin-left: 4px;
-}
-.remove-file-btn:hover {
-    color: var(--accent-color);
-}
-/* Floating Input */
-.floating-input-container {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    transition: transform 0.3s ease;
-    width: 45%;
-    background-color: var(--window-bg);
-    border-radius: 16px;
-    box-shadow: 0 8px 32px var(--shadow-color);
-    border: 1px solid var(--border-color);
-    padding: 12px 16px;
-    z-index: 999;
-    display: flex;
-    gap: 12px;
-    align-items: flex-end;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-}
-
-/* File Preview Sidebar */
-.file-preview-sidebar {
-    position: fixed;
-    right: 0;
-    top: 60px;
-    width: 300px;
-    height: calc(100vh - 150px);
-    background: var(--window-bg);
-    border-left: 1px solid var(--border-color);
-    border-radius: 16px 0 0 16px;
-    box-shadow: -4px 0 24px var(--shadow-color);
-    transform: translateX(100%);
-    transition: transform 0.3s ease;
-    z-index: 998;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    display: flex;
-    flex-direction: column;
-}
-
-.file-preview-sidebar.visible {
-    transform: translateX(0);
-}
-
-.file-preview-header {
-    padding: 16px;
-    border-bottom: 1px solid var(--border-color);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.file-preview-title {
-    font-weight: 500;
     font-size: 1rem;
-    color: var(--text-color);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
 }
 
-.file-count {
-    background: var(--accent-color);
-    color: white;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.8rem;
-    margin-left: 8px;
-}
-
-.file-preview-content {
-    flex: 1;
+.context-preview-content,
+.files-preview-content {
+    max-height: calc(40vh - 60px);
     overflow-y: auto;
-    padding: 16px;
+    padding-right: 8px;
 }
 
-.file-preview-item {
+.context-preview-content {
+    margin-bottom: 24px;
+}
+
+/* Hide the original file preview sidebar since we're using unified preview */
+.file-preview-sidebar {
+    display: none;
+}
+
+/* Maintain existing styles for file preview items within the unified viewer */
+.selected-context-viewer .file-preview-item {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--border-color);
     border-radius: 8px;
@@ -1129,12 +967,7 @@
     transition: all 0.2s ease;
 }
 
-.file-preview-item:hover {
-    border-color: var(--accent-color);
-    transform: translateY(-1px);
-}
-
-.file-preview-header-item {
+.selected-context-viewer .file-preview-header-item {
     padding: 12px;
     display: flex;
     justify-content: space-between;
@@ -1142,65 +975,20 @@
     border-bottom: 1px solid var(--border-color);
 }
 
-.file-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+/* Add scrollbar styling */
+.context-preview-content::-webkit-scrollbar,
+.files-preview-content::-webkit-scrollbar {
+    width: 8px;
 }
 
-.file-icon {
-    color: var(--accent-color);
-    font-size: 1.2rem;
-}
-
-.file-name {
-    font-size: 0.9rem;
-    color: var(--text-color);
-    word-break: break-all;
-}
-
-.file-actions {
-    display: flex;
-    gap: 8px;
-}
-
-.preview-toggle,
-.remove-file {
-    background: none;
-    border: none;
-    color: var(--text-color);
-    cursor: pointer;
-    padding: 4px;
+.context-preview-content::-webkit-scrollbar-track,
+.files-preview-content::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
     border-radius: 4px;
-    transition: all 0.2s ease;
 }
 
-.preview-toggle:hover,
-.remove-file:hover {
-    color: var(--accent-color);
-    background: rgba(99, 102, 241, 0.1);
-}
-
-.file-preview-content-item {
-    padding: 12px;
-    max-height: 200px;
-    overflow-y: auto;
-    font-family: var(--mono-font);
-    font-size: 0.85rem;
-    line-height: 1.5;
-    background: var(--code-bg);
-    display: none;
-}
-
-.file-preview-content-item.visible {
-    display: block;
-}
-
-/* Adjust chat container when sidebar is visible */
-.chat-container.sidebar-open {
-    width: calc(45% - 150px);
-}
-
-.floating-input-container.sidebar-open {
-    width: calc(45% - 150px);
+.context-preview-content::-webkit-scrollbar-thumb,
+.files-preview-content::-webkit-scrollbar-thumb {
+    background: var(--accent-color);
+    border-radius: 4px;
 }

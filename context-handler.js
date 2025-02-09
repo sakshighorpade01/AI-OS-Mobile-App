@@ -24,8 +24,9 @@ class ContextHandler {
             this.elements.indicator.classList.add('clickable');
             this.elements.indicator.style.cursor = 'pointer';
             this.elements.indicator.addEventListener('click', () => {
-                console.log('Indicator clicked'); // Debug log
-                this.toggleContextViewer();
+                if (window.unifiedPreviewHandler) {
+                    window.unifiedPreviewHandler.showViewer();
+                }
             });
         }
     

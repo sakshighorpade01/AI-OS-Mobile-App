@@ -1,3 +1,4 @@
+// main.js (Updated)
 const electron = require('electron');
 const { app, BrowserWindow, ipcMain } = electron;
 const path = require('path');
@@ -41,6 +42,10 @@ function createWindow() {
 
     ipcMain.on('close-window', () => {
         mainWindow.close();
+    });
+
+    ipcMain.on('deepsearch-request', (event, data) => {
+        pythonBridge.sendMessage(data);
     });
 }
 

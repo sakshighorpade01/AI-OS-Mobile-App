@@ -1,4 +1,4 @@
-<!-- index.html -->
+<!-- index.html (modified) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,17 +7,40 @@
     <title>AIOS Desktop</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="chat.css">
-    <link rel="stylesheet" href="terminal.css">
+    <link rel="stylesheet" href="deepsearch.css">
+    <link rel="stylesheet" href="to-do-list.css"> <!-- Added to-do-list.css -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="aios.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
-    
+
 </head>
 <body class="dark-mode">
     <div id="aios-container"></div>
     <div id="chat-root"></div>
-    <div id="terminal-root"></div>
+    <div id="deepsearch-root"></div>
+    <div id="to-do-list-root"></div> <!-- Added to-do-list container -->
+
+     <!-- Deepsearch Container (placed after other roots) -->
+    <div id="deepsearch-container" class="deepsearch-container hidden">
+        <div class="deepsearch-sidebar">
+            <h3>Context</h3>
+            <ul id="file-list">
+                <!-- Files will be listed here -->
+            </ul>
+        </div>
+        <div class="deepsearch-main">
+            <div id="deepsearch-results" class="deepsearch-results">
+                <!-- Search results will be displayed here -->
+            </div>
+            <div class="deepsearch-input-area">
+                <button id="new-chat-btn" class="deepsearch-button" aria-label="New Chat"><i class="fas fa-plus"></i></button>
+                <button id="attach-file-btn" class="deepsearch-button" aria-label="Attach File"><i class="fas fa-paperclip"></i></button>
+                <input type="text" id="deepsearch-input" placeholder="Enter your deep search query...">
+                <button id="send-deepsearch-btn" class="deepsearch-button" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
 
     <div class="taskbar">
         <div class="taskbar-icons">
@@ -27,8 +50,11 @@
             <button id="chat-icon" class="taskbar-icon" aria-label="Open Chat">
                 <i class="fas fa-comments"></i>
             </button>
-            <button id="terminal-icon" class="taskbar-icon" aria-label="Open Terminal">
-                <i class="fas fa-terminal"></i>
+            <button id="deepsearch-icon" class="taskbar-icon" aria-label="Open Deepsearch">
+                <i class="fas fa-search-plus"></i>
+            </button>
+            <button id="to-do-list-icon" class="taskbar-icon" aria-label="Open To-Do List"> <!-- Added To-Do List Icon -->
+                <i class="fas fa-list-check"></i>
             </button>
         </div>
     </div>
@@ -47,6 +73,10 @@
             <i class="fas fa-times"></i>
         </button>
     </div>
+
+    <!--  Notification Container (Ensure it's present) -->
+    <div class="notification-container"></div>
+
     <script src="renderer.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.2.4/mermaid.min.js"></script>
@@ -61,7 +91,8 @@
     <script type="module" src="message-formatter.js"></script>
     <script type="module" src="chat.js"></script>
     <script src="aios.js"></script>
-    <script src="terminal.js"></script>
+    <script type="module" src="deepsearch.js"></script>  <!-- Corrected: type="module" -->
+    <script src="to-do-list.js"></script> <!-- Added to-do-list.js -->
     <script>
         hljs.configure({
             cssSelector: 'pre code',

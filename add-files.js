@@ -151,9 +151,6 @@ class FileAttachmentHandler {
     removeFile(index) {
         this.attachedFiles.splice(index, 1);
         this.renderFilePreview();
-        if (this.attachedFiles.length === 0) {
-            this.toggleSidebar(false);
-        }
     }
 
     getAttachedFiles() {

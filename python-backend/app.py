@@ -1,9 +1,12 @@
+# app.py (Updated)
+
 import logging
 import json
 import uuid
 from flask import Flask, request
 from flask_socketio import SocketIO, emit
 from assistant import get_llm_os
+from deepsearch import get_deepsearch  # Import the deepsearch agent
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import traceback
@@ -31,7 +34,7 @@ class IsolatedAssistant:
     def __init__(self):
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.response_queue = Queue()
-        
+
     def run_safely(self, agent, message, context=None):
         """Runs agent in isolated thread and handles crashes"""
         try:
@@ -45,11 +48,11 @@ class IsolatedAssistant:
                 if chunk and chunk.content:
                     yield {"content": chunk.content, "streaming": True}
             yield {"content": "", "done": True}
-            
+
         except Exception as e:
             error_msg = f"Tool error: {str(e)}\n{traceback.format_exc()}"
             logger.error(error_msg)
-            yield {"content": "An error occurred while processing your request. Starting a new session...", 
+            yield {"content": "An error occurred while processing your request. Starting a new session...",
                   "error": True, "done": True}
             yield {"reset_session": True}
 
@@ -61,32 +64,43 @@ class ConnectionManager:
         self.sessions = {}
         self.lock = threading.Lock()
         self.isolated_assistants = {}
-        
-    def create_session(self, sid, config):
+
+    def create_session(self, sid, config, is_deepsearch=False):
         with self.lock:
             if sid in self.sessions:
                 self.terminate_session(sid)
-            
-            agent = get_llm_os(
-                calculator=config.get("calculator", False),
-                web_crawler=config.get("web_crawler", False),
-                ddg_search=config.get("ddg_search", False),
-                shell_tools=config.get("shell_tools", False),
-                python_assistant=config.get("python_assistant", False),
-                investment_assistant=config.get("investment_assistant", False),
-                use_memory=config.get("use_memory", False),
-                debug_mode=True
-            )
-            
+
+            # Choose the agent based on the is_deepsearch flag.
+            if is_deepsearch:
+                agent = get_deepsearch(
+                    ddg_search=config.get("ddg_search", False),
+                    web_crawler=config.get("web_crawler", False),
+                    investment_assistant=config.get("investment_assistant", False),
+                    debug_mode=True
+                )
+            else:
+                agent = get_llm_os(
+                    calculator=config.get("calculator", False),
+                    web_crawler=config.get("web_crawler", False),
+                    ddg_search=config.get("ddg_search", False),
+                    shell_tools=config.get("shell_tools", False),
+                    python_assistant=config.get("python_assistant", False),
+                    investment_assistant=config.get("investment_assistant", False),
+                    use_memory=config.get("use_memory", False),
+                    debug_mode=True
+                )
+
+
             self.sessions[sid] = {
                 "agent": agent,
                 "config": config,
-                "initialized": True
+                "initialized": True,
+                "is_deepsearch": is_deepsearch  # Store the agent type
             }
-            
+
             self.isolated_assistants[sid] = IsolatedAssistant()
-            
-            logger.info(f"Created new session {sid} with config {config}")
+
+            logger.info(f"Created new session {sid} with config {config} (Deepsearch: {is_deepsearch})")
             return agent
 
     def terminate_session(self, sid):
@@ -127,6 +141,7 @@ def on_send_message(data):
         context = data.get("context", "")
         message_type = data.get("type", "")
         files = data.get("files", [])
+        is_deepsearch = data.get("is_deepsearch", False)  # Check for Deepsearch flag
 
         if message_type == "terminate_session" or message_type == "new_chat":
             connection_manager.terminate_session(sid)
@@ -135,33 +150,33 @@ def on_send_message(data):
 
         session = connection_manager.get_session(sid)
         if not session:
-            if not message and not files: #check if files also not exists.
-                return
+            # Pass is_deepsearch to create_session
             config = data.get("config", {})
-            agent = connection_manager.create_session(sid, config)
+            agent = connection_manager.create_session(sid, config, is_deepsearch=is_deepsearch)
         else:
             agent = session["agent"]
 
+
         message_id = str(uuid.uuid4())
         isolated_assistant = connection_manager.isolated_assistants.get(sid)
-        
+
         if not isolated_assistant:
             emit("error", {"message": "Session error. Starting new chat...", "reset": True})
             connection_manager.terminate_session(sid)
             return
-        
+
         combined_message = message
         for file_data in files:
             combined_message += f"\n\n--- File: {file_data['name']} ---\n{file_data['content']}"
-        
+
         for response in isolated_assistant.run_safely(agent, combined_message, context):
             if response.get("reset_session"):
                 connection_manager.terminate_session(sid)
                 emit("error", {"message": "Session reset required", "reset": True})
                 return
-                
+
             emit("response", {**response, "id": message_id}, room=sid)
-                
+
     except Exception as e:
         logger.error(f"Error in message handler: {e}\n{traceback.format_exc()}")
         emit("error", {"message": "AI service error. Starting new chat...", "reset": True})

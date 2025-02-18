@@ -1,4 +1,4 @@
-// renderer.js
+// renderer.js (modified)
 class StateManager {
     constructor() {
         this._state = {
@@ -6,7 +6,8 @@ class StateManager {
             isWindowMaximized: false,
             isChatOpen: false,
             isAIOSOpen: false,
-            isTerminalOpen: false
+            isDeepsearchOpen: false,
+            isToDoListOpen: false // Added isToDoListOpen
         };
 
         this.subscribers = new Set();
@@ -59,7 +60,8 @@ class UIManager {
             minimizeBtn: document.getElementById('minimize-window'),
             resizeBtn: document.getElementById('resize-window'),
             closeBtn: document.getElementById('close-window'),
-            terminalIcon: document.getElementById('terminal-icon')
+            deepsearchIcon: document.getElementById('deepsearch-icon'),
+            toDoListIcon: document.getElementById('to-do-list-icon') // Added To-Do List Icon
         };
     }
 
@@ -76,7 +78,8 @@ class UIManager {
         addClickHandler(this.elements.themeToggle, () => this.state.setState({ isDarkMode: !this.state.getState().isDarkMode }));
         addClickHandler(this.elements.appIcon, () => this.state.setState({ isAIOSOpen: !this.state.getState().isAIOSOpen }));
         addClickHandler(this.elements.chatIcon, () => this.state.setState({ isChatOpen: !this.state.getState().isChatOpen }));
-        addClickHandler(this.elements.terminalIcon, () => this.state.setState({ isTerminalOpen: !this.state.getState().isTerminalOpen }));
+        addClickHandler(this.elements.deepsearchIcon, () => this.state.setState({ isDeepsearchOpen: !this.state.getState().isDeepsearchOpen }));
+        addClickHandler(this.elements.toDoListIcon, () => this.state.setState({ isToDoListOpen: !this.state.getState().isToDoListOpen })); // Added To-Do List
 
         ipcRenderer.on('window-state-changed', (_, isMaximized) => {
             this.state.setState({ isWindowMaximized: isMaximized });
@@ -85,7 +88,7 @@ class UIManager {
 
     setupStateSubscription() {
         this.state.subscribe((state, changedKeys) => {
-            changedKeys.forEach(key => {
+          changedKeys.forEach(key => {
                 switch (key) {
                     case 'isDarkMode':
                         this.updateTheme(state.isDarkMode);
@@ -94,31 +97,42 @@ class UIManager {
                         this.updateWindowControls(state.isWindowMaximized);
                         break;
                     case 'isChatOpen':
-                        if (state.isChatOpen && (state.isAIOSOpen || state.isTerminalOpen)) {
-                            this.state.setState({ isAIOSOpen: false, isTerminalOpen: false });
+                        if (state.isChatOpen && (state.isAIOSOpen || state.isDeepsearchOpen || state.isToDoListOpen)) {
+                            this.state.setState({ isAIOSOpen: false, isDeepsearchOpen: false, isToDoListOpen: false }); // Close other windows
                         }
                         this.updateChatVisibility(state.isChatOpen);
                         this.updateTaskbarPosition(state.isChatOpen);
                         break;
                     case 'isAIOSOpen':
-                        if (state.isAIOSOpen && (state.isChatOpen || state.isTerminalOpen)) {
-                            this.state.setState({ isChatOpen: false, isTerminalOpen: false });
+                        if (state.isAIOSOpen && (state.isChatOpen || state.isDeepsearchOpen|| state.isToDoListOpen)) {
+                            this.state.setState({ isChatOpen: false, isDeepsearchOpen: false, isToDoListOpen: false}); // Close other windows
                         }
                         this.updateAIOSVisibility(state.isAIOSOpen);
                         break;
-                    case 'isTerminalOpen':
-                        if (state.isTerminalOpen && (state.isChatOpen || state.isAIOSOpen)) {
-                            this.state.setState({ isChatOpen: false, isAIOSOpen: false });
+                    case 'isDeepsearchOpen':
+                        if (state.isDeepsearchOpen && (state.isChatOpen || state.isAIOSOpen || state.isToDoListOpen)) {
+                            this.state.setState({ isChatOpen: false, isAIOSOpen: false , isToDoListOpen: false}); // Close other windows
                         }
-                        this.updateTerminalVisibility(state.isTerminalOpen);
+                        this.updateDeepsearchVisibility(state.isDeepsearchOpen);
+                        break;
+                    case 'isToDoListOpen': // Added case for isToDoListOpen
+                        if (state.isToDoListOpen && (state.isChatOpen || state.isAIOSOpen || state.isDeepsearchOpen)) {
+                            this.state.setState({ isChatOpen: false, isAIOSOpen: false, isDeepsearchOpen: false }); //Close other windows
+                        }
+                        this.updateToDoListVisibility(state.isToDoListOpen);
                         break;
                 }
             });
         });
     }
 
-    updateTerminalVisibility(isOpen) {
-        document.getElementById('terminal-container')?.classList.toggle('hidden', !isOpen);
+
+    updateToDoListVisibility(isOpen) { // Added method for To-Do List visibility
+        document.getElementById('to-do-list-container')?.classList.toggle('hidden', !isOpen);
+    }
+
+    updateDeepsearchVisibility(isOpen) {
+        document.getElementById('deepsearch-container')?.classList.toggle('hidden', !isOpen);
     }
 
     updateTheme(isDarkMode) {
@@ -179,5 +193,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     loadModule('aios', 'aios-container', () => window.AIOS?.init());
     loadModule('chat', 'chat-root', () => window.chatModule?.init());
-    loadModule('terminal', 'terminal-root', () => window.terminalLogger?.init());
+    loadModule('deepsearch', 'deepsearch-root', () => window.deepsearch?.init());
+    loadModule('to-do-list', 'to-do-list-root', () => window.todo?.init()); // Added To-Do List
 });

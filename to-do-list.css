@@ -1,0 +1,231 @@
+.to-do-list-container {
+    position: fixed;
+    top: 5%;
+    left: 30%;
+    right: 30%;
+    bottom: 10%;
+    background-color: var(--window-bg);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px var(--shadow-color);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    z-index: 900;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease; /* Smooth transitions */
+}
+
+.to-do-list-header {
+    padding: 5px;
+    text-align: center;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.to-do-list-header h2 {
+    font-size: 1.5rem; /* Larger heading */
+    font-weight: 700;
+    color: var(--accent-color); /* Use accent color */
+    margin-bottom: 0;
+    display: flex; /* Center icon with text */
+    align-items: center;
+    justify-content: center;
+    gap: 10px; /* Space between icon and text */
+}
+
+.to-do-list-content {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.to-do-list-input-area {
+    display: flex;
+    padding: 10px;
+    border-top: 1px solid var(--border-color);
+    background-color: var(--taskbar-bg); /* Consistent background */
+    border-radius: 0 0 16px 16px; /* Rounded bottom corners */
+}
+
+.to-do-list-input-area input[type="text"] {
+    flex-grow: 1;
+    padding: 12px 16px; /* Larger input */
+    border: 1px solid var(--border-color); /* Subtle border */
+    border-radius: 24px; /* Pill-shaped input */
+    background-color: transparent;
+    color: var(--text-color);
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s ease;
+    margin-right: 10px;
+}
+
+.to-do-list-input-area input:focus {
+    border-color: var(--accent-color);
+}
+.to-do-list-input-area input::placeholder{
+    color: var(--icon-color);
+}
+
+.to-do-list-input-area button {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 12px; /* Square button */
+    border-radius: 50%; /* Circular button */
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+}
+
+.to-do-list-input-area button:hover {
+    background-color: var(--accent-hover);
+    transform: scale(1.05); /* Slightly enlarge on hover */
+}
+
+#task-list {
+    list-style: none;
+    padding: 0;
+}
+
+#task-list li {
+    display: flex;
+    align-items: center;
+    padding: 16px; /* More padding */
+    margin-bottom: 12px; /* Spacing between tasks */
+    background-color: rgba(255, 255, 255, 0.1); /* Slight transparency */
+    border-radius: 12px; /* Rounded corners */
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); /* Subtle shadow */
+    transition: background-color 0.2s ease, transform 0.2s ease;
+    position: relative; /* For absolute positioning of buttons */
+    overflow: hidden; /* Prevent content overflow */
+     word-break: break-word;
+}
+
+#task-list li:last-child {
+    margin-bottom: 0; /* Remove margin from last item */
+}
+#task-list li:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px); /* Slight lift on hover */
+}
+
+#task-list li .task-text {
+    flex-grow: 1;
+    margin-right: 40px; /* Space for buttons */
+    font-size: 1.1rem;
+    transition: color 0.2s ease;
+
+}
+
+#task-list li.completed .task-text {
+    text-decoration: line-through;
+    color: var(--icon-color);
+}
+/* Checkbox styles */
+#task-list li .checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    margin-right: 12px;
+    cursor: pointer;
+}
+
+
+/* Hide the default checkbox */
+#task-list li input[type="checkbox"] {
+    display: none;
+}
+
+
+#task-list li .checkmark {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid var(--icon-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+
+}
+/* Checkmark icon (hidden by default) */
+#task-list li .checkmark i {
+    color: white;
+    font-size: 0.8rem;
+    opacity: 0; /* Hidden initially */
+    transition: opacity 0.2s ease;
+}
+/* Styles when checkbox is checked */
+#task-list li input[type="checkbox"]:checked + .checkmark {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+}
+
+#task-list li input[type="checkbox"]:checked + .checkmark i {
+    opacity: 1; /* Show checkmark */
+}
+
+
+/* Button container (for positioning) */
+#task-list li .button-container {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 8px;
+}
+
+
+#task-list li button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px; /* Smaller padding */
+    border-radius: 50%;
+    color: var(--icon-color);
+    transition: color 0.2s ease, transform 0.2s ease;
+    display: flex; /* Center icons */
+    align-items: center;
+    justify-content: center;
+}
+
+#task-list li button:hover {
+    color: var(--accent-color);
+    transform: scale(1.1);
+}
+.delete-btn i{
+     font-size: 0.9rem;
+}
+#task-list li button.delete-btn:hover {
+    color: #ef4444; /* Red for delete */
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .to-do-list-container {
+        top: 20px;
+        left: 20px;
+        right: 20px;
+        bottom: 20px;
+    }
+
+    .to-do-list-header h2 {
+        font-size: 1.2rem;
+    }
+
+    .to-do-list-input-area input[type="text"] {
+        padding: 10px 12px;
+        font-size: 0.9rem;
+    }
+
+    #task-list li .task-text {
+        font-size: 1rem;
+        margin-right: 30px; /* Adjust space for buttons */
+    }
+    #task-list li{
+        padding: 12px;
+    }
+}

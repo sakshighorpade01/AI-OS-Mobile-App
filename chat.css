@@ -77,11 +77,11 @@
 /* Chat Container */
 .chat-container {
     position: fixed;
-    top: 60px;
+    top: 25px;
     left: 50%;
     transform: translateX(-50%);
     width: 45%;
-    height: calc(100% - 150px);
+    height: calc(100% - 120px);
     padding: 10px;
     z-index: 999;
     animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -114,15 +114,16 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px;
+    padding: 7px;
     border-bottom: 1px solid var(--border-color);
     background: rgba(255, 255, 255, 0.02);
     border-radius: 16px 16px 0 0;
 }
 .chat-title {
-    font-weight: 600;
+    font-weight: 400;
     color: var(--text-color);
     font-size: 1.1rem;
+    padding: 2px;
     letter-spacing: 0.01em;
 }
 

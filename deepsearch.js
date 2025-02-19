@@ -21,6 +21,11 @@ class Deepsearch {
             'c': 'text/x-c'
         };
 
+        // Bind methods to preserve 'this' context
+        this.handleAttachFile = this.handleAttachFile.bind(this);
+        this.handlePreview = this.handlePreview.bind(this);
+        this.handleRemoveFile = this.handleRemoveFile.bind(this);
+
         this.init(); // Call init() to set everything up
     }
 
@@ -48,15 +53,32 @@ class Deepsearch {
 
         this.setupEventListeners();
         this.setupSocketListeners();
+
+        const style = document.createElement('style');
+        style.textContent = `
+            .notification-container {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 9999;
+            }
+            
+            .notification {
+                padding: 12px 24px;
+                margin-bottom: 10px;
+                border-radius: 8px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                transition: opacity 0.3s ease-out;
+            }
+        `;
+        document.head.appendChild(style);
     }
 
     setupEventListeners() {
-        // Attach file handling (CORRECTED)
-        this.elements.attachFileBtn?.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            this.handleAttachFile(); // Call the separate function
-        });
+        // Attach file handling
+        if (this.elements.attachFileBtn) {
+            this.elements.attachFileBtn.addEventListener('click', this.handleAttachFile);
+        }
 
         // Other event listeners
         this.elements.newChatBtn?.addEventListener('click', () => this.handleNewChat());
@@ -74,20 +96,23 @@ class Deepsearch {
         input.type = 'file';
         input.multiple = true;
         input.accept = Object.keys(this.supportedFileTypes).map(ext => `.${ext}`).join(',');
-
+    
         input.onchange = async (e) => {
-            if (e.target.files?.length) {
-                await this.processFiles(Array.from(e.target.files));
+            const files = Array.from(e.target.files || []);
+            if (files.length) {
+                try {
+                    await this.processFiles(files);
+                } catch (error) {
+                    this.showNotification(error.message, 'error');
+                }
             }
-            input.remove(); // Clean up the input element
+            input.remove();
         };
-        //hide input element
-        input.style.opacity = '0';
-        input.style.position = 'absolute';
-        input.style.left = '-9999px';
-        document.body.appendChild(input); //append to body
-
-        input.click(); // Programmatically click the input
+    
+        // Properly handle the input element
+        input.style.display = 'none';
+        document.body.appendChild(input);
+        input.click();
     }
 
     setupSocketListeners() {
@@ -112,44 +137,71 @@ class Deepsearch {
     async processFiles(files) {
         const processedFiles = [];
         const errors = [];
-
+    
         for (const file of files) {
             try {
-                if (file.size > this.maxFileSize) throw new Error(`${file.name} exceeds 10MB limit`);
-
+                if (file.size > this.maxFileSize) {
+                    throw new Error(`${file.name} exceeds 10MB limit`);
+                }
+    
                 const ext = file.name.split('.').pop().toLowerCase();
-                if (!this.supportedFileTypes[ext]) throw new Error(`${ext} files not supported`);
-
-                if (this.fileList.some(f => f.name === file.name)) throw new Error(`${file.name} already exists`);
-
+                if (!this.supportedFileTypes[ext]) {
+                    throw new Error(`${ext} files not supported`);
+                }
+    
+                if (this.fileList.some(f => f.name === file.name)) {
+                    throw new Error(`${file.name} already exists`);
+                }
+    
                 const fileData = {
                     name: file.name,
                     type: this.supportedFileTypes[ext],
-                    size: file.size,
-                    content: null,
-                    dataURL: null
+                    size: file.size
                 };
-
+    
+                // Read file content based on type
                 if (fileData.type.startsWith('text/') || fileData.type === 'application/json') {
-                    fileData.content = await this.readFile(file, 'text');
-                    fileData.dataURL = await this.readFile(file, 'dataURL');
+                    try {
+                        fileData.content = await this.readFileAsText(file);
+                        fileData.dataURL = await this.readFileAsDataURL(file);
+                    } catch (readError) {
+                        throw new Error(`Failed to read ${file.name}: ${readError.message}`);
+                    }
                 }
-
+    
                 processedFiles.push(fileData);
             } catch (error) {
                 errors.push(error.message);
             }
         }
-
+    
         if (processedFiles.length) {
             this.fileList.push(...processedFiles);
             this.renderFileList();
             this.showNotification(`Added ${processedFiles.length} file(s)`, 'success');
         }
-
+    
         if (errors.length) {
             this.showNotification(errors.join('\n'), 'error');
         }
+    }
+
+    readFileAsText(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsText(file);
+        });
+    }
+    
+    readFileAsDataURL(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsDataURL(file);
+        });
     }
 
     readFile(file, type) {
@@ -457,17 +509,24 @@ class Deepsearch {
             backgroundColor: type === 'error' ? '#ff4444' : type === 'warning' ? '#ffbb33' : '#00C851',
             color: 'white',
             boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
-            animation: 'slideIn 0.3s ease-out'
+            opacity: '1',
+            transition: 'opacity 0.3s ease-out'
         });
 
         container.appendChild(notification);
 
+        // Fixed notification timing
         setTimeout(() => {
-            notification.style.animation = 'fadeOut 0.3s ease-out';
-            notification.addEventListener('animationend', () => {
-                notification.remove();
-                if (!container.children.length) container.remove();
-            });
+            notification.style.opacity = '0';
+            // Wait for fade out animation before removing
+            setTimeout(() => {
+                if (notification && notification.parentElement) {
+                    notification.remove();
+                    if (container && !container.children.length) {
+                        container.remove();
+                    }
+                }
+            }, 300); // Match transition duration
         }, duration);
     }
 
@@ -480,19 +539,5 @@ class Deepsearch {
         }
     }
 }
-
-// Add notification animations
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-    }
-    @keyframes fadeOut {
-        from { transform: translateX(0); opacity: 1; }
-        to { transform: translateX(100%); opacity: 0; }
-    }
-`;
-document.head.appendChild(style);
 
 window.deepsearch = new Deepsearch();

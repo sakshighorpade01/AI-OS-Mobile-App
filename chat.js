@@ -2,9 +2,14 @@ import { messageFormatter } from './message-formatter.js';
 import ContextHandler from './context-handler.js';
 import FileAttachmentHandler from './add-files.js';
 
+const fs = require('fs').promises; // Use fs.promises for async file ops
+const path = require('path');
+
+// Configuration for the chat, including enabled tools and features.
 let chatConfig = {
-    memory: false,
-    tools: {
+    memory: false,   // Whether to use chat memory.
+    tasks: false,    // Whether to include user tasks and context.
+    tools: {        // Enabled/disabled state of various tools.
         calculator: true,
         ddg_search: true,
         python_assistant: true,
@@ -14,12 +19,15 @@ let chatConfig = {
     }
 };
 
-let socket = null;
-let ongoingStreams = {};
-let sessionActive = false;
-let contextHandler = null;
-let fileAttachmentHandler = null;
+let socket = null;          // WebSocket connection.
+let ongoingStreams = {};   // Tracks ongoing message streams.
+let sessionActive = false;  // Flag to indicate if a chat session is active.
+let contextHandler = null;  // Instance of the ContextHandler.
+let fileAttachmentHandler = null; // Instance of the FileAttachmentHandler.
 
+/**
+ * Connects to the WebSocket server.
+ */
 function connectSocket() {
     socket = io('http://localhost:8765', {
         reconnection: true,
@@ -85,6 +93,9 @@ function connectSocket() {
     });
 }
 
+/**
+ * Displays a connection error message.
+ */
 function showConnectionError() {
     if (!document.querySelector('.connection-error')) {
         const errorDiv = document.createElement('div');
@@ -94,6 +105,14 @@ function showConnectionError() {
     }
 }
 
+/**
+ * Adds a message to the chat interface.
+ * @param {string|object} message - The message content.
+ * @param {boolean} isUser - True if the message is from the user, false if from the bot.
+ * @param {boolean} isStreaming - True if the message is part of a stream.
+ * @param {string} [messageId] - Unique ID for streamed messages.
+ * @param {boolean} [isDone] - True if the stream is complete.
+ */
 function addMessage(message, isUser, isStreaming = false, messageId = null, isDone = false) {
     const chatMessages = document.getElementById('chat-messages');
     const inputElement = document.getElementById('floating-input');
@@ -148,7 +167,10 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-function handleSendMessage() {
+/**
+ * Handles sending a message to the server.  Reads context files if needed.
+ */
+async function handleSendMessage() {
     const floatingInput = document.getElementById('floating-input');
     const sendMessageBtn = document.getElementById('send-message');
     const message = floatingInput.value.trim();
@@ -178,7 +200,10 @@ function handleSendMessage() {
             use_memory: chatConfig.memory,
             ...chatConfig.tools
         };
-        
+
+        let combinedContext = "";
+
+        // Add selected chat sessions to context
         const selectedSessions = contextHandler.getSelectedSessions();
         if (selectedSessions && selectedSessions.length > 0) {
             const contextStr = selectedSessions.map(session => {
@@ -192,10 +217,31 @@ function handleSendMessage() {
             }).filter(Boolean).join('\n---\n');
 
             if (contextStr) {
-                messageData.context = contextStr;
+                combinedContext += contextStr + "\n---\n";
             }
         }
-        
+
+
+        // Add tasks and user context if enabled
+        if (chatConfig.tasks) {
+            try {
+                const userContextPath = path.join(__dirname, 'user_context.txt');
+                const taskListPath = path.join(__dirname, 'tasklist.txt');
+
+                const userContextContent = await fs.readFile(userContextPath, 'utf8');
+                const taskListContent = await fs.readFile(taskListPath, 'utf8');
+
+                combinedContext += `User Context:\n${userContextContent}\n---\n`;
+                combinedContext += `Task List:\n${taskListContent}\n---\n`;
+            } catch (error) {
+                console.error("Error reading user context or task list:", error);
+                showNotification("Error reading context files.  Check console.", "error");
+                // Don't return;  still send the message, just without the task/user context
+            }
+        }
+        if(combinedContext){
+            messageData.context = combinedContext;
+        }
         sessionActive = true;
     }
 
@@ -214,17 +260,22 @@ function handleSendMessage() {
     floatingInput.style.height = 'auto';
 }
 
+
+/**
+ * Initializes the tools menu and its behavior.
+ */
 function initializeToolsMenu() {
     const toolsBtn = document.querySelector('[data-tool="tools"]');
     const toolsMenu = toolsBtn.querySelector('.tools-menu');
-    const checkboxes = toolsMenu.querySelectorAll('input[type="checkbox"]');
+    const aiOsCheckbox = document.getElementById('ai_os');
 
-    checkboxes.forEach(checkbox => {
-        checkbox.checked = chatConfig.tools[checkbox.id] || false;
-    });
+    // Initialize the checkbox based on the initial state of chatConfig.tools
+    const allToolsEnabledInitially = Object.values(chatConfig.tools).every(val => val === true);
+    aiOsCheckbox.checked = allToolsEnabledInitially;
+
 
     const updateToolsIndicator = () => {
-        const anyActive = Array.from(checkboxes).some(c => c.checked);
+        const anyActive = aiOsCheckbox.checked;
         toolsBtn.classList.toggle('has-active', anyActive);
     };
 
@@ -234,13 +285,15 @@ function initializeToolsMenu() {
         toolsMenu.classList.toggle('visible');
     });
 
-    checkboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', (e) => {
-            chatConfig.tools[e.target.id] = e.target.checked;
-            updateToolsIndicator();
-            e.stopPropagation();
-        });
+    aiOsCheckbox.addEventListener('change', (e) => {
+        const enableAll = e.target.checked;
+        for (const key in chatConfig.tools) {
+            chatConfig.tools[key] = enableAll;
+        }
+        updateToolsIndicator();
+        e.stopPropagation();
     });
+
 
     document.addEventListener('click', (e) => {
         if (!toolsBtn.contains(e.target)) {
@@ -252,6 +305,10 @@ function initializeToolsMenu() {
     updateToolsIndicator();
 }
 
+
+/**
+ * Handles toggling the memory feature on and off.
+ */
 function handleMemoryToggle() {
     const memoryBtn = document.querySelector('[data-tool="memory"]');
     memoryBtn.addEventListener('click', () => {
@@ -260,6 +317,20 @@ function handleMemoryToggle() {
     });
 }
 
+/**
+ * Handles toggling the tasks context feature on and off.
+ */
+function handleTasksToggle() {
+    const tasksBtn = document.querySelector('[data-tool="tasks"]');
+    tasksBtn.addEventListener('click', () => {
+        chatConfig.tasks = !chatConfig.tasks;
+        tasksBtn.classList.toggle('active', chatConfig.tasks);
+    });
+}
+
+/**
+ * Terminates the current chat session.
+ */
 function terminateSession() {
     sessionActive = false;
     ongoingStreams = {};
@@ -274,6 +345,9 @@ function terminateSession() {
     }
 }
 
+/**
+ * Initializes the auto-expanding behavior of the input textarea.
+ */
 function initializeAutoExpandingTextarea() {
     const textarea = document.getElementById('floating-input');
 
@@ -283,6 +357,12 @@ function initializeAutoExpandingTextarea() {
     });
 }
 
+/**
+ * Displays a notification message.
+ * @param {string} message - The message to display.
+ * @param {string} [type='error'] - The type of notification ('error', 'success', etc.).
+ * @param {number} [duration=10000] - How long to show the notification (in milliseconds).
+ */
 function showNotification(message, type = 'error', duration = 10000) {
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
@@ -319,6 +399,9 @@ function showNotification(message, type = 'error', duration = 10000) {
     }, duration);
 }
 
+/**
+ * Manages the unified preview of selected context and attached files.
+ */
 class UnifiedPreviewHandler {
     constructor(contextHandler, fileAttachmentHandler) {
         this.contextHandler = contextHandler;
@@ -430,6 +513,9 @@ class UnifiedPreviewHandler {
     }
 }
 
+/**
+ * Initializes the chat module.
+ */
 function init() {
     const elements = {
         container: document.getElementById('chat-container'),
@@ -445,10 +531,11 @@ function init() {
 
     initializeToolsMenu();
     handleMemoryToggle();
+    handleTasksToggle(); // Initialize the Tasks button
     connectSocket();
     initializeAutoExpandingTextarea();
-    connectSocket(); 
-    fileAttachmentHandler = new FileAttachmentHandler(socket); 
+    connectSocket();
+    fileAttachmentHandler = new FileAttachmentHandler(socket);
     window.unifiedPreviewHandler = new UnifiedPreviewHandler(contextHandler, fileAttachmentHandler);
 
     elements.sendBtn.addEventListener('click', handleSendMessage);
@@ -484,7 +571,8 @@ function init() {
 
         chatConfig = {
             memory: false,
-            tools: {
+            tasks: false, // Reset tasks to false
+            tools: {  // Reset tools to their default state
                 calculator: true,
                 ddg_search: true,
                 python_assistant: true,
@@ -493,13 +581,13 @@ function init() {
                 web_crawler: true
             }
         };
+        // Reset the AI-OS checkbox
+        document.getElementById('ai_os').checked = true;
+        //reset tasks
+        document.querySelector('[data-tool="tasks"]').classList.remove('active');
 
         document.querySelectorAll('.tool-btn').forEach(btn => {
             btn.classList.remove('active');
-        });
-
-        document.querySelectorAll('.tools-menu input[type="checkbox"]').forEach(checkbox => {
-            checkbox.checked = chatConfig.tools[checkbox.id] || false;
         });
     });
 

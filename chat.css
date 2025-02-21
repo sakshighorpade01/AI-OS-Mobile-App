@@ -1,3 +1,5 @@
+--- START OF FILE chat.css ---
+
 :root {
     --window-bg: #ffffff;
     --taskbar-bg: #f8f9fa;
@@ -992,4 +994,10 @@
 .files-preview-content::-webkit-scrollbar-thumb {
     background: var(--accent-color);
     border-radius: 4px;
+}
+
+.chat-tools .tool-btn[data-tool="tasks"].active {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: #ffffff;
 }

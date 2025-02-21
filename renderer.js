@@ -1,4 +1,3 @@
-// renderer.js (modified)
 class StateManager {
     constructor() {
         this._state = {
@@ -7,7 +6,8 @@ class StateManager {
             isChatOpen: false,
             isAIOSOpen: false,
             isDeepsearchOpen: false,
-            isToDoListOpen: false // Added isToDoListOpen
+            isToDoListOpen: false,
+            webViewBounds: { x: 0, y: 0, width: 400, height: 300 }
         };
 
         this.subscribers = new Set();
@@ -44,6 +44,9 @@ class UIManager {
     constructor(stateManager) {
         this.state = stateManager;
         this.elements = {};
+        this.isDragging = false;
+        this.isResizing = false;
+        this.dragStart = { x: 0, y: 0 };
         this.init();
     }
 
@@ -51,7 +54,9 @@ class UIManager {
         this.cacheElements();
         this.setupEventListeners();
         this.setupStateSubscription();
+        this.setupWebViewEvents();
     }
+
     cacheElements() {
         this.elements = {
             appIcon: document.getElementById('app-icon'),
@@ -61,8 +66,189 @@ class UIManager {
             resizeBtn: document.getElementById('resize-window'),
             closeBtn: document.getElementById('close-window'),
             deepsearchIcon: document.getElementById('deepsearch-icon'),
-            toDoListIcon: document.getElementById('to-do-list-icon') // Added To-Do List Icon
+            toDoListIcon: document.getElementById('to-do-list-icon'),
+            webViewContainer: null,
         };
+    }
+
+    setupWebViewEvents() {
+        const { ipcRenderer } = require('electron');
+
+        ipcRenderer.on('webview-created', (event, bounds) => {
+            this.createWebViewContainer(bounds);
+        });
+
+        ipcRenderer.on('webview-closed', () => {
+            this.removeWebViewContainer();
+        });
+    }
+
+    createWebViewContainer(bounds) {
+        // Remove existing container if present
+        if (this.elements.webViewContainer) {
+            this.removeWebViewContainer();
+        }
+
+        this.elements.webViewContainer = document.createElement('div');
+        this.elements.webViewContainer.id = 'webview-container';
+        this.elements.webViewContainer.className = 'webview-container';
+        
+        // Set initial position and size
+        this.elements.webViewContainer.style.left = `${bounds.x}px`;
+        this.elements.webViewContainer.style.top = `${bounds.y}px`;
+        this.elements.webViewContainer.style.width = `${bounds.width}px`;
+        this.elements.webViewContainer.style.height = `${bounds.height}px`;
+
+        // Create header with drag handle
+        const header = document.createElement('div');
+        header.className = 'webview-header';
+        header.innerHTML = `
+            <div class="drag-handle">
+                <span class="webview-title">Web View</span>
+            </div>
+            <div class="webview-controls">
+                <button class="close-webview" title="Close Webview">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+
+        // Add drag functionality to header
+        header.addEventListener('mousedown', (e) => this.startDragging(e));
+
+        // Add close functionality
+        const closeButton = header.querySelector('.close-webview');
+        closeButton.addEventListener('click', () => {
+            require('electron').ipcRenderer.send('close-webview');
+        });
+
+        this.elements.webViewContainer.appendChild(header);
+
+        // Add resize handles
+        const resizePositions = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+        resizePositions.forEach(position => {
+            const resizer = document.createElement('div');
+            resizer.className = `resizer ${position}`;
+            this.elements.webViewContainer.appendChild(resizer);
+            
+            resizer.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.startResizing(e, position);
+            });
+        });
+
+        document.body.appendChild(this.elements.webViewContainer);
+    }
+
+    removeWebViewContainer() {
+        if (this.elements.webViewContainer) {
+            this.elements.webViewContainer.remove();
+            this.elements.webViewContainer = null;
+        }
+    }
+
+    startDragging(e) {
+        if (e.target.closest('.resizer')) return;
+        
+        this.isDragging = true;
+        const container = this.elements.webViewContainer;
+        
+        this.dragStart = {
+            x: e.clientX - container.offsetLeft,
+            y: e.clientY - container.offsetTop
+        };
+
+        const handleDrag = (e) => {
+            if (!this.isDragging) return;
+
+            const newX = e.clientX - this.dragStart.x;
+            const newY = e.clientY - this.dragStart.y;
+
+            // Ensure window stays within viewport bounds
+            const maxX = window.innerWidth - container.offsetWidth;
+            const maxY = window.innerHeight - container.offsetHeight;
+            
+            container.style.left = `${Math.max(0, Math.min(maxX, newX))}px`;
+            container.style.top = `${Math.max(0, Math.min(maxY, newY))}px`;
+
+            require('electron').ipcRenderer.send('drag-webview', {
+                x: parseInt(container.style.left),
+                y: parseInt(container.style.top)
+            });
+        };
+
+        const stopDragging = () => {
+            this.isDragging = false;
+            document.removeEventListener('mousemove', handleDrag);
+            document.removeEventListener('mouseup', stopDragging);
+        };
+
+        document.addEventListener('mousemove', handleDrag);
+        document.addEventListener('mouseup', stopDragging);
+    }
+
+    startResizing(e, position) {
+        this.isResizing = true;
+        const container = this.elements.webViewContainer;
+        
+        const startBounds = {
+            x: container.offsetLeft,
+            y: container.offsetTop,
+            width: container.offsetWidth,
+            height: container.offsetHeight,
+            mouseX: e.clientX,
+            mouseY: e.clientY
+        };
+
+        const handleResize = (e) => {
+            if (!this.isResizing) return;
+
+            let newBounds = {
+                x: startBounds.x,
+                y: startBounds.y,
+                width: startBounds.width,
+                height: startBounds.height
+            };
+
+            const dx = e.clientX - startBounds.mouseX;
+            const dy = e.clientY - startBounds.mouseY;
+
+            // Handle different resize positions
+            if (position.includes('right')) {
+                newBounds.width = Math.max(300, startBounds.width + dx);
+            }
+            if (position.includes('left')) {
+                const newWidth = Math.max(300, startBounds.width - dx);
+                newBounds.x = startBounds.x + (startBounds.width - newWidth);
+                newBounds.width = newWidth;
+            }
+            if (position.includes('bottom')) {
+                newBounds.height = Math.max(200, startBounds.height + dy);
+            }
+            if (position.includes('top')) {
+                const newHeight = Math.max(200, startBounds.height - dy);
+                newBounds.y = startBounds.y + (startBounds.height - newHeight);
+                newBounds.height = newHeight;
+            }
+
+            // Apply new bounds
+            container.style.left = `${newBounds.x}px`;
+            container.style.top = `${newBounds.y}px`;
+            container.style.width = `${newBounds.width}px`;
+            container.style.height = `${newBounds.height}px`;
+
+            require('electron').ipcRenderer.send('resize-webview', newBounds);
+        };
+
+        const stopResizing = () => {
+            this.isResizing = false;
+            document.removeEventListener('mousemove', handleResize);
+            document.removeEventListener('mouseup', stopResizing);
+        };
+
+        document.addEventListener('mousemove', handleResize);
+        document.addEventListener('mouseup', stopResizing);
     }
 
     setupEventListeners() {
@@ -79,16 +265,23 @@ class UIManager {
         addClickHandler(this.elements.appIcon, () => this.state.setState({ isAIOSOpen: !this.state.getState().isAIOSOpen }));
         addClickHandler(this.elements.chatIcon, () => this.state.setState({ isChatOpen: !this.state.getState().isChatOpen }));
         addClickHandler(this.elements.deepsearchIcon, () => this.state.setState({ isDeepsearchOpen: !this.state.getState().isDeepsearchOpen }));
-        addClickHandler(this.elements.toDoListIcon, () => this.state.setState({ isToDoListOpen: !this.state.getState().isToDoListOpen })); // Added To-Do List
+        addClickHandler(this.elements.toDoListIcon, () => this.state.setState({ isToDoListOpen: !this.state.getState().isToDoListOpen }));
 
         ipcRenderer.on('window-state-changed', (_, isMaximized) => {
             this.state.setState({ isWindowMaximized: isMaximized });
+        });
+
+        document.addEventListener('click', (event) => {
+            if (event.target.tagName === 'A' && event.target.href) {
+                event.preventDefault();
+                ipcRenderer.send('open-webview', event.target.href);
+            }
         });
     }
 
     setupStateSubscription() {
         this.state.subscribe((state, changedKeys) => {
-          changedKeys.forEach(key => {
+            changedKeys.forEach(key => {
                 switch (key) {
                     case 'isDarkMode':
                         this.updateTheme(state.isDarkMode);
@@ -98,26 +291,26 @@ class UIManager {
                         break;
                     case 'isChatOpen':
                         if (state.isChatOpen && (state.isAIOSOpen || state.isDeepsearchOpen || state.isToDoListOpen)) {
-                            this.state.setState({ isAIOSOpen: false, isDeepsearchOpen: false, isToDoListOpen: false }); // Close other windows
+                            this.state.setState({ isAIOSOpen: false, isDeepsearchOpen: false, isToDoListOpen: false });
                         }
                         this.updateChatVisibility(state.isChatOpen);
                         this.updateTaskbarPosition(state.isChatOpen);
                         break;
                     case 'isAIOSOpen':
-                        if (state.isAIOSOpen && (state.isChatOpen || state.isDeepsearchOpen|| state.isToDoListOpen)) {
-                            this.state.setState({ isChatOpen: false, isDeepsearchOpen: false, isToDoListOpen: false}); // Close other windows
+                        if (state.isAIOSOpen && (state.isChatOpen || state.isDeepsearchOpen || state.isToDoListOpen)) {
+                            this.state.setState({ isChatOpen: false, isDeepsearchOpen: false, isToDoListOpen: false });
                         }
                         this.updateAIOSVisibility(state.isAIOSOpen);
                         break;
                     case 'isDeepsearchOpen':
                         if (state.isDeepsearchOpen && (state.isChatOpen || state.isAIOSOpen || state.isToDoListOpen)) {
-                            this.state.setState({ isChatOpen: false, isAIOSOpen: false , isToDoListOpen: false}); // Close other windows
+                            this.state.setState({ isChatOpen: false, isAIOSOpen: false, isToDoListOpen: false });
                         }
                         this.updateDeepsearchVisibility(state.isDeepsearchOpen);
                         break;
-                    case 'isToDoListOpen': // Added case for isToDoListOpen
+                    case 'isToDoListOpen':
                         if (state.isToDoListOpen && (state.isChatOpen || state.isAIOSOpen || state.isDeepsearchOpen)) {
-                            this.state.setState({ isChatOpen: false, isAIOSOpen: false, isDeepsearchOpen: false }); //Close other windows
+                            this.state.setState({ isChatOpen: false, isAIOSOpen: false, isDeepsearchOpen: false });
                         }
                         this.updateToDoListVisibility(state.isToDoListOpen);
                         break;
@@ -126,8 +319,7 @@ class UIManager {
         });
     }
 
-
-    updateToDoListVisibility(isOpen) { // Added method for To-Do List visibility
+    updateToDoListVisibility(isOpen) {
         document.getElementById('to-do-list-container')?.classList.toggle('hidden', !isOpen);
     }
 
@@ -138,14 +330,13 @@ class UIManager {
     updateTheme(isDarkMode) {
         document.body.classList.toggle('dark-mode', isDarkMode);
         if (this.elements.themeToggle) {
-          this.elements.themeToggle.querySelector('i').className = isDarkMode ? 'fas fa-sun' : 'fas fa-moon';
+            this.elements.themeToggle.querySelector('i').className = isDarkMode ? 'fas fa-sun' : 'fas fa-moon';
         }
-
     }
 
     updateWindowControls(isMaximized) {
-        if(this.elements.resizeBtn){
-          this.elements.resizeBtn.querySelector('i').className = isMaximized ? 'fas fa-compress' : 'fas fa-expand';
+        if (this.elements.resizeBtn) {
+            this.elements.resizeBtn.querySelector('i').className = isMaximized ? 'fas fa-compress' : 'fas fa-expand';
         }
     }
 
@@ -191,8 +382,9 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error(`Error loading ${name}:`, error);
         }
     };
+
     loadModule('aios', 'aios-container', () => window.AIOS?.init());
     loadModule('chat', 'chat-root', () => window.chatModule?.init());
     loadModule('deepsearch', 'deepsearch-root', () => window.deepsearch?.init());
-    loadModule('to-do-list', 'to-do-list-root', () => window.todo?.init()); // Added To-Do List
+    loadModule('to-do-list', 'to-do-list-root', () => window.todo?.init());
 });

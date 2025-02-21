@@ -1,5 +1,4 @@
 :root {
-    /* Modern color palette */
     --bg-color: #f8f9fc;
     --text-color: #2d3748;
     --taskbar-bg: rgba(255, 255, 255, 0.85);
@@ -11,7 +10,6 @@
     --accent-color: #6366f1;
     --accent-hover: #4f46e5;
 }
-
 .dark-mode {
     --bg-color: #0f172a;
     --text-color: #e2e8f0;
@@ -24,13 +22,11 @@
     --accent-color: #818cf8;
     --accent-hover: #6366f1;
 }
-
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
-
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     background-color: var(--bg-color);
@@ -40,8 +36,6 @@ body {
     position: relative;
     transition: background-color 0.3s ease, color 0.3s ease;
 }
-
-/* Enhanced Taskbar */
 .taskbar {
     position: fixed;
     bottom: 24px;
@@ -55,13 +49,11 @@ body {
     border: 1px solid var(--border-color);
     transition: all 0.3s ease;
 }
-
 .taskbar-icons {
     display: flex;
     gap: 20px;
     align-items: center;
 }
-
 .taskbar-icon {
     background: none;
     border: none;
@@ -75,22 +67,17 @@ body {
     align-items: center;
     justify-content: center;
 }
-
 .taskbar-icon:hover {
     background-color: var(--accent-color);
     color: white;
     transform: translateY(-2px);
 }
-
 .taskbar-icon:active {
     transform: translateY(0px);
 }
-
 .taskbar-icon i {
     font-size: 1.2rem;
 }
-
-/* Enhanced Floating Window */
 .floating-window {
     position: fixed;
     bottom: 100px;
@@ -105,7 +92,6 @@ body {
     backdrop-filter: blur(12px);
     transition: all 0.3s ease;
 }
-
 .window-header {
     display: flex;
     justify-content: space-between;
@@ -115,14 +101,11 @@ body {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 16px 16px 0 0;
 }
-
 .window-title {
     font-weight: 600;
     font-size: 0.95rem;
     letter-spacing: 0.01em;
 }
-
-/* Enhanced Window Controls */
 .window-controls {
     position: fixed;
     top: 24px;
@@ -137,7 +120,6 @@ body {
     border: 1px solid var(--border-color);
     box-shadow: 0 4px 16px var(--shadow-color);
 }
-
 .window-control-btn {
     background: none;
     border: none;
@@ -164,8 +146,6 @@ body {
     background-color: #ef4444;
     color: white;
 }
-
-/* Custom Scrollbar */
 ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -183,16 +163,12 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--icon-color);
 }
-
-/* Glass Morphism Effects */
 .taskbar,
 .window-controls,
 .floating-window {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
 }
-
-/* Theme Toggle Enhancement */
 .theme-toggle {
     position: relative;
     overflow: hidden;
@@ -206,15 +182,11 @@ body {
     color: var(--accent-color);
     transform: rotate(180deg);
 }
-
-/* Focus States */
 .taskbar-icon:focus,
 .window-control-btn:focus {
     outline: 2px solid var(--accent-color);
     outline-offset: 2px;
 }
-
-/* Responsive Adjustments */
 @media (max-width: 768px) {
     .taskbar {
         bottom: 16px;
@@ -225,4 +197,145 @@ body {
         top: 16px;
         right: 16px;
     }
+}
+/* WebView Container Styles */
+.webview-container {
+    position: fixed;
+    z-index: 1000;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px var(--shadow-color);
+    background-color: var(--window-bg);
+    overflow: hidden;
+    min-width: 300px;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Add padding to the container to prevent content overlap */
+.webview-container .BrowserView {
+    position: absolute !important;
+    top: 40px !important; /* Height of the header */
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: calc(100% - 40px) !important;
+}
+
+.webview-container.loading::after {
+    content: 'Loading...';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--text-color);
+    font-size: 1.2em;
+    z-index: 1002;
+}
+
+.webview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background-color: var(--taskbar-bg);
+    border-bottom: 1px solid var(--border-color);
+    user-select: none;
+    height: 40px;
+    min-height: 40px;
+    z-index: 1002;
+}
+
+.drag-handle {
+    flex: 1;
+    cursor: move;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.webview-title {
+    font-weight: 600;
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.webview-controls {
+    display: flex;
+    gap: 8px;
+    z-index: 1003;
+}
+
+.close-webview {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    color: var(--icon-color);
+    transition: all 0.2s ease;
+    z-index: 1003;
+}
+
+.close-webview:hover {
+    background-color: #ef4444;
+    color: white;
+}
+
+/* Resize handles */
+.resizer {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background-color: var(--accent-color);
+    border-radius: 50%;
+    z-index: 1003;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.webview-container:hover .resizer {
+    opacity: 0.7;
+}
+
+.resizer:hover {
+    opacity: 1;
+    transform: scale(1.2);
+}
+
+.resizer.top-left {
+    top: -6px;
+    left: -6px;
+    cursor: nw-resize;
+}
+
+.resizer.top-right {
+    top: -6px;
+    right: -6px;
+    cursor: ne-resize;
+}
+
+.resizer.bottom-left {
+    bottom: -6px;
+    left: -6px;
+    cursor: sw-resize;
+}
+
+.resizer.bottom-right {
+    bottom: -6px;
+    right: -6px;
+    cursor: se-resize;
+}
+
+/* Add grip icon to show draggable area */
+.drag-handle::before {
+    content: '⋮⋮';
+    color: var(--icon-color);
+    font-size: 14px;
+    margin-right: 8px;
 }

@@ -12,33 +12,12 @@
     <link rel="stylesheet" href="aios.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
-
 </head>
 <body class="dark-mode">
     <div id="aios-container"></div>
     <div id="chat-root"></div>
     <div id="deepsearch-root"></div>
     <div id="to-do-list-root"></div> 
-
-    <div id="deepsearch-container" class="deepsearch-container hidden">
-        <div class="deepsearch-sidebar">
-            <h3>Context</h3>
-            <ul id="file-list">
-                <!-- Files will be listed here -->
-            </ul>
-        </div>
-        <div class="deepsearch-main">
-            <div id="deepsearch-results" class="deepsearch-results">
-                <!-- Search results will be displayed here -->
-            </div>
-            <div class="deepsearch-input-area">
-                <button id="new-chat-btn" class="deepsearch-button" aria-label="New Chat"><i class="fas fa-plus"></i></button>
-                <button id="attach-file-btn" class="deepsearch-button" aria-label="Attach File"><i class="fas fa-paperclip"></i></button>
-                <input type="text" id="deepsearch-input" placeholder="Enter your deep search query...">
-                <button id="send-deepsearch-btn" class="deepsearch-button" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
-            </div>
-        </div>
-    </div>
 
     <div class="taskbar">
         <div class="taskbar-icons">
@@ -94,34 +73,6 @@
             cssSelector: 'pre code',
             ignoreUnescapedHTML: true,
             languages: ['javascript', 'python', 'bash', 'json', 'html', 'css']
-        });
-
-        mermaid.initialize({
-            startOnLoad: true,
-            theme: document.body.classList.contains('dark-mode') ? 'dark' : 'default',
-            securityLevel: 'loose',
-            fontFamily: 'inherit'
-        });
-
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.target.classList.contains('dark-mode')) {
-                    mermaid.initialize({ theme: 'dark' });
-                } else {
-                    mermaid.initialize({ theme: 'default' });
-                }
-                if(mutation.type === 'attributes' && mutation.attributeName === 'class'){
-                     if (mutation.target.querySelectorAll('.mermaid').length > 0){
-                         mermaid.init(undefined, mutation.target.querySelectorAll('.mermaid'))
-                     }
-                }
-            });
-        });
-
-        observer.observe(document.body, {
-            attributes: true,
-            attributeFilter: ['class'],
-            subtree: true
         });
     </script>
 </body>

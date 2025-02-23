@@ -17,7 +17,7 @@ function createWindow() {
             enableRemoteModule: true,
             webSecurity: false
         },
-        frame: false,
+        frame: true,
         transparent: true
     });
 

@@ -1,7 +1,20 @@
+import { artifactHandler } from './artifact-handler.js';
 class MessageFormatter {
     constructor() {
         this.pendingContent = new Map();
+        
+        // Initialize Mermaid with default configuration
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: document.body.classList.contains('dark-mode') ? 'dark' : 'default',
+            securityLevel: 'loose',
+            fontFamily: 'inherit'
+        });
 
+        // Set up theme observer for Mermaid
+        this.setupMermaidThemeObserver();
+
+        // Configure marked options
         marked.setOptions({
             breaks: true,
             gfm: true,
@@ -17,23 +30,64 @@ class MessageFormatter {
             }
         });
 
+        // Set up custom renderer
         const renderer = {
             code: (code, language) => {
                 if (language === 'mermaid') {
-                    const id = 'mermaid-' + Math.random().toString(36).substr(2, 9);
-                    return `<div class="mermaid" id="${id}">${code}</div>`;
+                    const artifactId = artifactHandler.showArtifact(code, 'mermaid');
+                    return `<button class="artifact-reference" data-artifact-id="${artifactId}">
+                        <i class="fas fa-diagram-project"></i>
+                        Click to view Mermaid diagram
+                    </button>`;
                 }
 
                 const validLanguage = hljs.getLanguage(language) ? language : 'plaintext';
-                const highlightedCode = hljs.highlight(code, { language: validLanguage }).value;
-                return `<pre><code class="hljs language-${validLanguage}">${highlightedCode}</code></pre>`;
-            },
+                const artifactId = artifactHandler.showArtifact(code, validLanguage);
+                return `<button class="artifact-reference" data-artifact-id="${artifactId}">
+                    <i class="fas fa-code"></i>
+                    Click to view ${validLanguage} code
+                </button>`;
+            }, 
             table: (header, body) => {
                 return `<div class="table-container"><table class="formatted-table"><thead>${header}</thead><tbody>${body}</tbody></table></div>`;
             }
         };
 
         marked.use({ renderer });
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('.artifact-reference');
+            if (btn) {
+                const artifactId = btn.dataset.artifactId;
+                artifactHandler.reopenArtifact(artifactId);
+            }
+        });
+    }
+
+    setupMermaidThemeObserver() {
+        // Create MutationObserver to handle theme changes
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                    // Update Mermaid theme based on dark mode
+                    const isDarkMode = mutation.target.classList.contains('dark-mode');
+                    mermaid.initialize({ 
+                        theme: isDarkMode ? 'dark' : 'default'
+                    });
+
+                    // Re-render existing Mermaid diagrams
+                    if (mutation.target.querySelectorAll('.mermaid').length > 0) {
+                        mermaid.init(undefined, mutation.target.querySelectorAll('.mermaid'));
+                    }
+                }
+            });
+        });
+
+        // Start observing the body element for class changes
+        observer.observe(document.body, {
+            attributes: true,
+            attributeFilter: ['class'],
+            subtree: true
+        });
     }
 
     formatStreaming(content, messageId) {
@@ -44,6 +98,14 @@ class MessageFormatter {
         this.pendingContent.set(messageId, this.pendingContent.get(messageId) + content);
 
         const formattedContent = this.format(this.pendingContent.get(messageId));
+
+        // Initialize any new Mermaid diagrams after formatting
+        setTimeout(() => {
+            const mermaidDiagrams = document.querySelectorAll('.mermaid:not([data-processed="true"])');
+            if (mermaidDiagrams.length > 0) {
+                mermaid.init(undefined, mermaidDiagrams);
+            }
+        }, 0);
 
         return formattedContent;
     }

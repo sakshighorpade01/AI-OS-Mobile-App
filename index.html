@@ -6,7 +6,6 @@
     <title>AIOS Desktop</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="chat.css">
-    <link rel="stylesheet" href="deepsearch.css">
     <link rel="stylesheet" href="to-do-list.css"> 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="aios.css">
@@ -16,7 +15,6 @@
 <body class="dark-mode">
     <div id="aios-container"></div>
     <div id="chat-root"></div>
-    <div id="deepsearch-root"></div>
     <div id="to-do-list-root"></div> 
 
     <div class="taskbar">
@@ -26,9 +24,6 @@
             </button>
             <button id="chat-icon" class="taskbar-icon" aria-label="Open Chat">
                 <i class="fa-regular fa-message"></i>
-            </button>
-            <button id="deepsearch-icon" class="taskbar-icon" aria-label="Open Deepsearch">
-                <i class="fa-solid fa-binoculars"></i>
             </button>
             <button id="to-do-list-icon" class="taskbar-icon" aria-label="Open To-Do List">
                 <i class="fa-solid fa-note-sticky"></i>
@@ -66,7 +61,6 @@
     <script type="module" src="message-formatter.js"></script>
     <script type="module" src="chat.js"></script>
     <script src="aios.js"></script>
-    <script type="module" src="deepsearch.js"></script> 
     <script src="to-do-list.js"></script>
     <script>
         hljs.configure({

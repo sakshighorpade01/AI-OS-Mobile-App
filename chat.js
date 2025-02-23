@@ -2,21 +2,21 @@ import { messageFormatter } from './message-formatter.js';
 import ContextHandler from './context-handler.js';
 import FileAttachmentHandler from './add-files.js';
 
-const fs = require('fs').promises; // Use fs.promises for async file ops
+const fs = require('fs').promises; 
 const path = require('path');
 
-// Configuration for the chat, including enabled tools and features.
 let chatConfig = {
-    memory: false,   // Whether to use chat memory.
-    tasks: false,    // Whether to include user tasks and context.
-    tools: {        // Enabled/disabled state of various tools.
+    memory: false,  
+    tasks: false,    
+    tools: {        
         calculator: true,
         ddg_search: true,
         python_assistant: true,
         investment_assistant: true,
         shell_tools: true,
         web_crawler: true
-    }
+    },
+    deepsearch: false
 };
 
 let socket = null;          // WebSocket connection.
@@ -25,9 +25,18 @@ let sessionActive = false;  // Flag to indicate if a chat session is active.
 let contextHandler = null;  // Instance of the ContextHandler.
 let fileAttachmentHandler = null; // Instance of the FileAttachmentHandler.
 
-/**
- * Connects to the WebSocket server.
- */
+const maxFileSize = 10 * 1024 * 1024; // 10MB limit
+const supportedFileTypes = {
+    'txt': 'text/plain',
+    'js': 'text/javascript',
+    'py': 'text/x-python',
+    'html': 'text/html',
+    'css': 'text/css',
+    'json': 'application/json',
+    'pdf': 'application/pdf',
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'c': 'text/x-c'
+};  
 function connectSocket() {
     socket = io('http://localhost:8765', {
         reconnection: true,
@@ -174,8 +183,9 @@ async function handleSendMessage() {
     const floatingInput = document.getElementById('floating-input');
     const sendMessageBtn = document.getElementById('send-message');
     const message = floatingInput.value.trim();
+    const attachedFiles = fileAttachmentHandler.getAttachedFiles();
 
-    if (!message && fileAttachmentHandler.getAttachedFiles().length === 0) {
+    if (!message && attachedFiles.length === 0) {
         return;
     }
 
@@ -191,10 +201,10 @@ async function handleSendMessage() {
     const messageData = {
         message: message,
         id: Date.now().toString(),
-        files: fileAttachmentHandler.getAttachedFiles()
+        files: attachedFiles,
+        is_deepsearch: chatConfig.deepsearch // Add DeepSearch flag
     };
 
-    // Only include context if this is a new session
     if (!sessionActive) {
         messageData.config = {
             use_memory: chatConfig.memory,
@@ -202,17 +212,14 @@ async function handleSendMessage() {
         };
 
         let combinedContext = "";
-
-        // Add selected chat sessions to context
         const selectedSessions = contextHandler.getSelectedSessions();
+        
         if (selectedSessions && selectedSessions.length > 0) {
             const contextStr = selectedSessions.map(session => {
                 if (!session.interactions || !session.interactions.length) return '';
-
                 const formattedInteractions = session.interactions.map(interaction => {
                     return `User: ${interaction.user_input}\nAssistant: ${interaction.llm_output}`;
                 }).join('\n\n');
-
                 return formattedInteractions;
             }).filter(Boolean).join('\n---\n');
 
@@ -221,8 +228,6 @@ async function handleSendMessage() {
             }
         }
 
-
-        // Add tasks and user context if enabled
         if (chatConfig.tasks) {
             try {
                 const userContextPath = path.join(__dirname, 'user_context.txt');
@@ -235,11 +240,11 @@ async function handleSendMessage() {
                 combinedContext += `Task List:\n${taskListContent}\n---\n`;
             } catch (error) {
                 console.error("Error reading user context or task list:", error);
-                showNotification("Error reading context files.  Check console.", "error");
-                // Don't return;  still send the message, just without the task/user context
+                showNotification("Error reading context files. Check console.", "error");
             }
         }
-        if(combinedContext){
+        
+        if (combinedContext) {
             messageData.context = combinedContext;
         }
         sessionActive = true;
@@ -268,14 +273,28 @@ function initializeToolsMenu() {
     const toolsBtn = document.querySelector('[data-tool="tools"]');
     const toolsMenu = toolsBtn.querySelector('.tools-menu');
     const aiOsCheckbox = document.getElementById('ai_os');
+    
+    // Add DeepSearch checkbox to tools menu
+    const deepSearchDiv = document.createElement('div');
+    deepSearchDiv.className = 'tool-item';
+    deepSearchDiv.innerHTML = `
+        <input type="checkbox" id="deep_search" />
+        <label for="deep_search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            DeepSearch
+        </label>
+    `;
+    toolsMenu.appendChild(deepSearchDiv);
+    
+    const deepSearchCheckbox = document.getElementById('deep_search');
 
-    // Initialize the checkbox based on the initial state of chatConfig.tools
+    // Initialize checkboxes based on initial state
     const allToolsEnabledInitially = Object.values(chatConfig.tools).every(val => val === true);
     aiOsCheckbox.checked = allToolsEnabledInitially;
-
+    deepSearchCheckbox.checked = chatConfig.deepsearch;
 
     const updateToolsIndicator = () => {
-        const anyActive = aiOsCheckbox.checked;
+        const anyActive = aiOsCheckbox.checked || deepSearchCheckbox.checked;
         toolsBtn.classList.toggle('has-active', anyActive);
     };
 
@@ -294,6 +313,11 @@ function initializeToolsMenu() {
         e.stopPropagation();
     });
 
+    deepSearchCheckbox.addEventListener('change', (e) => {
+        chatConfig.deepsearch = e.target.checked;
+        updateToolsIndicator();
+        e.stopPropagation();
+    });
 
     document.addEventListener('click', (e) => {
         if (!toolsBtn.contains(e.target)) {
@@ -334,6 +358,7 @@ function handleTasksToggle() {
 function terminateSession() {
     sessionActive = false;
     ongoingStreams = {};
+    chatConfig.deepsearch = false; // Reset DeepSearch state
     if (fileAttachmentHandler) {
         fileAttachmentHandler.clearAttachedFiles();
     }
@@ -533,9 +558,8 @@ function init() {
     handleMemoryToggle();
     handleTasksToggle(); // Initialize the Tasks button
     connectSocket();
-    initializeAutoExpandingTextarea();
-    connectSocket();
-    fileAttachmentHandler = new FileAttachmentHandler(socket);
+    initializeAutoExpandingTextarea();  
+    fileAttachmentHandler = new FileAttachmentHandler(socket, supportedFileTypes, maxFileSize);
     window.unifiedPreviewHandler = new UnifiedPreviewHandler(contextHandler, fileAttachmentHandler);
 
     elements.sendBtn.addEventListener('click', handleSendMessage);
@@ -585,6 +609,7 @@ function init() {
         document.getElementById('ai_os').checked = true;
         //reset tasks
         document.querySelector('[data-tool="tasks"]').classList.remove('active');
+        document.getElementById('deep_search').checked = false;
 
         document.querySelectorAll('.tool-btn').forEach(btn => {
             btn.classList.remove('active');

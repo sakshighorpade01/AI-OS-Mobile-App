@@ -5,7 +5,6 @@ class StateManager {
             isWindowMaximized: false,
             isChatOpen: false,
             isAIOSOpen: false,
-            isDeepsearchOpen: false,
             isToDoListOpen: false,
             webViewBounds: { x: 0, y: 0, width: 400, height: 300 }
         };
@@ -263,8 +262,7 @@ class UIManager {
         addClickHandler(this.elements.closeBtn, () => ipcRenderer.send('close-window'));
         addClickHandler(this.elements.themeToggle, () => this.state.setState({ isDarkMode: !this.state.getState().isDarkMode }));
         addClickHandler(this.elements.appIcon, () => this.state.setState({ isAIOSOpen: !this.state.getState().isAIOSOpen }));
-        addClickHandler(this.elements.chatIcon, () => this.state.setState({ isChatOpen: !this.state.getState().isChatOpen }));
-        addClickHandler(this.elements.deepsearchIcon, () => this.state.setState({ isDeepsearchOpen: !this.state.getState().isDeepsearchOpen }));
+        addClickHandler(this.elements.chatIcon, () => this.state.setState({ isChatOpen: !this.state.getState().isChatOpen }));  
         addClickHandler(this.elements.toDoListIcon, () => this.state.setState({ isToDoListOpen: !this.state.getState().isToDoListOpen }));
 
         ipcRenderer.on('window-state-changed', (_, isMaximized) => {
@@ -290,27 +288,21 @@ class UIManager {
                         this.updateWindowControls(state.isWindowMaximized);
                         break;
                     case 'isChatOpen':
-                        if (state.isChatOpen && (state.isAIOSOpen || state.isDeepsearchOpen || state.isToDoListOpen)) {
-                            this.state.setState({ isAIOSOpen: false, isDeepsearchOpen: false, isToDoListOpen: false });
+                        if (state.isChatOpen && (state.isAIOSOpen || state.isToDoListOpen)) {
+                            this.state.setState({ isAIOSOpen: false, isToDoListOpen: false });
                         }
                         this.updateChatVisibility(state.isChatOpen);
                         this.updateTaskbarPosition(state.isChatOpen);
                         break;
                     case 'isAIOSOpen':
-                        if (state.isAIOSOpen && (state.isChatOpen || state.isDeepsearchOpen || state.isToDoListOpen)) {
-                            this.state.setState({ isChatOpen: false, isDeepsearchOpen: false, isToDoListOpen: false });
+                        if (state.isAIOSOpen && (state.isChatOpen || state.isToDoListOpen)) {
+                            this.state.setState({ isChatOpen: false, isToDoListOpen: false });
                         }
                         this.updateAIOSVisibility(state.isAIOSOpen);
                         break;
-                    case 'isDeepsearchOpen':
-                        if (state.isDeepsearchOpen && (state.isChatOpen || state.isAIOSOpen || state.isToDoListOpen)) {
-                            this.state.setState({ isChatOpen: false, isAIOSOpen: false, isToDoListOpen: false });
-                        }
-                        this.updateDeepsearchVisibility(state.isDeepsearchOpen);
-                        break;
                     case 'isToDoListOpen':
                         if (state.isToDoListOpen && (state.isChatOpen || state.isAIOSOpen || state.isDeepsearchOpen)) {
-                            this.state.setState({ isChatOpen: false, isAIOSOpen: false, isDeepsearchOpen: false });
+                            this.state.setState({ isChatOpen: false, isAIOSOpen: false });
                         }
                         this.updateToDoListVisibility(state.isToDoListOpen);
                         break;
@@ -321,10 +313,6 @@ class UIManager {
 
     updateToDoListVisibility(isOpen) {
         document.getElementById('to-do-list-container')?.classList.toggle('hidden', !isOpen);
-    }
-
-    updateDeepsearchVisibility(isOpen) {
-        document.getElementById('deepsearch-container')?.classList.toggle('hidden', !isOpen);
     }
 
     updateTheme(isDarkMode) {
@@ -385,6 +373,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadModule('aios', 'aios-container', () => window.AIOS?.init());
     loadModule('chat', 'chat-root', () => window.chatModule?.init());
-    loadModule('deepsearch', 'deepsearch-root', () => window.deepsearch?.init());
     loadModule('to-do-list', 'to-do-list-root', () => window.todo?.init());
 });

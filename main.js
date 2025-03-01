@@ -70,11 +70,6 @@ function createWindow() {
         pythonBridge.sendMessage(data);
     });
 
-    // Handle browser agent requests directly (reuse send-message channel)
-    ipcMain.on('send-message', (event, data) => {
-        pythonBridge.sendMessage(data);
-    });
-
     ipcMain.on('check-socket-connection', (event) => {
         const isConnected = pythonBridge.socket && pythonBridge.socket.connected;
         event.reply('socket-connection-status', { connected: isConnected });
@@ -94,7 +89,6 @@ function createWindow() {
         });
     });
 
-    // WebView handling for browser agent
     ipcMain.on('open-webview', (event, url) => {
         if (webView) {
             mainWindow.removeBrowserView(webView);
@@ -128,11 +122,6 @@ function createWindow() {
         
         webView.webContents.loadURL(url);
         event.reply('webview-created', bounds);
-
-        // Listen for navigation events to update URL bar
-        webView.webContents.on('did-navigate', (e, url) => {
-            mainWindow.webContents.send('webview-navigated', url);
-        });
     });
 
     ipcMain.on('resize-webview', (event, bounds) => {
@@ -164,31 +153,6 @@ function createWindow() {
             webView.webContents.destroy();
             webView = null;
             mainWindow.webContents.send('webview-closed');
-        }
-    });
-
-    // Add webview navigation controls
-    ipcMain.on('webview-back', () => {
-        if (webView && webView.webContents.canGoBack()) {
-            webView.webContents.goBack();
-        }
-    });
-
-    ipcMain.on('webview-forward', () => {
-        if (webView && webView.webContents.canGoForward()) {
-            webView.webContents.goForward();
-        }
-    });
-
-    ipcMain.on('webview-refresh', () => {
-        if (webView) {
-            webView.webContents.reload();
-        }
-    });
-
-    ipcMain.on('webview-goto', (event, url) => {
-        if (webView) {
-            webView.webContents.loadURL(url);
         }
     });
 }

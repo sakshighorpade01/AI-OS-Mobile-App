@@ -15,8 +15,6 @@
     flex-direction: column;
     transition: all 0.3s ease;
 }
-
-/* Header Styles */
 .to-do-list-header {
     padding: 5px;
     text-align: center;

@@ -3,17 +3,34 @@
 import logging
 import json
 import uuid
+import os
 from flask import Flask, request
 from flask_socketio import SocketIO, emit
 from assistant import get_llm_os
 from deepsearch import get_deepsearch  # Import the deepsearch agent
+from browser_agent import BrowserAgent  # Import the BrowserAgent
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import traceback
 from queue import Queue
 
-logging.basicConfig(level=logging.DEBUG)
+# Get log level from environment variable (default to INFO)
+log_level = os.environ.get('LOGLEVEL', 'INFO').upper()
+logging.basicConfig(level=getattr(logging, log_level))
 logger = logging.getLogger(__name__)
+
+# Only send connection and error logs to the terminal
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+class ConnectionFilter(logging.Filter):
+    def filter(self, record):
+        # Only show important logs in the terminal
+        return (record.levelno >= logging.ERROR or
+                'connect' in record.getMessage().lower() or
+                'socket' in record.getMessage().lower() or
+                'server' in record.getMessage().lower())
+console_handler.addFilter(ConnectionFilter())
+logger.addHandler(console_handler)
 
 class SocketIOHandler(logging.Handler):
     def emit(self, record):
@@ -22,6 +39,7 @@ class SocketIOHandler(logging.Handler):
         except Exception:
             pass
 
+# Only add SocketIOHandler to send logs to the client
 logger.addHandler(SocketIOHandler())
 
 def emit_log(level, message):
@@ -45,7 +63,11 @@ class IsolatedAssistant:
 
             future = self.executor.submit(agent.run, complete_message, stream=True)
             for chunk in future.result():
-                if chunk and chunk.content:
+                if chunk and isinstance(chunk, dict) and 'content' in chunk:
+                    # This is a direct return from browser_agent
+                    yield chunk
+                elif chunk and hasattr(chunk, 'content') and chunk.content:
+                    # This is a normal assistant response
                     yield {"content": chunk.content, "streaming": True}
             yield {"content": "", "done": True}
 
@@ -65,19 +87,23 @@ class ConnectionManager:
         self.lock = threading.Lock()
         self.isolated_assistants = {}
 
-    def create_session(self, sid, config, is_deepsearch=False):
+    def create_session(self, sid, config, is_deepsearch=False, is_browser_agent=False):
         with self.lock:
             if sid in self.sessions:
                 self.terminate_session(sid)
 
-            # Choose the agent based on the is_deepsearch flag.
-            if is_deepsearch:
+            # Choose the agent based on the flags
+            if is_browser_agent:
+                agent = BrowserAgent  # This is already an instance, not a class
+                logger.info(f"Created new Browser Agent session {sid}")
+            elif is_deepsearch:
                 agent = get_deepsearch(
                     ddg_search=config.get("ddg_search", False),
                     web_crawler=config.get("web_crawler", False),
                     investment_assistant=config.get("investment_assistant", False),
                     debug_mode=True
                 )
+                logger.info(f"Created new DeepSearch session {sid}")
             else:
                 agent = get_llm_os(
                     calculator=config.get("calculator", False),
@@ -89,18 +115,18 @@ class ConnectionManager:
                     use_memory=config.get("use_memory", False),
                     debug_mode=True
                 )
-
+                logger.info(f"Created new LLM-OS session {sid}")
 
             self.sessions[sid] = {
                 "agent": agent,
                 "config": config,
                 "initialized": True,
-                "is_deepsearch": is_deepsearch  # Store the agent type
+                "is_deepsearch": is_deepsearch,
+                "is_browser_agent": is_browser_agent
             }
 
             self.isolated_assistants[sid] = IsolatedAssistant()
 
-            logger.info(f"Created new session {sid} with config {config} (Deepsearch: {is_deepsearch})")
             return agent
 
     def terminate_session(self, sid):
@@ -141,7 +167,8 @@ def on_send_message(data):
         context = data.get("context", "")
         message_type = data.get("type", "")
         files = data.get("files", [])
-        is_deepsearch = data.get("is_deepsearch", False)  # Check for Deepsearch flag
+        is_deepsearch = data.get("is_deepsearch", False)
+        is_browser_agent = data.get("is_browser_agent", False) or message_type == "browser_request"
 
         if message_type == "terminate_session" or message_type == "new_chat":
             connection_manager.terminate_session(sid)
@@ -150,12 +177,16 @@ def on_send_message(data):
 
         session = connection_manager.get_session(sid)
         if not session:
-            # Pass is_deepsearch to create_session
+            # Pass agent type flags to create_session
             config = data.get("config", {})
-            agent = connection_manager.create_session(sid, config, is_deepsearch=is_deepsearch)
+            agent = connection_manager.create_session(
+                sid, 
+                config, 
+                is_deepsearch=is_deepsearch,
+                is_browser_agent=is_browser_agent
+            )
         else:
             agent = session["agent"]
-
 
         message_id = str(uuid.uuid4())
         isolated_assistant = connection_manager.isolated_assistants.get(sid)
@@ -174,6 +205,10 @@ def on_send_message(data):
                 connection_manager.terminate_session(sid)
                 emit("error", {"message": "Session reset required", "reset": True})
                 return
+
+            # Add browser agent flag to outgoing responses if this is a browser agent session
+            if is_browser_agent:
+                response["is_browser_agent"] = True
 
             emit("response", {**response, "id": message_id}, room=sid)
 

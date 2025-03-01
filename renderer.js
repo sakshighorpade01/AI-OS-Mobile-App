@@ -5,6 +5,7 @@ class StateManager {
             isWindowMaximized: false,
             isChatOpen: false,
             isAIOSOpen: false,
+            isBrowseAIOpen: false,
             isToDoListOpen: false,
             webViewBounds: { x: 0, y: 0, width: 400, height: 300 }
         };
@@ -66,9 +67,11 @@ class UIManager {
             closeBtn: document.getElementById('close-window'),
             deepsearchIcon: document.getElementById('deepsearch-icon'),
             toDoListIcon: document.getElementById('to-do-list-icon'),
+            browseAiIcon: document.getElementById('browse-ai-icon'), // Corrected element caching
             webViewContainer: null,
         };
     }
+
 
     setupWebViewEvents() {
         const { ipcRenderer } = require('electron');
@@ -91,7 +94,7 @@ class UIManager {
         this.elements.webViewContainer = document.createElement('div');
         this.elements.webViewContainer.id = 'webview-container';
         this.elements.webViewContainer.className = 'webview-container';
-        
+
         // Set initial position and size
         this.elements.webViewContainer.style.left = `${bounds.x}px`;
         this.elements.webViewContainer.style.top = `${bounds.y}px`;
@@ -129,7 +132,7 @@ class UIManager {
             const resizer = document.createElement('div');
             resizer.className = `resizer ${position}`;
             this.elements.webViewContainer.appendChild(resizer);
-            
+
             resizer.addEventListener('mousedown', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -149,10 +152,10 @@ class UIManager {
 
     startDragging(e) {
         if (e.target.closest('.resizer')) return;
-        
+
         this.isDragging = true;
         const container = this.elements.webViewContainer;
-        
+
         this.dragStart = {
             x: e.clientX - container.offsetLeft,
             y: e.clientY - container.offsetTop
@@ -167,7 +170,7 @@ class UIManager {
             // Ensure window stays within viewport bounds
             const maxX = window.innerWidth - container.offsetWidth;
             const maxY = window.innerHeight - container.offsetHeight;
-            
+
             container.style.left = `${Math.max(0, Math.min(maxX, newX))}px`;
             container.style.top = `${Math.max(0, Math.min(maxY, newY))}px`;
 
@@ -190,7 +193,7 @@ class UIManager {
     startResizing(e, position) {
         this.isResizing = true;
         const container = this.elements.webViewContainer;
-        
+
         const startBounds = {
             x: container.offsetLeft,
             y: container.offsetTop,
@@ -250,6 +253,7 @@ class UIManager {
         document.addEventListener('mouseup', stopResizing);
     }
 
+
     setupEventListeners() {
         const { ipcRenderer } = require('electron');
 
@@ -262,8 +266,10 @@ class UIManager {
         addClickHandler(this.elements.closeBtn, () => ipcRenderer.send('close-window'));
         addClickHandler(this.elements.themeToggle, () => this.state.setState({ isDarkMode: !this.state.getState().isDarkMode }));
         addClickHandler(this.elements.appIcon, () => this.state.setState({ isAIOSOpen: !this.state.getState().isAIOSOpen }));
-        addClickHandler(this.elements.chatIcon, () => this.state.setState({ isChatOpen: !this.state.getState().isChatOpen }));  
+        addClickHandler(this.elements.chatIcon, () => this.state.setState({ isChatOpen: !this.state.getState().isChatOpen }));
         addClickHandler(this.elements.toDoListIcon, () => this.state.setState({ isToDoListOpen: !this.state.getState().isToDoListOpen }));
+        addClickHandler(this.elements.browseAiIcon, () => this.state.setState({ isBrowseAIOpen: !this.state.getState().isBrowseAIOpen }));
+
 
         ipcRenderer.on('window-state-changed', (_, isMaximized) => {
             this.state.setState({ isWindowMaximized: isMaximized });
@@ -288,27 +294,40 @@ class UIManager {
                         this.updateWindowControls(state.isWindowMaximized);
                         break;
                     case 'isChatOpen':
-                        if (state.isChatOpen && (state.isAIOSOpen || state.isToDoListOpen)) {
-                            this.state.setState({ isAIOSOpen: false, isToDoListOpen: false });
+                        if (state.isChatOpen && (state.isAIOSOpen || state.isToDoListOpen || state.isBrowseAIOpen)) {
+                            this.state.setState({ isAIOSOpen: false, isToDoListOpen: false, isBrowseAIOpen: false });
                         }
                         this.updateChatVisibility(state.isChatOpen);
                         this.updateTaskbarPosition(state.isChatOpen);
                         break;
                     case 'isAIOSOpen':
-                        if (state.isAIOSOpen && (state.isChatOpen || state.isToDoListOpen)) {
-                            this.state.setState({ isChatOpen: false, isToDoListOpen: false });
+                        if (state.isAIOSOpen && (state.isChatOpen || state.isToDoListOpen || state.isBrowseAIOpen)) {
+                            this.state.setState({ isChatOpen: false, isToDoListOpen: false, isBrowseAIOpen: false });
                         }
                         this.updateAIOSVisibility(state.isAIOSOpen);
                         break;
                     case 'isToDoListOpen':
-                        if (state.isToDoListOpen && (state.isChatOpen || state.isAIOSOpen || state.isDeepsearchOpen)) {
-                            this.state.setState({ isChatOpen: false, isAIOSOpen: false });
+                        if (state.isToDoListOpen && (state.isChatOpen || state.isAIOSOpen || state.isBrowseAIOpen)) {
+                            this.state.setState({ isChatOpen: false, isAIOSOpen: false, isBrowseAIOpen: false });
                         }
                         this.updateToDoListVisibility(state.isToDoListOpen);
+                        break;  
+                    case 'isBrowseAIOpen':
+                        if (state.isBrowseAIOpen && (state.isChatOpen || state.isAIOSOpen || state.isToDoListOpen)) {
+                            this.state.setState({ isChatOpen: false, isAIOSOpen: false, isToDoListOpen: false });
+                        }
+                        this.updateBrowseAIVisibility(state.isBrowseAIOpen);
+
                         break;
                 }
             });
         });
+    }
+
+    updateBrowseAIVisibility(isOpen) {
+        console.log("updateBrowseAIVisibility called:", isOpen); //ADD
+        document.getElementById('browse-ai-panel')?.classList.toggle('hidden', !isOpen);
+
     }
 
     updateToDoListVisibility(isOpen) {
@@ -346,6 +365,7 @@ class UIManager {
         }
     }
 
+
     updateTaskbarPosition(isChatOpen) {
         const taskbar = document.querySelector('.taskbar');
         if (taskbar) {
@@ -363,7 +383,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadModule = async (name, containerId, initFunc) => {
         try {
             const response = await fetch(`${name}.html`);
+            console.log(`Fetch response for ${name}:`, response); // ADDED
             const html = await response.text();
+            console.log(`Loaded HTML for ${name}:`, html); // ADDED
             document.getElementById(containerId).innerHTML = html;
             initFunc?.();
         } catch (error) {
@@ -374,4 +396,5 @@ document.addEventListener('DOMContentLoaded', () => {
     loadModule('aios', 'aios-container', () => window.AIOS?.init());
     loadModule('chat', 'chat-root', () => window.chatModule?.init());
     loadModule('to-do-list', 'to-do-list-root', () => window.todo?.init());
+    loadModule('browse_ai', 'browse-ai-container', () => window.browseAI?.init());
 });

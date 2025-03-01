@@ -4,6 +4,7 @@ import FileAttachmentHandler from './add-files.js';
 
 const fs = require('fs').promises; 
 const path = require('path');
+const { ipcRenderer } = require('electron');
 
 let chatConfig = {
     memory: false,  
@@ -19,11 +20,11 @@ let chatConfig = {
     deepsearch: false
 };
 
-let socket = null;          // WebSocket connection.
 let ongoingStreams = {};   // Tracks ongoing message streams.
 let sessionActive = false;  // Flag to indicate if a chat session is active.
 let contextHandler = null;  // Instance of the ContextHandler.
 let fileAttachmentHandler = null; // Instance of the FileAttachmentHandler.
+let connectionStatus = false; // Track connection status
 
 const maxFileSize = 10 * 1024 * 1024; // 10MB limit
 const supportedFileTypes = {
@@ -37,22 +38,43 @@ const supportedFileTypes = {
     'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'c': 'text/x-c'
 };  
-function connectSocket() {
-    socket = io('http://localhost:8765', {
-        reconnection: true,
-        reconnectionAttempts: Infinity,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        transports: ['websocket']
+
+/**
+ * Set up IPC listeners for communication with python-bridge.js
+ */
+function setupIpcListeners() {
+    // Listen for socket connection status updates
+    ipcRenderer.on('socket-connection-status', (event, data) => {
+        connectionStatus = data.connected;
+        if (data.connected) {
+            document.querySelectorAll('.connection-error').forEach(e => e.remove());
+            sessionActive = false;
+        } else {
+            let statusMessage = 'Connecting to server...';
+            
+            if (data.error) {
+                statusMessage = `Connection error: ${data.error}`;
+                console.error('Connection error:', data.error);
+            } else if (data.reconnecting) {
+                statusMessage = `Reconnecting to server... (Attempt ${data.attempt}/${data.maxAttempts})`;
+            }
+            
+            showConnectionError(statusMessage);
+            
+            // If we're having connection issues, auto-retry after 30 seconds
+            if (data.error) {
+                setTimeout(() => {
+                    if (!connectionStatus) {
+                        console.log('Auto-retrying connection...');
+                        ipcRenderer.send('restart-python-bridge');
+                    }
+                }, 30000);
+            }
+        }
     });
 
-    socket.on('connect', () => {
-        console.log('Connected to server');
-        document.querySelectorAll('.connection-error').forEach(e => e.remove());
-        sessionActive = false;
-    });
-
-    socket.on('response', (data) => {
+    // Listen for chat responses from the Python backend
+    ipcRenderer.on('chat-response', (event, data) => {
         try {
             if (!data) return;
 
@@ -64,6 +86,10 @@ function connectSocket() {
                 addMessage(data, false, isStreaming, messageId, isDone);
             }
 
+            if (isDone || (!isStreaming && data.content)) {
+                document.getElementById('floating-input').disabled = false;
+                document.getElementById('send-message').disabled = false;
+            }
         } catch (error) {
             console.error('Error handling response:', error);
             addMessage('Error processing response', false);
@@ -72,8 +98,9 @@ function connectSocket() {
         }
     });
 
-    socket.on('error', (error) => {
-        console.error('Error:', error);
+    // Listen for errors from the socket connection
+    ipcRenderer.on('socket-error', (event, error) => {
+        console.error('Socket error:', error);
         addMessage(error.message || 'An error occurred', false);
         showNotification(error.message || 'An error occurred. Starting new session.');
         document.getElementById('floating-input').disabled = false;
@@ -85,33 +112,41 @@ function connectSocket() {
         }
     });
 
-    socket.on('disconnect', () => {
-        sessionActive = false;
-        if (!document.querySelector('.connection-error')) {
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'connection-error';
-            errorDiv.textContent = 'Connecting to server...';
-            document.body.appendChild(errorDiv);
-        }
+    // Listen for status messages from the Python backend
+    ipcRenderer.on('socket-status', (event, data) => {
+        console.log('Socket status:', data);
     });
 
-    socket.on('connect_error', (error) => {
-        console.error('Connection Error:', error);
-        sessionActive = false;
-        showConnectionError();
-    });
+    // Check initial connection status
+    ipcRenderer.send('check-socket-connection');
 }
 
 /**
  * Displays a connection error message.
  */
-function showConnectionError() {
-    if (!document.querySelector('.connection-error')) {
-        const errorDiv = document.createElement('div');
+function showConnectionError(message = 'Connecting to server...') {
+    let errorDiv = document.querySelector('.connection-error');
+    
+    if (!errorDiv) {
+        errorDiv = document.createElement('div');
         errorDiv.className = 'connection-error';
-        errorDiv.textContent = 'Connecting to server...';
         document.body.appendChild(errorDiv);
     }
+    
+    // Update the error message
+    errorDiv.innerHTML = `
+        <div class="connection-error-content">
+            <i class="fas fa-exclamation-circle"></i>
+            <span>${message}</span>
+            <button class="retry-connection">Retry Connection</button>
+        </div>
+    `;
+    
+    // Add retry button click handler
+    errorDiv.querySelector('.retry-connection').addEventListener('click', () => {
+        errorDiv.querySelector('span').textContent = 'Restarting connection...';
+        ipcRenderer.send('restart-python-bridge');
+    });
 }
 
 /**
@@ -189,7 +224,11 @@ async function handleSendMessage() {
         return;
     }
 
-    if (!socket?.connected) return;
+    if (!connectionStatus) {
+        showNotification('Not connected to server. Please wait for connection...', 'error');
+        ipcRenderer.send('restart-python-bridge');
+        return;
+    }
 
     floatingInput.disabled = true;
     sendMessageBtn.disabled = true;
@@ -202,7 +241,7 @@ async function handleSendMessage() {
         message: message,
         id: Date.now().toString(),
         files: attachedFiles,
-        is_deepsearch: chatConfig.deepsearch // Add DeepSearch flag
+        is_deepsearch: chatConfig.deepsearch
     };
 
     if (!sessionActive) {
@@ -252,7 +291,8 @@ async function handleSendMessage() {
 
     try {
         console.log('Sending message with data:', messageData);
-        socket.emit('send_message', JSON.stringify(messageData));
+        // Send message to python-bridge via IPC
+        ipcRenderer.send('send-message', messageData);
         fileAttachmentHandler.clearAttachedFiles();
     } catch (error) {
         console.error('Error sending message:', error);
@@ -264,7 +304,6 @@ async function handleSendMessage() {
     floatingInput.value = '';
     floatingInput.style.height = 'auto';
 }
-
 
 /**
  * Initializes the tools menu and its behavior.
@@ -329,7 +368,6 @@ function initializeToolsMenu() {
     updateToolsIndicator();
 }
 
-
 /**
  * Handles toggling the memory feature on and off.
  */
@@ -363,11 +401,8 @@ function terminateSession() {
         fileAttachmentHandler.clearAttachedFiles();
     }
 
-    if (socket?.connected) {
-        socket.emit('send_message', JSON.stringify({
-            type: 'terminate_session'
-        }));
-    }
+    // Send termination request via IPC
+    ipcRenderer.send('terminate-session');
 }
 
 /**
@@ -557,9 +592,9 @@ function init() {
     initializeToolsMenu();
     handleMemoryToggle();
     handleTasksToggle(); // Initialize the Tasks button
-    connectSocket();
+    setupIpcListeners(); // Set up IPC communication
     initializeAutoExpandingTextarea();  
-    fileAttachmentHandler = new FileAttachmentHandler(socket, supportedFileTypes, maxFileSize);
+    fileAttachmentHandler = new FileAttachmentHandler(null, supportedFileTypes, maxFileSize);
     window.unifiedPreviewHandler = new UnifiedPreviewHandler(contextHandler, fileAttachmentHandler);
 
     elements.sendBtn.addEventListener('click', handleSendMessage);
@@ -614,29 +649,6 @@ function init() {
         document.querySelectorAll('.tool-btn').forEach(btn => {
             btn.classList.remove('active');
         });
-    });
-
-    socket.on('connect', () => {
-        console.log('Connected to server');
-        document.querySelectorAll('.connection-error').forEach(e => e.remove());
-        sessionActive = false;
-
-        elements.input.disabled = false;
-        elements.sendBtn.disabled = false;
-    });
-
-    socket.on('error', (error) => {
-        console.error('Error:', error);
-        showNotification(error.message || 'An error occurred. Starting new session.');
-
-        elements.input.disabled = false;
-        elements.sendBtn.disabled = false;
-
-        if (error.reset) {
-            sessionActive = false;
-            contextHandler.clearSelectedContext();
-            document.querySelector('.add-btn').click();
-        }
     });
 }
 

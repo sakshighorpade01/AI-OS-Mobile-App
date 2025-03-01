@@ -126,7 +126,7 @@ def get_llm_os(
         _web_crawler = Agent(
             name="Web Crawler",
             role="Extract information from a given URL",
-            model=Gemini(id="gemini-2.0-flash-exp"),
+            model=Gemini(id="gemini-2.0-flash"),
             description="You are a web crawler that can extract information from a given URL.",
             instructions=[
                 "For a given URL, extract relevant information and summarize the content.",
@@ -149,7 +149,7 @@ def get_llm_os(
         _investment_assistant = Agent(
             name="Investment Assistant",
             role="Write a investment report on a given company (stock) symbol",
-            model=Gemini(id="gemini-2.0-flash-exp"),
+            model=Gemini(id="gemini-2.0-flash"),
             description="You are a Senior Investment Analyst for Goldman Sachs tasked with writing an investment report for a very important client.",
             instructions=[
                 "For a given stock symbol, get the stock price, company information, analyst recommendations, and company news",
@@ -217,7 +217,7 @@ def get_llm_os(
         name="AI_OS",
         run_id=run_id,
         user_id=user_id,
-        model=Gemini(id="gemini-2.0-pro-exp-02-05", stream=True),
+        model=Gemini(id="gemini-2.0-flash", stream=True),
         #model=Groq(id="llama-3.3-70b-versatile"),
         description=dedent(
             """\

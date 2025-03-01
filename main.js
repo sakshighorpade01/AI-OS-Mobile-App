@@ -25,7 +25,29 @@ function createWindow() {
     mainWindow.loadFile('index.html');
 
     pythonBridge = new PythonBridge(mainWindow);
-    pythonBridge.start();
+    console.log('Starting Python bridge...');
+    pythonBridge.start().catch(error => {
+        console.error('Python bridge error:', error.message);
+        // Notify the renderer process about the error
+        mainWindow.webContents.on('did-finish-load', () => {
+            mainWindow.webContents.send('socket-connection-status', { 
+                connected: false,
+                error: 'Failed to start Python server: ' + error.message
+            });
+        });
+        
+        // Try restarting after a delay
+        setTimeout(() => {
+            console.log('Attempting to restart Python bridge...');
+            if (pythonBridge) {
+                pythonBridge.stop();
+            }
+            pythonBridge = new PythonBridge(mainWindow);
+            pythonBridge.start().catch(err => {
+                console.error('Python bridge restart failed:', err.message);
+            });
+        }, 10000);
+    });
 
     ipcMain.on('minimize-window', () => {
         mainWindow.minimize();
@@ -48,6 +70,31 @@ function createWindow() {
         pythonBridge.sendMessage(data);
     });
 
+    // Handle browser agent requests directly (reuse send-message channel)
+    ipcMain.on('send-message', (event, data) => {
+        pythonBridge.sendMessage(data);
+    });
+
+    ipcMain.on('check-socket-connection', (event) => {
+        const isConnected = pythonBridge.socket && pythonBridge.socket.connected;
+        event.reply('socket-connection-status', { connected: isConnected });
+    });
+
+    ipcMain.on('restart-python-bridge', () => {
+        if (pythonBridge) {
+            pythonBridge.stop();
+        }
+        pythonBridge = new PythonBridge(mainWindow);
+        pythonBridge.start().catch(error => {
+            console.error('Failed to restart Python bridge:', error);
+            mainWindow.webContents.send('socket-connection-status', { 
+                connected: false,
+                error: 'Failed to restart Python server: ' + error.message
+            });
+        });
+    });
+
+    // WebView handling for browser agent
     ipcMain.on('open-webview', (event, url) => {
         if (webView) {
             mainWindow.removeBrowserView(webView);
@@ -81,6 +128,11 @@ function createWindow() {
         
         webView.webContents.loadURL(url);
         event.reply('webview-created', bounds);
+
+        // Listen for navigation events to update URL bar
+        webView.webContents.on('did-navigate', (e, url) => {
+            mainWindow.webContents.send('webview-navigated', url);
+        });
     });
 
     ipcMain.on('resize-webview', (event, bounds) => {
@@ -114,23 +166,70 @@ function createWindow() {
             mainWindow.webContents.send('webview-closed');
         }
     });
+
+    // Add webview navigation controls
+    ipcMain.on('webview-back', () => {
+        if (webView && webView.webContents.canGoBack()) {
+            webView.webContents.goBack();
+        }
+    });
+
+    ipcMain.on('webview-forward', () => {
+        if (webView && webView.webContents.canGoForward()) {
+            webView.webContents.goForward();
+        }
+    });
+
+    ipcMain.on('webview-refresh', () => {
+        if (webView) {
+            webView.webContents.reload();
+        }
+    });
+
+    ipcMain.on('webview-goto', (event, url) => {
+        if (webView) {
+            webView.webContents.loadURL(url);
+        }
+    });
 }
 
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
+    // Clean up Python bridge
     if (pythonBridge) {
-        pythonBridge.stop();
+        try {
+            pythonBridge.stop();
+            pythonBridge = null;
+        } catch (error) {
+            console.error('Error stopping Python bridge:', error.message);
+        }
     }
+    
     if (process.platform !== 'darwin') {
         app.quit();
     }
 });
 
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
+    // Clean up resources before quitting
     if (webView) {
-        mainWindow.removeBrowserView(webView);
-        webView.webContents.destroy();
-        webView = null;
+        try {
+            mainWindow.removeBrowserView(webView);
+            webView.webContents.destroy();
+            webView = null;
+        } catch (error) {
+            console.error('Error cleaning up webView:', error.message);
+        }
+    }
+    
+    // Make sure Python bridge is properly cleaned up
+    if (pythonBridge) {
+        try {
+            pythonBridge.stop();
+            pythonBridge = null;
+        } catch (error) {
+            console.error('Error stopping Python bridge:', error.message);
+        }
     }
 });

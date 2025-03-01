@@ -1,21 +1,27 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AIOS Desktop</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="chat.css">
-    <link rel="stylesheet" href="to-do-list.css"> 
+    <link rel="stylesheet" href="to-do-list.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="aios.css">
+    <link rel="stylesheet" href="browse_ai.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+
 </head>
+
 <body class="dark-mode">
     <div id="aios-container"></div>
     <div id="chat-root"></div>
-    <div id="to-do-list-root"></div> 
+    <div id="to-do-list-root"></div>
+    <div id="browse-ai-container"></div>
+
 
     <div class="taskbar">
         <div class="taskbar-icons">
@@ -28,6 +34,11 @@
             <button id="to-do-list-icon" class="taskbar-icon" aria-label="Open To-Do List">
                 <i class="fa-solid fa-note-sticky"></i>
             </button>
+            <!-- Browse AI icon -->
+            <button id="browse-ai-icon" class="taskbar-icon" aria-label="Browse AI">
+                <i class="fas fa-search"></i>
+            </button>
+
         </div>
     </div>
 
@@ -60,6 +71,7 @@
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <script type="module" src="message-formatter.js"></script>
     <script type="module" src="chat.js"></script>
+    <script type="module" src="browse_ai.js"></script>
     <script src="aios.js"></script>
     <script src="to-do-list.js"></script>
     <script>
@@ -70,4 +82,5 @@
         });
     </script>
 </body>
+
 </html>

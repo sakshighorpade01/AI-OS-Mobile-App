@@ -1,6 +1,18 @@
 class FileAttachmentHandler {
-    constructor(socket) {
-        this.socket = socket;
+    constructor(socket, supportedFileTypes, maxFileSize) {
+        // socket parameter is kept for backward compatibility but no longer used
+        this.supportedFileTypes = supportedFileTypes || {
+            'txt': 'text/plain',
+            'js': 'text/javascript',
+            'py': 'text/x-python',
+            'html': 'text/html',
+            'css': 'text/css',
+            'json': 'application/json',
+            'pdf': 'application/pdf',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'c': 'text/x-c'
+        };
+        this.maxFileSize = maxFileSize || 10 * 1024 * 1024; // 10MB default
         this.attachedFiles = [];
         this.initialize();
     }
@@ -29,21 +41,23 @@ class FileAttachmentHandler {
 
     async handleFileSelection(event) {
         const files = Array.from(event.target.files);
-        if (files.length + this.attachedFiles.length > 5) {
-            alert("You can attach a maximum of 5 files.");
+        if (files.length + this.attachedFiles.length > 50) {
+            alert("You can attach a maximum of 50 files.");
             return;
         }
 
         for (const file of files) {
-            if (!file.type.startsWith('text/') &&
-                file.type !== 'application/pdf' &&
-                file.type !== 'application/json' &&
-                !file.name.endsWith('.docx') &&
-                !file.name.endsWith('.py') &&
-                !file.name.endsWith('.js') &&
-                !file.name.endsWith('.html') &&
-                !file.name.endsWith('.css') &&
-                !file.name.endsWith('.c')) {
+            // Check file size
+            if (file.size > this.maxFileSize) {
+                alert(`File too large: ${file.name} (max size: ${Math.round(this.maxFileSize/1024/1024)}MB)`);
+                continue;
+            }
+
+            // Check if file type is supported
+            const extension = file.name.split('.').pop().toLowerCase();
+            const isSupported = this.supportedFileTypes[extension] || file.type.startsWith('text/');
+            
+            if (!isSupported) {
                 alert(`File type not supported: ${file.name}`);
                 continue;
             }

@@ -1,0 +1,56 @@
+<div id="browse-ai-panel" class="browse-ai-panel hidden">
+    <div class="browse-ai-handle"></div>
+    <div class="security-banner">
+        Note: External websites may contain unsafe content. Use caution when navigating.
+    </div>
+    <div class="browse-ai-container">
+        <div class="browse-ai-sidebar">
+            <div class="browse-ai-header">
+                <h2><i class="fas fa-search"></i> Browse AI</h2>
+                <div class="browse-ai-controls">
+                    <button id="minimize-browse-ai" class="minimize-btn">
+                        <i class="fas fa-minus"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="browse-ai-messages" id="browse-ai-messages">
+                <!-- Messages will appear here -->
+            </div>
+            <div class="browse-ai-input-area">
+                <button id="voice-input-btn" title="Voice Input"><i class="fas fa-microphone"></i></button>
+                <textarea id="browse-ai-input" placeholder="Enter your request..."></textarea>
+                <button id="send-browse-ai-message" title="Send message"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+        <div class="browse-ai-web-container" id="browse-ai-web-container">
+            <div class="browser-header">
+                <div class="browser-controls">
+                    <button id="browse-back-btn" class="browser-btn" title="Back"><i
+                            class="fas fa-arrow-left"></i></button>
+                    <button id="browse-forward-btn" class="browser-btn" title="Forward"><i
+                            class="fas fa-arrow-right"></i></button>
+                    <button id="browse-refresh-btn" class="browser-btn" title="Refresh"><i
+                            class="fas fa-redo"></i></button>
+                </div>
+                <div class="url-bar-container">
+                    <input type="text" id="browse-url-bar" placeholder="Enter URL or search..." />
+                    <button id="browse-goto-btn" class="browser-btn" title="Go"><i class="fas fa-arrow-right"></i></button>
+                </div>
+            </div>
+            <div class="browser-content" id="browser-content">
+                <div class="browser-placeholder">
+                    <div class="browser-placeholder-content">
+                        <i class="fas fa-globe fa-3x"></i>
+                        <h3>Ask Browse AI to search the web</h3>
+                        <p>Try asking questions like:</p>
+                        <ul>
+                            <li>"Search for recent news about AI"</li>
+                            <li>"Find information about quantum computing"</li>
+                            <li>"Go to Wikipedia"</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -240,45 +240,45 @@ Uses add-files.js to handle files.
 **python-bridge.js:** A Node.js module that manages the Python process (starting, stopping, restarting) and facilitates communication between the Electron frontend and the Python backend via Socket.IO.
 
 ## Dependencies
-Frontend (Node.js):
+**Frontend (Node.js):**
 
-electron: Framework for building cross-platform desktop applications with JavaScript, HTML, and CSS.
+**electron:** Framework for building cross-platform desktop applications with JavaScript, HTML, and CSS.
 
-socket.io-client: Real-time communication library for bidirectional event-based communication.
+**socket.io-client:** Real-time communication library for bidirectional event-based communication.
 
-highlight.js: Syntax highlighting for code blocks.
+**highlight.js:** Syntax highlighting for code blocks.
 
-mermaid: Generation of diagrams and flowcharts from text in a similar manner to Markdown.
+**mermaid:** Generation of diagrams and flowcharts from text in a similar manner to Markdown.
 
-marked: Markdown parser and compiler.
+**marked:** Markdown parser and compiler.
 
-prismjs: Lightweight, robust, and elegant syntax highlighting.
+**prismjs:** Lightweight, robust, and elegant syntax highlighting.
 
-KaTeX: Fast math typesetting library for the web.
+**KaTeX:** Fast math typesetting library for the web.
 
-dompurify: DOM-only, super-fast, and robust HTML sanitization library.
+**dompurify:** DOM-only, super-fast, and robust HTML sanitization library.
 
-turndown: HTML to Markdown converter.
+**turndown:** HTML to Markdown converter.
 
-@mozilla/pdf.js: Library to handle and extract pdf content.
+**@mozilla/pdf.js:** Library to handle and extract pdf content.
 
-tesseract.js: Library to perform OCR.
+**tesseract.js:** Library to perform OCR.
 
-Backend (Python):
+## Backend (Python):
 
-Flask: Micro web framework for building web applications.
+**Flask:** Micro web framework for building web applications.
 
-Flask-SocketIO: Socket.IO integration for Flask, enabling real-time communication.
+**Flask-SocketIO:** Socket.IO integration for Flask, enabling real-time communication.
 
-python-dotenv: Loads environment variables from a .env file.
+**python-dotenv:** Loads environment variables from a .env file.
 
-eventlet: Concurrent networking library. Crucially important for asynchronous I/O with Flask-SocketIO.
+**eventlet:** Concurrent networking library. Crucially important for asynchronous I/O with Flask-SocketIO.
 
-phi-agent: (This appears to be a custom or local package. Make sure it's accessible to your Python environment.) This is the core AI agent library, providing the Agent, AgentMemory, Toolkit, and various tools.
+**phi-agent:** (This appears to be a custom or local package. Make sure it's accessible to your Python environment.) This is the core AI agent library, providing the Agent, AgentMemory, Toolkit, and various tools.
 
 Other dependencies listed in python-backend/requirements.txt
 
-Contributing
+## Contributing
 Contributions are welcome! Please follow these steps:
 
 Fork the repository.
@@ -293,7 +293,7 @@ Create a pull request to the main branch of the original repository.
 
 Please ensure your code adheres to the project's coding style and includes appropriate tests.
 
-Troubleshooting
+## Troubleshooting
 Python server fails to start:
 
 Ensure all Python dependencies are installed correctly.
@@ -304,7 +304,7 @@ Verify that port 8765 is not in use by another application.
 
 If you're seeing a "startup timeout" error, try increasing this.serverStartTimeout in python-bridge.js.
 
-Socket.IO connection issues:
+## Socket.IO connection issues:
 
 Ensure the Python server is running and listening on the correct port (8765).
 
@@ -312,22 +312,22 @@ Check for network connectivity problems.
 
 Examine console logs for connection errors.
 
-"Module not found" errors (Python): Double-check that you've activated your Python virtual environment and that all dependencies are installed.
+**"Module not found" errors (Python):** Double-check that you've activated your Python virtual environment and that all dependencies are installed.
 
 Chat doesn't respond: If the agent stops responding, check the console for any python errors, check if your selected context is valid and not corrupted.
 
-UI Issues: Use the developer tools (usually opened with Ctrl+Shift+I or Cmd+Option+I) to inspect elements and debug JavaScript code.
+**UI Issues:** Use the developer tools (usually opened with Ctrl+Shift+I or Cmd+Option+I) to inspect elements and debug JavaScript code.
 
-Roadmap
+## Roadmap
 This section outlines potential future enhancements and is based on features and improvements inferred from the code and existing functionalities:
 
-Improved User Context Management:
+**Improved User Context Management:**
 
 UI enhancements for managing context (e.g., editing/deleting context files).
 
 More sophisticated context selection mechanisms (e.g., keyword search, automatic relevance ranking).
 
-Enhanced Task Management:
+## Enhanced Task Management:
 
 Recurring tasks.
 
@@ -335,21 +335,21 @@ Subtasks.
 
 Integration with external calendar or task management systems.
 
-Customizable Agents:
+## Customizable Agents:
 
 Allow users to create and configure their own agents with specific tools, instructions, and models.
 
 A UI for managing agent configurations.
 
-Plugin System:
+## Plugin System:
 
 Enable the development and integration of third-party plugins to extend functionality.
 
-Voice Input/Output:
+## Voice Input/Output:
 
 Integrate speech recognition and text-to-speech for voice interaction.
 
-Improved Web View:
+## Improved Web View:
 
 Browser-like features (back/forward navigation, URL bar). This has been partially implemented, but could be significantly expanded.
 

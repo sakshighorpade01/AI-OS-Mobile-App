@@ -2,7 +2,7 @@
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://your-build-system-url)  <!-- Replace with your actual build status badge -->
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) <!-- Add a LICENSE file if you haven't -->
-![AI-OS Interface](home_dark.png) <!-- Use a descriptive image; consider a GIF demonstrating key features -->
+![AI-OS Interface](home_dark.png)[](home_light.png)  <!-- Use a descriptive image; consider a GIF demonstrating key features -->
 
 AI-OS is a powerful, extensible desktop application built with Electron.js and Python, designed to be an intelligent assistant that seamlessly integrates with your workflow.  It leverages multiple Large Language Models (LLMs) to perform a variety of tasks, incorporating natural language processing, web browsing, local file access, code execution, and more.
 

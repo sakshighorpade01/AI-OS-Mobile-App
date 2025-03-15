@@ -207,7 +207,7 @@ Clicking on a URL within a message from the assistant will automatically open th
 ## Architecture
 **The application follows a client-server architecture:**
 
-**Frontend (Electron.js):**
+## Frontend (Electron.js):
 
 Provides the user interface (chat, to-do list, settings, web view).
 
@@ -227,7 +227,7 @@ Uses context-handler.js for managing chat session context.
 
 Uses add-files.js to handle files.
 
-**Backend (Python):**
+## Backend (Python):
 
 **app.py:** The main Flask-SocketIO server. Manages client connections, creates and manages AI agent sessions, and handles message routing.
 

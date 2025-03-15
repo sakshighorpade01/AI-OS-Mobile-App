@@ -11,8 +11,9 @@
         <div class="chat-messages" id="chat-messages">
         </div>
         <div class="context-active-indicator">
-            <i class="fas fa-link"></i>
-            <span class="context-count"></span>
+            <i class="fas fa-layer-group"></i>
+            <span class="context-label">Context</span>
+            <span class="context-badge"></span>
         </div>
         <div class="chat-tools">
             <button class="tool-btn" data-tool="memory">
@@ -81,10 +82,29 @@
 
 <div id="selected-context-viewer" class="selected-context-viewer">
     <div class="context-viewer-header">
-        <h3>Selected Context Sessions</h3>
-        <button class="close-viewer-btn">×</button>
+        <h3>Selected Context</h3>
+        <button class="close-viewer-btn">
+            <i class="fas fa-times"></i>
+        </button>
     </div>
-    <div class="context-viewer-content"></div>
+    <div class="context-viewer-tabs">
+        <button class="viewer-tab active" data-tab="context">
+            <i class="fas fa-network-wired"></i>
+            <span>Sessions</span>
+        </button>
+        <button class="viewer-tab" data-tab="files">
+            <i class="fas fa-paperclip"></i>
+            <span>Files</span>
+        </button>
+    </div>
+    <div class="context-viewer-content">
+        <div class="tab-content active" id="context-tab">
+            <div class="context-preview-content"></div>
+        </div>
+        <div class="tab-content" id="files-tab">
+            <div class="files-preview-content"></div>
+        </div>
+    </div>
 </div>
 
 <template id="session-detail-template">

@@ -379,9 +379,12 @@ class ContextHandler {
         
         if (this.elements.indicator) {
             this.elements.indicator.classList.toggle('visible', sessionCount > 0);
-            const countSpan = this.elements.indicator.querySelector('.context-count');
-            if (countSpan) {
-                countSpan.textContent = sessionCount > 0 ? `${sessionCount} sessions in context` : '';
+            // Instead of updating text content, we'll rely on the UnifiedPreviewHandler
+            // to manage the badge and visibility
+            
+            // If there's a UnifiedPreviewHandler instance available, update its indicator
+            if (window.unifiedPreviewHandler) {
+                window.unifiedPreviewHandler.updateContextIndicator();
             }
         }
     }

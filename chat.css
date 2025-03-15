@@ -22,6 +22,8 @@
     --message-bot-bg: #f8fafc;
     --input-bg: #ffffff;
     --hover-bg: #f1f5f9;
+    --link-color: #3b82f6;
+    --link-hover: #2563eb;
 }
 
 .dark-mode {
@@ -46,6 +48,9 @@
     --message-bot-bg: #1e293b;
     --input-bg: #1e293b;
     --hover-bg: #243146;
+    --link-color: #60a5fa;
+    --link-hover: #93c5fd;
+    --file-name-color: #e2e8f0;
 }
 /* Taskbar Positioning */
 .taskbar {
@@ -194,6 +199,27 @@
     border: 1px solid var(--border-color);
     word-break: break-word;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    position: relative;
+    margin-top: 12px;
+}
+
+.message-bot .message-content {
+    opacity: 0;
+    transform: translateY(10px);
+    animation: messageContentIn 0.3s ease forwards;
+    margin-top: 24px;
+    min-height: 20px;
+}
+
+.message-bot .thinking-indicator + .message-content {
+    margin-top: 40px;
+}
+
+@keyframes messageContentIn {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Floating Input */
@@ -812,21 +838,49 @@
 .context-active-indicator {
     display: none;
     align-items: center;
-    gap: 8px;
-    padding: 4px 8px;
-    background: rgba(var(--accent-color-rgb), 0.1);
-    border-radius: 4px;
-    font-size: 0.85rem;
+    justify-content: center;
+    gap: 6px;
+    padding: 0.4rem 0.8rem;
+    background-color: var(--accent-muted);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: var(--font-medium);
     color: var(--accent-color);
-    margin-right: 12px;
+    margin-right: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
 }
 
 .context-active-indicator.visible {
     display: flex;
 }
 
+.context-active-indicator:hover {
+    background-color: var(--accent-color);
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
 .context-active-indicator i {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+}
+
+.context-badge {
+    display: none;
+    background-color: var(--accent-color);
+    color: white;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    font-size: 0.7rem;
+    align-items: center;
+    justify-content: center;
+}
+
+.context-badge.visible {
+    display: flex;
 }
 
 .chat-tools {
@@ -841,14 +895,16 @@
     right: 0;
     top: 50%;
     transform: translate(100%, -50%);
-    width: 400px;
-    height: 80vh;
+    width: 500px;
+    height: 85vh;
     background: var(--window-bg);
     border-radius: 16px 0 0 16px;
     border: 1px solid var(--border-color);
     box-shadow: -4px 0 24px rgba(0, 0, 0, 0.1);
     z-index: 1000;
     transition: transform 0.3s ease;
+    display: flex;
+    flex-direction: column;
 }
 
 .selected-context-viewer.visible {
@@ -863,132 +919,233 @@
     align-items: center;
 }
 
+.context-viewer-header h3 {
+    font-size: var(--text-lg);
+    font-weight: var(--font-semibold);
+    color: var(--text-color);
+    margin: 0;
+}
+
+.context-viewer-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--elevated-bg);
+}
+
+.viewer-tab {
+    flex: 1;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-weight: var(--font-medium);
+    transition: all 0.2s ease;
+}
+
+.viewer-tab.active {
+    color: var(--accent-color);
+    border-bottom-color: var(--accent-color);
+}
+
+.viewer-tab:hover:not(.active) {
+    color: var(--text-color);
+    background-color: rgba(0, 0, 0, 0.03);
+}
+
 .context-viewer-content {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+.tab-content {
+    display: none;
     padding: 16px;
     overflow-y: auto;
-    height: calc(100vh - 60px);
+    height: 100%;
+    scrollbar-width: thin;
+    scrollbar-color: var(--neutral-400) transparent;
+}
+
+.tab-content.active {
+    display: block;
 }
 
 .close-viewer-btn {
     background: none;
     border: none;
-    font-size: 24px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
-    color: var(--text-color);
-}
-.context-active-indicator.clickable:hover {
-    background: rgba(var(--accent-color-rgb), 0.2);
-}
-
-.session-block {
-    margin-bottom: 20px;
-    padding: 10px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.03);
-}
-
-.interaction {
-    margin: 10px 0;
-    padding: 8px;
-    border-left: 2px solid var(--accent-color);
-}
-
-.user-message, .assistant-message {
-    padding: 5px 0;
-}
-
-.user-message strong, .assistant-message strong {
-    color: var(--accent-color);
-}
-
-/* Update CSS for unified preview */
-.selected-context-viewer {
-    position: fixed;
-    right: 50px;
-    top: 50%;
-    transform: translate(150%, -50%);
-    width: 500px;
-    height: 80vh;
-    background: var(--window-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    z-index: 1000;
-    transition: transform 0.3s ease;
-}
-
-.selected-context-viewer.visible {
-    transform: translate(0, -50%);
-}
-
-.preview-section {
-    margin-bottom: 24px;
-}
-
-.preview-section h4 {
-    color: var(--accent-color);
-    font-size: 1rem;
-    margin-bottom: 16px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.context-preview-content,
-.files-preview-content {
-    max-height: calc(40vh - 60px);
-    overflow-y: auto;
-    padding-right: 8px;
-}
-
-.context-preview-content {
-    margin-bottom: 24px;
-}
-
-/* Hide the original file preview sidebar since we're using unified preview */
-.file-preview-sidebar {
-    display: none;
-}
-
-/* Maintain existing styles for file preview items within the unified viewer */
-.selected-context-viewer .file-preview-item {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    margin-bottom: 12px;
+    color: var(--text-secondary);
     transition: all 0.2s ease;
 }
 
-.selected-context-viewer .file-preview-header-item {
-    padding: 12px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+.close-viewer-btn:hover {
+    background-color: var(--neutral-100);
+    color: var(--text-color);
+}
+
+/* Session blocks in preview */
+.session-block {
+    background-color: var(--elevated-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    margin-bottom: 20px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+.session-block h4 {
+    margin: 0;
+    padding: 12px 16px;
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+    background-color: var(--neutral-100);
     border-bottom: 1px solid var(--border-color);
 }
 
-/* Add scrollbar styling */
-.context-preview-content::-webkit-scrollbar,
-.files-preview-content::-webkit-scrollbar {
-    width: 8px;
+.interaction {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.2s ease;
 }
 
-.context-preview-content::-webkit-scrollbar-track,
-.files-preview-content::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 4px;
+.interaction:hover {
+    background-color: var(--neutral-50);
 }
 
-.context-preview-content::-webkit-scrollbar-thumb,
-.files-preview-content::-webkit-scrollbar-thumb {
-    background: var(--accent-color);
-    border-radius: 4px;
+.dark-mode .interaction:hover {
+    background-color: var(--neutral-800);
 }
 
-.chat-tools .tool-btn[data-tool="tasks"].active {
-    background: var(--accent-color);
+.interaction:last-child {
+    border-bottom: none;
+}
+
+.user-message, .assistant-message {
+    margin-bottom: 12px;
+    font-size: var(--text-sm);
+    line-height: 1.5;
+}
+
+.user-message strong, .assistant-message strong {
+    font-weight: var(--font-semibold);
+    display: inline-block;
+    margin-bottom: 4px;
+}
+
+.user-message {
+    color: var(--accent-color);
+}
+
+.assistant-message {
+    color: var(--text-color);
+}
+
+/* File preview items */
+.file-preview-item {
+    background-color: var(--elevated-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    margin-bottom: 16px;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    transition: border-color 0.2s ease;
+}
+
+.file-preview-item:hover {
     border-color: var(--accent-color);
-    color: #ffffff;
 }
+
+.file-preview-header-item {
+    padding: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--neutral-100);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.file-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.file-icon {
+    color: var(--accent-color);
+    font-size: 1.1rem;
+}
+
+.file-name {
+    font-weight: var(--font-medium);
+    font-size: var(--text-sm);
+    max-width: 300px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.file-actions button {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.file-actions button:hover {
+    background-color: var(--neutral-200);
+    color: var(--text-color);
+}
+
+.file-preview-content-item {
+    display: none;
+    padding: 12px;
+    max-height: 250px;
+    overflow-y: auto;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    white-space: pre-wrap;
+    color: var(--text-color);
+    background-color: var(--code-bg);
+    scrollbar-width: thin;
+    scrollbar-color: var(--neutral-400) transparent;
+}
+
+.file-preview-content-item.visible {
+    display: block;
+}
+
+.media-preview {
+    max-width: 100%;
+    max-height: 200px;
+    margin: 0 auto;
+    display: block;
+}
+
 /* Add to chat.css */
 .artifact-container {
     position: fixed;
@@ -1084,4 +1241,272 @@
 .artifact-reference i {
     font-size: 14px;
     color: var(--accent-color);
+}
+
+/* Add to chat.css */
+.thinking-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(var(--accent-color-rgb), 0.05);
+    border-radius: 16px 16px 0 0;
+}
+
+.thinking-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: fadeIn 0.3s ease;
+}
+
+.thinking-indicator i {
+    animation: spin 1s linear infinite;
+}
+
+.thinking-indicator .timer {
+    font-family: var(--font-mono);
+    opacity: 0.8;
+    font-size: 0.85rem;
+    position: absolute;
+    bottom: -24px;
+    right: 12px;
+    background: var(--window-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
+}
+
+.thinking-indicator .timer.completed {
+    background: var(--accent-color);
+    color: white;
+    border-color: var(--accent-color);
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.empty-state {
+    padding: 2.5rem;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    background-color: var(--neutral-50);
+    border-radius: 10px;
+    margin: 1.5rem 0;
+    border: 1px dashed var(--border-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.empty-state::before {
+    content: '';
+    display: block;
+    width: 40px;
+    height: 40px;
+    background-color: var(--neutral-100);
+    border-radius: 50%;
+    margin-bottom: 12px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'%3E%3C/circle%3E%3Cline x1='12' y1='8' x2='12' y2='12'%3E%3C/line%3E%3Cline x1='12' y1='16' x2='12.01' y2='16'%3E%3C/line%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+.dark-mode .empty-state {
+    background-color: var(--neutral-900);
+}
+
+.dark-mode .empty-state::before {
+    background-color: var(--neutral-800);
+}
+
+/* Hide the original file preview sidebar since we're using the unified context viewer */
+.file-preview-sidebar {
+    display: none;
+}
+
+/* Make the sidebar visible only when explicitly shown */
+.file-preview-sidebar.visible {
+    display: block;
+    position: fixed;
+    right: 0;
+    top: 0;
+    height: 100vh;
+    width: 350px;
+    background: var(--window-bg);
+    border-left: 1px solid var(--border-color);
+    z-index: 1000;
+    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.1);
+}
+
+/* Session selection count */
+.selection-actions .selected-count {
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    background-color: var(--neutral-100);
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.dark-mode .selection-actions .selected-count {
+    background-color: var(--neutral-800);
+}
+
+/* Link styling */
+a {
+    color: var(--link-color);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+a:hover {
+    color: var(--link-hover);
+    text-decoration: underline;
+}
+
+/* Message content links */
+.message-bot .message-content a {
+    color: var(--link-color);
+    text-decoration: underline;
+    font-weight: 500;
+}
+
+.message-bot .message-content a:hover {
+    color: var(--link-hover);
+}
+
+/* File name visibility fix for dark mode */
+.dark-mode .file-name {
+    color: var(--file-name-color);
+}
+
+/* Email addresses styling */
+.message-bot .message-content a[href^="mailto:"] {
+    color: var(--link-color);
+    font-weight: 500;
+}
+
+/* Improve dark mode visibility for file preview */
+.dark-mode .file-preview-item {
+    border-color: var(--border-color);
+}
+
+.dark-mode .file-preview-header-item {
+    background-color: var(--taskbar-bg);
+}
+
+.dark-mode .file-icon {
+    color: var(--link-color);
+}
+
+/* Ensure code blocks are visible in dark mode */
+.dark-mode .code-block-wrapper {
+    border-color: var(--border-color);
+}
+
+.dark-mode .code-language {
+    color: var(--text-secondary);
+}
+
+/* Code syntax highlighting for dark mode */
+.dark-mode .code-pre {
+    color: #e2e8f0;
+}
+
+.dark-mode .hljs-keyword,
+.dark-mode .hljs-selector-tag,
+.dark-mode .hljs-title,
+.dark-mode .hljs-section,
+.dark-mode .hljs-doctag,
+.dark-mode .hljs-name,
+.dark-mode .hljs-strong {
+    color: #f472b6; /* Pink */
+}
+
+.dark-mode .hljs-comment {
+    color: #94a3b8; /* Gray */
+}
+
+.dark-mode .hljs-string,
+.dark-mode .hljs-title.class_,
+.dark-mode .hljs-class .hljs-title,
+.dark-mode .hljs-title.class {
+    color: #a5b4fc; /* Purple */
+}
+
+.dark-mode .hljs-attr,
+.dark-mode .hljs-variable,
+.dark-mode .hljs-template-variable,
+.dark-mode .hljs-type,
+.dark-mode .hljs-selector-class,
+.dark-mode .hljs-selector-attr,
+.dark-mode .hljs-selector-pseudo,
+.dark-mode .hljs-number {
+    color: #7dd3fc; /* Light blue */
+}
+
+.dark-mode .hljs-tag {
+    color: #bae6fd; /* Lighter blue */
+}
+
+.dark-mode .hljs-literal {
+    color: #fca5a5; /* Red */
+}
+
+.dark-mode .hljs-function .hljs-title {
+    color: #fdba74; /* Orange */
+}
+
+/* URL highlighting in dark mode */
+.dark-mode .message-bot .message-content a[href^="http"] {
+    color: #60a5fa;
+    text-decoration: underline;
+    font-weight: 500;
+}
+
+.dark-mode .message-bot .message-content a[href^="http"]:hover {
+    color: #93c5fd;
+}
+
+/* Improve file preview content visibility */
+.dark-mode .file-preview-content-item {
+    color: #e2e8f0;
+    border-top: 1px solid var(--border-color);
+}
+
+/* Improve file name contrast in context viewer */
+.dark-mode .files-preview-content .file-name {
+    color: #e2e8f0;
+    font-weight: 500;
+}
+
+/* Fix visibility for code references */
+.dark-mode .code-reference {
+    color: #e2e8f0;
+    border: 1px solid var(--border-color);
+}
+
+/* Improve artifact reference visibility */
+.dark-mode .artifact-reference {
+    color: #e2e8f0;
+    border-color: var(--border-color);
 }

@@ -1,4 +1,4 @@
-# app.py (Updated)
+# app.py (Corrected)
 
 import logging
 import json
@@ -7,10 +7,13 @@ from flask import Flask, request
 from flask_socketio import SocketIO, emit
 from assistant import get_llm_os
 from deepsearch import get_deepsearch  # Import the deepsearch agent
+from browser_agent import BrowserAgent  # Import the BrowserAgent
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import traceback
-from queue import Queue
+#from queue import Queue  <- No longer needed at the top-level import
+import eventlet  # Import eventlet
+
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -31,30 +34,51 @@ app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 class IsolatedAssistant:
-    def __init__(self):
+    def __init__(self, sid):  # Pass sid to the constructor
         self.executor = ThreadPoolExecutor(max_workers=1)
-        self.response_queue = Queue()
+        self.sid = sid  # Store the sid
+        #self.response_queue = Queue()  <- No longer needed
 
     def run_safely(self, agent, message, context=None):
         """Runs agent in isolated thread and handles crashes"""
-        try:
-            if context:
-                complete_message = f"Previous conversation context:\n{context}\n\nCurrent message: {message}"
-            else:
-                complete_message = message
 
-            future = self.executor.submit(agent.run, complete_message, stream=True)
-            for chunk in future.result():
-                if chunk and chunk.content:
-                    yield {"content": chunk.content, "streaming": True}
-            yield {"content": "", "done": True}
+        def _run_agent(agent, message, context):
+            try:
+                if context:
+                    complete_message = f"Previous conversation context:\n{context}\n\nCurrent message: {message}"
+                else:
+                    complete_message = message
 
-        except Exception as e:
-            error_msg = f"Tool error: {str(e)}\n{traceback.format_exc()}"
-            logger.error(error_msg)
-            yield {"content": "An error occurred while processing your request. Starting a new session...",
-                  "error": True, "done": True}
-            yield {"reset_session": True}
+                for chunk in agent.run(complete_message, stream=True):
+                    if chunk and chunk.content:
+                        eventlet.sleep(0) # VERY IMPORTANT: Yield to eventlet
+                        socketio.emit("response", {
+                            "content": chunk.content,
+                            "streaming": True,
+                            "id": self.message_id, # Use self.message_id here.
+                        }, room=self.sid)
+
+                socketio.emit("response", {
+                    "content": "",
+                    "done": True,
+                    "id": self.message_id, # Use self.message_id here.
+                }, room=self.sid)
+
+            except Exception as e:
+                error_msg = f"Tool error: {str(e)}\n{traceback.format_exc()}"
+                logger.error(error_msg)
+                socketio.emit("response", {
+                    "content": "An error occurred while processing your request. Starting a new session...",
+                    "error": True,
+                    "done": True,
+                    "id": self.message_id, # Use self.message_id here.
+                }, room=self.sid)
+                socketio.emit("error", {"message": "Session reset required", "reset": True}, room=self.sid)
+
+
+        # Use eventlet.spawn to run the agent in a greenlet
+        eventlet.spawn(_run_agent, agent, message, context)
+
 
     def terminate(self):
         self.executor.shutdown(wait=False)
@@ -65,13 +89,20 @@ class ConnectionManager:
         self.lock = threading.Lock()
         self.isolated_assistants = {}
 
-    def create_session(self, sid, config, is_deepsearch=False):
+    def create_session(self, sid, config, is_deepsearch=False, is_browse_ai=False):
         with self.lock:
             if sid in self.sessions:
                 self.terminate_session(sid)
 
-            # Choose the agent based on the is_deepsearch flag.
-            if is_deepsearch:
+            # Choose the agent based on the flags
+            if is_browse_ai:
+                # BrowserAgent is already an instance of CustomBrowserAgent
+                agent = BrowserAgent
+                if not agent or not agent.agent:
+                    error_msg = "BrowserAgent not properly initialized"
+                    logger.error(error_msg)
+                    raise RuntimeError(error_msg)
+            elif is_deepsearch:
                 agent = get_deepsearch(
                     ddg_search=config.get("ddg_search", False),
                     web_crawler=config.get("web_crawler", False),
@@ -90,17 +121,17 @@ class ConnectionManager:
                     debug_mode=True
                 )
 
-
             self.sessions[sid] = {
                 "agent": agent,
                 "config": config,
                 "initialized": True,
-                "is_deepsearch": is_deepsearch  # Store the agent type
+                "is_deepsearch": is_deepsearch,
+                "is_browse_ai": is_browse_ai
             }
 
-            self.isolated_assistants[sid] = IsolatedAssistant()
+            self.isolated_assistants[sid] = IsolatedAssistant(sid) # Pass sid
 
-            logger.info(f"Created new session {sid} with config {config} (Deepsearch: {is_deepsearch})")
+            logger.info(f"Created new session {sid} with config {config} (Deepsearch: {is_deepsearch}, BrowseAI: {is_browse_ai})")
             return agent
 
     def terminate_session(self, sid):
@@ -141,7 +172,9 @@ def on_send_message(data):
         context = data.get("context", "")
         message_type = data.get("type", "")
         files = data.get("files", [])
-        is_deepsearch = data.get("is_deepsearch", False)  # Check for Deepsearch flag
+        is_deepsearch = data.get("is_deepsearch", False)
+        is_browse_ai = data.get("is_browse_ai", False)
+
 
         if message_type == "terminate_session" or message_type == "new_chat":
             connection_manager.terminate_session(sid)
@@ -150,12 +183,10 @@ def on_send_message(data):
 
         session = connection_manager.get_session(sid)
         if not session:
-            # Pass is_deepsearch to create_session
             config = data.get("config", {})
-            agent = connection_manager.create_session(sid, config, is_deepsearch=is_deepsearch)
+            agent = connection_manager.create_session(sid, config, is_deepsearch=is_deepsearch, is_browse_ai=is_browse_ai)
         else:
             agent = session["agent"]
-
 
         message_id = str(uuid.uuid4())
         isolated_assistant = connection_manager.isolated_assistants.get(sid)
@@ -164,22 +195,27 @@ def on_send_message(data):
             emit("error", {"message": "Session error. Starting new chat...", "reset": True})
             connection_manager.terminate_session(sid)
             return
+        
+        isolated_assistant.message_id = message_id # Store message_id
 
         combined_message = message
         for file_data in files:
-            combined_message += f"\n\n--- File: {file_data['name']} ---\n{file_data['content']}"
+            file_name = file_data.get('name', 'unnamed_file')
+            file_header = f"\n\n--- File: {file_name} ---\n"
+            
+            # If we have extracted text from special file types, use that instead of raw content
+            if 'extractedText' in file_data and file_data['extractedText']:
+                combined_message += file_header + file_data['extractedText']
+            else:
+                combined_message += file_header + file_data.get('content', '')
 
-        for response in isolated_assistant.run_safely(agent, combined_message, context):
-            if response.get("reset_session"):
-                connection_manager.terminate_session(sid)
-                emit("error", {"message": "Session reset required", "reset": True})
-                return
+        # No need for a separate loop, the _run_agent function handles streaming
+        isolated_assistant.run_safely(agent, combined_message, context)
 
-            emit("response", {**response, "id": message_id}, room=sid)
 
     except Exception as e:
         logger.error(f"Error in message handler: {e}\n{traceback.format_exc()}")
-        emit("error", {"message": "AI service error. Starting new chat...", "reset": True})
+        emit("error", {"message": "AI service error. Starting new chat...", "reset": True}, room=sid)
         connection_manager.terminate_session(sid)
 
 if __name__ == "__main__":

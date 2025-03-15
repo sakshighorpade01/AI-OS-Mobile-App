@@ -101,6 +101,9 @@ class UIManager {
         this.elements.webViewContainer.style.width = `${bounds.width}px`;
         this.elements.webViewContainer.style.height = `${bounds.height}px`;
 
+        // Explicitly set pointer-events to ensure clickability
+        this.elements.webViewContainer.style.pointerEvents = 'all';
+
         // Create header with drag handle
         const header = document.createElement('div');
         header.className = 'webview-header';
@@ -115,14 +118,30 @@ class UIManager {
             </div>
         `;
 
-        // Add drag functionality to header
-        header.addEventListener('mousedown', (e) => this.startDragging(e));
+        // Force header to be on top and clickable
+        header.style.position = 'relative';
+        header.style.zIndex = '1004';
+        header.style.pointerEvents = 'all';
+
+        // Add drag functionality to header with more robust event handling
+        header.addEventListener('mousedown', (e) => {
+            e.preventDefault(); // Prevent text selection
+            e.stopPropagation(); // Prevent event from propagating
+            if (!e.target.closest('.close-webview')) {
+                this.startDragging(e);
+            }
+        }, true); // Use capture to ensure header gets events first
 
         // Add close functionality
         const closeButton = header.querySelector('.close-webview');
-        closeButton.addEventListener('click', () => {
+        closeButton.style.pointerEvents = 'all';
+        closeButton.style.zIndex = '1006';
+        closeButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation(); // Prevent drag event from firing
+            console.log('Close button clicked');
             require('electron').ipcRenderer.send('close-webview');
-        });
+        }, true); // Use capture
 
         this.elements.webViewContainer.appendChild(header);
 
@@ -131,13 +150,19 @@ class UIManager {
         resizePositions.forEach(position => {
             const resizer = document.createElement('div');
             resizer.className = `resizer ${position}`;
+            
+            // Force resizers to be on top and clickable
+            resizer.style.pointerEvents = 'all';
+            resizer.style.zIndex = '1005';
+            
             this.elements.webViewContainer.appendChild(resizer);
 
             resizer.addEventListener('mousedown', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                console.log('Resize handle clicked:', position);
                 this.startResizing(e, position);
-            });
+            }, true); // Use capture
         });
 
         document.body.appendChild(this.elements.webViewContainer);
@@ -153,6 +178,7 @@ class UIManager {
     startDragging(e) {
         if (e.target.closest('.resizer')) return;
 
+        console.log('Starting drag operation');
         this.isDragging = true;
         const container = this.elements.webViewContainer;
 
@@ -163,7 +189,9 @@ class UIManager {
 
         const handleDrag = (e) => {
             if (!this.isDragging) return;
-
+            
+            e.preventDefault(); // Prevent text selection during drag
+            
             const newX = e.clientX - this.dragStart.x;
             const newY = e.clientY - this.dragStart.y;
 
@@ -174,6 +202,8 @@ class UIManager {
             container.style.left = `${Math.max(0, Math.min(maxX, newX))}px`;
             container.style.top = `${Math.max(0, Math.min(maxY, newY))}px`;
 
+            console.log('Dragging to:', container.style.left, container.style.top);
+            
             require('electron').ipcRenderer.send('drag-webview', {
                 x: parseInt(container.style.left),
                 y: parseInt(container.style.top)
@@ -181,16 +211,18 @@ class UIManager {
         };
 
         const stopDragging = () => {
+            console.log('Stopping drag operation');
             this.isDragging = false;
             document.removeEventListener('mousemove', handleDrag);
             document.removeEventListener('mouseup', stopDragging);
         };
 
-        document.addEventListener('mousemove', handleDrag);
-        document.addEventListener('mouseup', stopDragging);
+        document.addEventListener('mousemove', handleDrag, {capture: true});
+        document.addEventListener('mouseup', stopDragging, {capture: true});
     }
 
     startResizing(e, position) {
+        console.log('Starting resize operation for:', position);
         this.isResizing = true;
         const container = this.elements.webViewContainer;
 
@@ -205,7 +237,10 @@ class UIManager {
 
         const handleResize = (e) => {
             if (!this.isResizing) return;
-
+            
+            e.preventDefault(); // Prevent text selection during resize
+            e.stopPropagation(); // Stop event from bubbling
+            
             let newBounds = {
                 x: startBounds.x,
                 y: startBounds.y,
@@ -240,17 +275,20 @@ class UIManager {
             container.style.width = `${newBounds.width}px`;
             container.style.height = `${newBounds.height}px`;
 
+            console.log('Resizing to:', newBounds);
+            
             require('electron').ipcRenderer.send('resize-webview', newBounds);
         };
 
         const stopResizing = () => {
+            console.log('Stopping resize operation');
             this.isResizing = false;
             document.removeEventListener('mousemove', handleResize);
             document.removeEventListener('mouseup', stopResizing);
         };
 
-        document.addEventListener('mousemove', handleResize);
-        document.addEventListener('mouseup', stopResizing);
+        document.addEventListener('mousemove', handleResize, {capture: true});
+        document.addEventListener('mouseup', stopResizing, {capture: true});
     }
 
 
@@ -317,7 +355,6 @@ class UIManager {
                             this.state.setState({ isChatOpen: false, isAIOSOpen: false, isToDoListOpen: false });
                         }
                         this.updateBrowseAIVisibility(state.isBrowseAIOpen);
-
                         break;
                 }
             });

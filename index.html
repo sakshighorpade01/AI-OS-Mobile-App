@@ -4,61 +4,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AIOS Desktop</title>
+    <title>AI-OS Desktop</title>
+    <link rel="stylesheet" href="design-system.css">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="chat.css">
     <link rel="stylesheet" href="to-do-list.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="artifact-ui.css">
     <link rel="stylesheet" href="aios.css">
-    <link rel="stylesheet" href="browse_ai.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
-
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
 <body class="dark-mode">
-    <div id="aios-container"></div>
-    <div id="chat-root"></div>
-    <div id="to-do-list-root"></div>
-    <div id="browse-ai-container"></div>
+    <div class="app-container">
+        <!-- App Components -->
+        <div id="aios-container"></div>
+        <div id="chat-root"></div>
+        <div id="to-do-list-root"></div>
 
+        <!-- Taskbar -->
+        <div class="taskbar">
+            <div class="taskbar-icons">
+                <button id="app-icon" class="taskbar-icon" aria-label="AIOS Settings" title="AI-OS Settings">
+                    <i class="fa-solid fa-atom"></i>
+                </button>
+                <button id="chat-icon" class="taskbar-icon" aria-label="Open Chat" title="Chat">
+                    <i class="fa-regular fa-comment-dots"></i>
+                </button>
+                <button id="to-do-list-icon" class="taskbar-icon" aria-label="Open To-Do List" title="Tasks">
+                    <i class="fa-solid fa-list-check"></i>
+                </button>
+            </div>
+        </div>
 
-    <div class="taskbar">
-        <div class="taskbar-icons">
-            <button id="app-icon" class="taskbar-icon" aria-label="AIOS Settings">
-                <i class="fa-solid fa-atom"></i>
+        <!-- Window Controls -->
+        <div class="window-controls">
+            <button id="theme-toggle" class="theme-toggle window-control-btn" aria-label="Toggle Theme" title="Toggle Theme">
+                <i class="fas fa-moon"></i>
             </button>
-            <button id="chat-icon" class="taskbar-icon" aria-label="Open Chat">
-                <i class="fa-regular fa-message"></i>
+            <button id="minimize-window" class="window-control-btn" aria-label="Minimize Window" title="Minimize">
+                <i class="fas fa-minus"></i>
             </button>
-            <button id="to-do-list-icon" class="taskbar-icon" aria-label="Open To-Do List">
-                <i class="fa-solid fa-note-sticky"></i>
+            <button id="resize-window" class="window-control-btn" aria-label="Resize Window" title="Maximize">
+                <i class="fas fa-expand"></i>
             </button>
-            <!-- Browse AI icon -->
-            <button id="browse-ai-icon" class="taskbar-icon" aria-label="Browse AI">
-                <i class="fas fa-search"></i>
+            <button id="close-window" class="window-control-btn" aria-label="Close Window" title="Close">
+                <i class="fas fa-times"></i>
             </button>
-
         </div>
     </div>
 
-    <div class="window-controls">
-        <button id="theme-toggle" class="theme-toggle window-control-btn" aria-label="Toggle Theme">
-            <i class="fas fa-sun"></i>
-        </button>
-        <button id="minimize-window" class="window-control-btn" aria-label="Minimize Window">
-            <i class="fas fa-minus"></i>
-        </button>
-        <button id="resize-window" class="window-control-btn" aria-label="Resize Window">
-            <i class="fas fa-expand"></i>
-        </button>
-        <button id="close-window" class="window-control-btn" aria-label="Close Window">
-            <i class="fas fa-times"></i>
-        </button>
-    </div>
+    <!-- System Notifications -->
     <div class="notification-container"></div>
 
+    <!-- Scripts -->
     <script src="renderer.js"></script>
+    <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.2.4/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
@@ -69,16 +74,25 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/turndown/7.1.2/turndown.min.js"></script>
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    
+    <!-- Application Scripts -->
     <script type="module" src="message-formatter.js"></script>
     <script type="module" src="chat.js"></script>
-    <script type="module" src="browse_ai.js"></script>
     <script src="aios.js"></script>
     <script src="to-do-list.js"></script>
+    
     <script>
+        // Initialize highlight.js
         hljs.configure({
             cssSelector: 'pre code',
             ignoreUnescapedHTML: true,
             languages: ['javascript', 'python', 'bash', 'json', 'html', 'css']
+        });
+
+        // Initialize mermaid
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: document.body.classList.contains('dark-mode') ? 'dark' : 'default'
         });
     </script>
 </body>

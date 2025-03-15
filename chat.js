@@ -17,7 +17,8 @@ let chatConfig = {
         shell_tools: true,
         web_crawler: true
     },
-    deepsearch: false
+    deepsearch: false,
+    browse_ai: false
 };
 
 let ongoingStreams = {};   // Tracks ongoing message streams.
@@ -81,6 +82,26 @@ function setupIpcListeners() {
             const isStreaming = data.streaming || false;
             const isDone = data.done || false;
             const messageId = data.id;
+
+            // If this is a completion signal, make sure we clean up the UI
+            if (isDone && messageId && ongoingStreams[messageId]) {
+                const messageDiv = ongoingStreams[messageId];
+                
+                // Clear the timer
+                if (messageDiv.timer) {
+                    clearInterval(messageDiv.timer);
+                }
+                
+                // Remove thinking indicator
+                const thinkingIndicator = messageDiv.querySelector('.thinking-indicator');
+                if (thinkingIndicator) {
+                    thinkingIndicator.remove();
+                }
+                
+                // Finish streaming and cleanup
+                messageFormatter.finishStreaming(messageId);
+                delete ongoingStreams[messageId];
+            }
 
             if (isStreaming || data.content) {
                 addMessage(data, false, isStreaming, messageId, isDone);
@@ -172,22 +193,47 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
         if (!messageDiv) {
             messageDiv = document.createElement('div');
             messageDiv.className = 'message message-bot';
+            
+            // Add thinking indicator
+            const thinkingIndicator = document.createElement('div');
+            thinkingIndicator.className = 'thinking-indicator';
+            thinkingIndicator.innerHTML = `
+                <i class="fas fa-spinner"></i>
+                <span>Thinking</span>
+                <span class="timer">0s</span>
+            `;
+            messageDiv.appendChild(thinkingIndicator);
+
+            // Add content container
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            messageDiv.appendChild(contentDiv);
+
             chatMessages.appendChild(messageDiv);
             ongoingStreams[messageId] = messageDiv;
+
+            // Start timer
+            let seconds = 0;
+            const timer = setInterval(() => {
+                seconds++;
+                const timerSpan = messageDiv.querySelector('.timer');
+                if (timerSpan) {
+                    timerSpan.textContent = `${seconds}s`;
+                }
+            }, 1000);
+            ongoingStreams[messageId].timer = timer;
         }
 
         if (typeof message === 'object' && message.content) {
-            const formattedContent = messageFormatter.formatStreaming(message.content, messageId);
-            messageDiv.innerHTML = formattedContent;
+            const contentDiv = messageDiv.querySelector('.message-content');
+            if (contentDiv) {
+                const formattedContent = messageFormatter.formatStreaming(message.content, messageId);
+                contentDiv.innerHTML = formattedContent;
 
-            if (messageDiv.querySelector('.mermaid')) {
-                mermaid.init(undefined, messageDiv.querySelectorAll('.mermaid'));
+                if (contentDiv.querySelector('.mermaid')) {
+                    mermaid.init(undefined, contentDiv.querySelectorAll('.mermaid'));
+                }
             }
-        }
-
-        if (isDone) {
-            messageFormatter.finishStreaming(messageId);
-            delete ongoingStreams[messageId];
         }
     } else {
         const messageDiv = document.createElement('div');
@@ -196,13 +242,19 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
         if (isUser) {
             messageDiv.textContent = message;
         } else if (typeof message === 'object' && message.content) {
-            messageDiv.innerHTML = messageFormatter.format(message.content);
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.innerHTML = messageFormatter.format(message.content);
+            messageDiv.appendChild(contentDiv);
 
-            if (messageDiv.querySelector('.mermaid')) {
-                mermaid.init(undefined, messageDiv.querySelectorAll('.mermaid'));
+            if (contentDiv.querySelector('.mermaid')) {
+                mermaid.init(undefined, contentDiv.querySelectorAll('.mermaid'));
             }
         } else if (typeof message === 'string') {
-            messageDiv.textContent = message;
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = message;
+            messageDiv.appendChild(contentDiv);
         }
 
         chatMessages.appendChild(messageDiv);
@@ -237,11 +289,18 @@ async function handleSendMessage() {
         addMessage(message, true);
     }
 
+    // Process files if any
+    if (attachedFiles.length > 0) {
+        // Show indication that files are being sent
+        addMessage(`Sending ${attachedFiles.length} files...`, true);
+    }
+
     const messageData = {
         message: message,
         id: Date.now().toString(),
         files: attachedFiles,
-        is_deepsearch: chatConfig.deepsearch
+        is_deepsearch: chatConfig.deepsearch,
+        is_browse_ai: chatConfig.browse_ai
     };
 
     if (!sessionActive) {
@@ -325,15 +384,29 @@ function initializeToolsMenu() {
     `;
     toolsMenu.appendChild(deepSearchDiv);
     
+    // Add Browse AI checkbox to tools menu
+    const browseAiDiv = document.createElement('div');
+    browseAiDiv.className = 'tool-item';
+    browseAiDiv.innerHTML = `
+        <input type="checkbox" id="browse_ai" />
+        <label for="browse_ai">
+            <i class="fa-solid fa-globe"></i>
+            Browse AI
+        </label>
+    `;
+    toolsMenu.appendChild(browseAiDiv);
+    
     const deepSearchCheckbox = document.getElementById('deep_search');
+    const browseAiCheckbox = document.getElementById('browse_ai');
 
     // Initialize checkboxes based on initial state
     const allToolsEnabledInitially = Object.values(chatConfig.tools).every(val => val === true);
     aiOsCheckbox.checked = allToolsEnabledInitially;
     deepSearchCheckbox.checked = chatConfig.deepsearch;
+    browseAiCheckbox.checked = chatConfig.browse_ai;
 
     const updateToolsIndicator = () => {
-        const anyActive = aiOsCheckbox.checked || deepSearchCheckbox.checked;
+        const anyActive = aiOsCheckbox.checked || deepSearchCheckbox.checked || browseAiCheckbox.checked;
         toolsBtn.classList.toggle('has-active', anyActive);
     };
 
@@ -348,12 +421,40 @@ function initializeToolsMenu() {
         for (const key in chatConfig.tools) {
             chatConfig.tools[key] = enableAll;
         }
+        if (enableAll) {
+            deepSearchCheckbox.checked = false;
+            browseAiCheckbox.checked = false;
+            chatConfig.deepsearch = false;
+            chatConfig.browse_ai = false;
+        }
         updateToolsIndicator();
         e.stopPropagation();
     });
 
     deepSearchCheckbox.addEventListener('change', (e) => {
         chatConfig.deepsearch = e.target.checked;
+        if (e.target.checked) {
+            aiOsCheckbox.checked = false;
+            browseAiCheckbox.checked = false;
+            chatConfig.browse_ai = false;
+            for (const key in chatConfig.tools) {
+                chatConfig.tools[key] = false;
+            }
+        }
+        updateToolsIndicator();
+        e.stopPropagation();
+    });
+
+    browseAiCheckbox.addEventListener('change', (e) => {
+        chatConfig.browse_ai = e.target.checked;
+        if (e.target.checked) {
+            aiOsCheckbox.checked = false;
+            deepSearchCheckbox.checked = false;
+            chatConfig.deepsearch = false;
+            for (const key in chatConfig.tools) {
+                chatConfig.tools[key] = false;
+            }
+        }
         updateToolsIndicator();
         e.stopPropagation();
     });
@@ -397,6 +498,7 @@ function terminateSession() {
     sessionActive = false;
     ongoingStreams = {};
     chatConfig.deepsearch = false; // Reset DeepSearch state
+    chatConfig.browse_ai = false;  // Reset Browse AI state
     if (fileAttachmentHandler) {
         fileAttachmentHandler.clearAttachedFiles();
     }
@@ -471,27 +573,32 @@ class UnifiedPreviewHandler {
     }
 
     initializeViewer() {
-        // Update viewer HTML structure
-        this.viewer.innerHTML = `
-            <div class="context-viewer-header">
-                <h3>Selected Content Preview</h3>
-                <button class="close-viewer-btn">×</button>
-            </div>
-            <div class="context-viewer-content">
-                <div class="preview-section context-section">
-                    <h4>Selected Context Sessions</h4>
-                    <div class="context-preview-content"></div>
-                </div>
-                <div class="preview-section files-section">
-                    <h4>Attached Files</h4>
-                    <div class="files-preview-content"></div>
-                </div>
-            </div>
-        `;
-
+        // The HTML structure is already defined in chat.html
+        // We just need to set up event listeners
         this.viewer.querySelector('.close-viewer-btn').addEventListener('click', () => {
             this.hideViewer();
         });
+
+        // Set up tab switching
+        const tabs = this.viewer.querySelectorAll('.viewer-tab');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active class from all tabs
+                tabs.forEach(t => t.classList.remove('active'));
+                // Add active class to clicked tab
+                tab.classList.add('active');
+                
+                // Show the corresponding tab content
+                const tabId = tab.getAttribute('data-tab');
+                this.viewer.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+                this.viewer.querySelector(`#${tabId}-tab`).classList.add('active');
+            });
+        });
+
+        // Update context indicator when files are attached or sessions are selected
+        this.updateContextIndicator();
     }
 
     showViewer() {
@@ -506,6 +613,7 @@ class UnifiedPreviewHandler {
     updateContent() {
         this.updateContextContent();
         this.updateFilesContent();
+        this.updateContextIndicator();
     }
 
     updateContextContent() {
@@ -513,7 +621,7 @@ class UnifiedPreviewHandler {
         const sessions = this.contextHandler.getSelectedSessions();
 
         if (!sessions?.length) {
-            contextContent.innerHTML = '<p>No context sessions selected</p>';
+            contextContent.innerHTML = '<p class="empty-state">No context sessions selected</p>';
             return;
         }
 
@@ -535,7 +643,7 @@ class UnifiedPreviewHandler {
         const files = this.fileAttachmentHandler.getAttachedFiles();
 
         if (!files?.length) {
-            filesContent.innerHTML = '<p>No files attached</p>';
+            filesContent.innerHTML = '<p class="empty-state">No files attached</p>';
             return;
         }
 
@@ -555,7 +663,7 @@ class UnifiedPreviewHandler {
                         </button>
                     </div>
                 </div>
-                <div class="file-preview-content-item">${file.content}</div>
+                <div class="file-preview-content-item">${file.isMedia ? this.renderMediaPreview(file) : file.content}</div>
             </div>
         `).join('');
 
@@ -570,6 +678,55 @@ class UnifiedPreviewHandler {
                 this.updateContent();
             });
         });
+    }
+
+    renderMediaPreview(file) {
+        if (file.mediaType === 'image') {
+            return `<img src="${file.content}" alt="${file.name}" class="media-preview">`;
+        } else if (file.mediaType === 'audio') {
+            return `
+                <audio controls class="media-preview">
+                    <source src="${file.content}" type="${file.type}">
+                    Your browser does not support the audio element.
+                </audio>
+            `;
+        } else if (file.mediaType === 'video') {
+            return `
+                <video controls class="media-preview">
+                    <source src="${file.content}" type="${file.type}">
+                    Your browser does not support the video element.
+                </video>
+            `;
+        }
+        return file.content;
+    }
+
+    updateContextIndicator() {
+        const indicator = document.querySelector('.context-active-indicator');
+        const badge = indicator.querySelector('.context-badge');
+        
+        const sessionCount = this.contextHandler?.getSelectedSessions()?.length || 0;
+        const fileCount = this.fileAttachmentHandler?.getAttachedFiles()?.length || 0;
+        const totalCount = sessionCount + fileCount;
+        
+        if (totalCount > 0) {
+            indicator.classList.add('visible');
+            if (totalCount > 1) {
+                badge.textContent = totalCount;
+                badge.classList.add('visible');
+            } else {
+                badge.classList.remove('visible');
+            }
+        } else {
+            indicator.classList.remove('visible');
+            badge.classList.remove('visible');
+        }
+        
+        // Add click handler if not already added
+        if (!indicator.hasClickHandler) {
+            indicator.addEventListener('click', () => this.showViewer());
+            indicator.hasClickHandler = true;
+        }
     }
 }
 
@@ -603,10 +760,6 @@ function init() {
         window.stateManager.setState({ isChatOpen: false });
     });
 
-    elements.attachBtn.addEventListener('click', () => {
-        fileAttachmentHandler.fileInput.click(); // Directly trigger fileInput
-    });
-
     elements.input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -638,13 +791,16 @@ function init() {
                 investment_assistant: true,
                 shell_tools: true,
                 web_crawler: true
-            }
+            },
+            deepsearch: false,
+            browse_ai: false
         };
         // Reset the AI-OS checkbox
         document.getElementById('ai_os').checked = true;
         //reset tasks
         document.querySelector('[data-tool="tasks"]').classList.remove('active');
         document.getElementById('deep_search').checked = false;
+        document.getElementById('browse_ai').checked = false;
 
         document.querySelectorAll('.tool-btn').forEach(btn => {
             btn.classList.remove('active');

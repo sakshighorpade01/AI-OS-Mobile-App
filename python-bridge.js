@@ -91,12 +91,29 @@ class PythonBridge {
 
     // Handle session termination requests
     ipcMain.on('terminate-session', () => {
-      this.sendMessage({ type: 'terminate_session' });
+      this.sendMessage({
+        type: 'terminate_session',
+        message: 'terminate'
+      });
     });
 
     // Legacy handler for backward compatibility
     ipcMain.on('python-message', (event, message) => {
       this.sendMessage(message);
+    });
+
+    ipcMain.on('check-connection-status', () => {
+      if (this.socket && this.socket.connected) {
+        this.mainWindow.webContents.send('socket-connect');
+      } else {
+        this.mainWindow.webContents.send('socket-disconnect');
+      }
+    });
+
+    ipcMain.on('restart-python-bridge', () => {
+      console.log('Received restart request from renderer');
+      this.stop();
+      setTimeout(() => this.start(), 1000);
     });
   }
 

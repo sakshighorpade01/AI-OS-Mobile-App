@@ -12,12 +12,13 @@ function createWindow() {
         width: 800,
         height: 600,
         webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: true,
             contextIsolation: false,
             enableRemoteModule: true,
             webSecurity: false
         },
-        frame: true,
+        frame: false,
         transparent: true
     });
 
@@ -90,47 +91,104 @@ function createWindow() {
     });
 
     ipcMain.on('open-webview', (event, url) => {
+        console.log('Received open-webview request for URL:', url);
+        
+        // Close existing webview if there is one
         if (webView) {
-            mainWindow.removeBrowserView(webView);
-            webView = null;
-        }
-
-        webView = new BrowserView({
-            webPreferences: {
-                nodeIntegration: false,
-                contextIsolation: true,
+            try {
+                mainWindow.removeBrowserView(webView);
+                webView.webContents.destroy();
+                webView = null;
+            } catch (error) {
+                console.error('Error closing existing webview:', error);
             }
-        });
-        
-        mainWindow.addBrowserView(webView);
-        
-        // Initial bounds - account for the header height
-        const bounds = {
-            x: mainWindow.getSize()[0] - 420,
-            y: 100,
-            width: 400,
-            height: 300
-        };
-        
-        // Set bounds with padding for controls
-        webView.setBounds({
-            x: bounds.x,
-            y: bounds.y + 40, // Add header height
-            width: bounds.width,
-            height: bounds.height - 40 // Subtract header height
-        });
-        
-        webView.webContents.loadURL(url);
-        event.reply('webview-created', bounds);
+        }
+    
+        try {
+            // Create new webview
+            webView = new BrowserView({
+                webPreferences: {
+                    nodeIntegration: false,
+                    contextIsolation: true,
+                    webSecurity: true
+                }
+            });
+            
+            mainWindow.addBrowserView(webView);
+            
+            // Get the content bounds for proper sizing
+            const contentBounds = mainWindow.getContentBounds();
+            
+            // Create a smaller window positioned in the top-right
+            const bounds = {
+                x: Math.round(contentBounds.width * 0.65), // Position more to the right
+                y: 100, // A bit from the top
+                width: Math.round(contentBounds.width * 0.30), // 30% of window width
+                height: Math.round(contentBounds.height * 0.5) // 50% of window height
+            };
+            
+            // Set bounds with offset for header and borders
+            // Make the actual webview much smaller to avoid overlapping controls
+            webView.setBounds({
+                x: bounds.x + 10, // Add padding for left border
+                y: bounds.y + 60, // Add significant padding for header 
+                width: bounds.width - 20, // Remove width for left and right borders
+                height: bounds.height - 70 // Remove height for header and borders
+            });
+            
+            // Set up navigation event handlers
+            webView.webContents.on('did-start-loading', () => {
+                mainWindow.webContents.send('webview-navigation-updated', { 
+                    url: webView.webContents.getURL(),
+                    loading: true
+                });
+            });
+            
+            webView.webContents.on('did-finish-load', () => {
+                const currentUrl = webView.webContents.getURL();
+                mainWindow.webContents.send('webview-navigation-updated', { 
+                    url: currentUrl,
+                    loading: false,
+                    canGoBack: webView.webContents.canGoBack(),
+                    canGoForward: webView.webContents.canGoForward()
+                });
+                
+                mainWindow.webContents.send('webview-page-loaded');
+            });
+            
+            webView.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+                console.error('Webview failed to load:', errorDescription);
+                mainWindow.webContents.send('webview-navigation-updated', { 
+                    error: errorDescription
+                });
+            });
+            
+            // Finally load the URL
+            webView.webContents.loadURL(url).then(() => {
+                console.log('URL loaded successfully:', url);
+                mainWindow.webContents.send('webview-created', bounds);
+            }).catch((error) => {
+                console.error('Failed to load URL:', error);
+                mainWindow.webContents.send('socket-error', { 
+                    message: `Failed to load URL: ${error.message}`
+                });
+            });
+        } catch (error) {
+            console.error('Error creating webview:', error);
+            mainWindow.webContents.send('socket-error', { 
+                message: `Error creating webview: ${error.message}`
+            });
+        }
     });
 
     ipcMain.on('resize-webview', (event, bounds) => {
         if (webView) {
+            // Use a more aggressive padding to ensure the content doesn't overlap controls
             webView.setBounds({
-                x: bounds.x,
-                y: bounds.y + 40, // Add header height
-                width: bounds.width,
-                height: bounds.height - 40 // Subtract header height
+                x: bounds.x + 10, // Add padding for left border
+                y: bounds.y + 60, // Add significant padding for header
+                width: bounds.width - 20, // Remove width for left and right borders
+                height: bounds.height - 70 // Remove height for header and bottom
             });
         }
     });
@@ -139,8 +197,8 @@ function createWindow() {
         if (webView) {
             const currentBounds = webView.getBounds();
             webView.setBounds({
-                x: x,
-                y: y + 40, // Add header height
+                x: x + 10, // Add padding for left border
+                y: y + 60, // Add significant padding for header
                 width: currentBounds.width,
                 height: currentBounds.height
             });
@@ -156,6 +214,26 @@ function createWindow() {
         }
     });
 }
+
+// File handling IPC handlers for artifact download
+const fs = require('fs').promises;
+
+// Handler for showing save dialog
+ipcMain.handle('show-save-dialog', async (event, options) => {
+  const { dialog } = require('electron');
+  return await dialog.showSaveDialog(mainWindow, options);
+});
+
+// Handler for saving file content
+ipcMain.handle('save-file', async (event, { filePath, content }) => {
+  try {
+    await fs.writeFile(filePath, content, 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error saving file:', error);
+    return false;
+  }
+});
 
 app.whenReady().then(createWindow);
 

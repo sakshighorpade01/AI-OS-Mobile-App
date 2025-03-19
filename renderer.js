@@ -306,7 +306,6 @@ class UIManager {
         addClickHandler(this.elements.appIcon, () => this.state.setState({ isAIOSOpen: !this.state.getState().isAIOSOpen }));
         addClickHandler(this.elements.chatIcon, () => this.state.setState({ isChatOpen: !this.state.getState().isChatOpen }));
         addClickHandler(this.elements.toDoListIcon, () => this.state.setState({ isToDoListOpen: !this.state.getState().isToDoListOpen }));
-        addClickHandler(this.elements.browseAiIcon, () => this.state.setState({ isBrowseAIOpen: !this.state.getState().isBrowseAIOpen }));
 
 
         ipcRenderer.on('window-state-changed', (_, isMaximized) => {
@@ -332,41 +331,28 @@ class UIManager {
                         this.updateWindowControls(state.isWindowMaximized);
                         break;
                     case 'isChatOpen':
-                        if (state.isChatOpen && (state.isAIOSOpen || state.isToDoListOpen || state.isBrowseAIOpen)) {
-                            this.state.setState({ isAIOSOpen: false, isToDoListOpen: false, isBrowseAIOpen: false });
+                        if (state.isChatOpen && (state.isAIOSOpen || state.isToDoListOpen )) {
+                            this.state.setState({ isAIOSOpen: false, isToDoListOpen: false });
                         }
                         this.updateChatVisibility(state.isChatOpen);
                         this.updateTaskbarPosition(state.isChatOpen);
                         break;
                     case 'isAIOSOpen':
-                        if (state.isAIOSOpen && (state.isChatOpen || state.isToDoListOpen || state.isBrowseAIOpen)) {
-                            this.state.setState({ isChatOpen: false, isToDoListOpen: false, isBrowseAIOpen: false });
+                        if (state.isAIOSOpen && (state.isChatOpen || state.isToDoListOpen )) {
+                            this.state.setState({ isChatOpen: false, isToDoListOpen: false});
                         }
                         this.updateAIOSVisibility(state.isAIOSOpen);
                         break;
                     case 'isToDoListOpen':
-                        if (state.isToDoListOpen && (state.isChatOpen || state.isAIOSOpen || state.isBrowseAIOpen)) {
-                            this.state.setState({ isChatOpen: false, isAIOSOpen: false, isBrowseAIOpen: false });
+                        if (state.isToDoListOpen && (state.isChatOpen || state.isAIOSOpen )) {
+                            this.state.setState({ isChatOpen: false, isAIOSOpen: false });
                         }
                         this.updateToDoListVisibility(state.isToDoListOpen);
                         break;  
-                    case 'isBrowseAIOpen':
-                        if (state.isBrowseAIOpen && (state.isChatOpen || state.isAIOSOpen || state.isToDoListOpen)) {
-                            this.state.setState({ isChatOpen: false, isAIOSOpen: false, isToDoListOpen: false });
-                        }
-                        this.updateBrowseAIVisibility(state.isBrowseAIOpen);
-                        break;
                 }
             });
         });
     }
-
-    updateBrowseAIVisibility(isOpen) {
-        console.log("updateBrowseAIVisibility called:", isOpen); //ADD
-        document.getElementById('browse-ai-panel')?.classList.toggle('hidden', !isOpen);
-
-    }
-
     updateToDoListVisibility(isOpen) {
         document.getElementById('to-do-list-container')?.classList.toggle('hidden', !isOpen);
     }
@@ -433,5 +419,4 @@ document.addEventListener('DOMContentLoaded', () => {
     loadModule('aios', 'aios-container', () => window.AIOS?.init());
     loadModule('chat', 'chat-root', () => window.chatModule?.init());
     loadModule('to-do-list', 'to-do-list-root', () => window.todo?.init());
-    loadModule('browse_ai', 'browse-ai-container', () => window.browseAI?.init());
 });

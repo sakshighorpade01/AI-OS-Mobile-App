@@ -392,3 +392,96 @@ body {
 .gap-4 {
     gap: 1rem;
 }
+.chat-container.with-browse-ai {
+    width: 30%; /* Adjust as needed */
+    left: 2%;  /*Consistent with exisitng*/
+    transform: none; /*Consistent with exisitng*/
+}
+
+.floating-input-container.with-browse-ai {
+    width: 30%; /* Adjust as needed */
+    left: 2%; /*Consistent with exisitng*/
+    transform: none;/*Consistent with exisitng*/
+}
+
+.browse-ai-controls {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.browse-ai-controls .left-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.browse-ai-controls .right-section {
+    flex: 1;
+    margin-left: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.browse-ai-controls button {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    cursor: pointer;
+    width: 2rem;
+    height: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.375rem;
+    transition: all 0.2s ease;
+    font-size: 1rem;
+}
+
+.browse-ai-controls button:hover:not(:disabled) {
+    background-color: var(--hover-bg);
+}
+
+.browse-ai-controls button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+#browse-ai-url-bar {
+    flex: 1;
+    height: 2rem;
+    padding: 0 0.75rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--border-color);
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+}
+
+#browse-ai-url-bar:focus {
+    border-color: var(--accent-color);
+    outline: none;
+}
+
+/* Dark mode adjustments */
+.dark-mode .browse-ai-controls {
+    background: var(--elevated-bg);
+}
+
+.dark-mode .browse-ai-controls button {
+    color: var(--text-color);
+}
+
+.dark-mode #browse-ai-url-bar {
+    background: var(--input-bg);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}
+
+.dark-mode #browse-ai-url-bar:focus {
+    border-color: var(--accent-color);
+}

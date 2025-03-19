@@ -1510,3 +1510,126 @@ a:hover {
     color: #e2e8f0;
     border-color: var(--border-color);
 }
+.browse-ai-container {
+    position: fixed;
+    top: 25px;
+    right: 20px;
+    width: calc(68% - 40px);
+    height: calc(100% - 50px);
+    background-color: var(--window-bg);
+    border-left: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 4px 12px var(--shadow-color);
+    z-index: 998;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+}
+
+.browse-ai-container.hidden {
+    display: none;
+}
+
+.chat-container.with-browse-ai {
+    width: 30%;
+    margin-right: calc(70% + 20px);
+}
+
+.floating-input-container.with-browse-ai {
+    width: 30%;
+    left: 20px;
+    transform: none;
+}
+
+.browse-ai-wrapper {
+    height: 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.browse-ai-header {
+    width: 100%;
+    min-height: 45px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--window-bg);
+    z-index: 999;
+    border-radius: 12px 12px 0 0;
+}
+
+.browse-ai-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0;
+    justify-content: space-between;
+}
+
+.browse-ai-controls .left-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.browse-ai-controls .right-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    margin-left: 16px;
+}
+
+#browse-ai-url-bar {
+    flex: 1;
+    height: 36px;
+    padding: 0 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    font-size: 14px;
+}
+
+.browse-ai-control-btn {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    cursor: pointer;
+    padding: 8px;
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.browse-ai-control-btn:hover {
+    background-color: var(--hover-bg);
+}
+
+.browse-ai-control-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Dark mode adjustments */
+.dark-mode .browse-ai-container {
+    background-color: var(--window-bg);
+    border-color: var(--border-color);
+}
+
+.dark-mode .browse-ai-header {
+    background-color: var(--window-bg);
+    border-color: var(--border-color);
+}
+
+.dark-mode #browse-ai-url-bar {
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    border-color: var(--border-color);
+}

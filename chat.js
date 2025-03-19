@@ -26,7 +26,7 @@ let sessionActive = false;  // Flag to indicate if a chat session is active.
 let contextHandler = null;  // Instance of the ContextHandler.
 let fileAttachmentHandler = null; // Instance of the FileAttachmentHandler.
 let connectionStatus = false; // Track connection status
-
+let browseAiWebViewVisible = false; // new new new 
 const maxFileSize = 10 * 1024 * 1024; // 10MB limit
 const supportedFileTypes = {
     'txt': 'text/plain',
@@ -371,8 +371,8 @@ function initializeToolsMenu() {
     const toolsBtn = document.querySelector('[data-tool="tools"]');
     const toolsMenu = toolsBtn.querySelector('.tools-menu');
     const aiOsCheckbox = document.getElementById('ai_os');
-    
-    // Add DeepSearch checkbox to tools menu
+
+    // Add DeepSearch checkbox to tools menu (Existing)
     const deepSearchDiv = document.createElement('div');
     deepSearchDiv.className = 'tool-item';
     deepSearchDiv.innerHTML = `
@@ -383,8 +383,8 @@ function initializeToolsMenu() {
         </label>
     `;
     toolsMenu.appendChild(deepSearchDiv);
-    
-    // Add Browse AI checkbox to tools menu
+
+    // Add Browse AI checkbox to tools menu (NEW)
     const browseAiDiv = document.createElement('div');
     browseAiDiv.className = 'tool-item';
     browseAiDiv.innerHTML = `
@@ -395,17 +395,18 @@ function initializeToolsMenu() {
         </label>
     `;
     toolsMenu.appendChild(browseAiDiv);
-    
+
     const deepSearchCheckbox = document.getElementById('deep_search');
     const browseAiCheckbox = document.getElementById('browse_ai');
 
-    // Initialize checkboxes based on initial state
+    // Initialize checkboxes based on initial state (Existing)
     const allToolsEnabledInitially = Object.values(chatConfig.tools).every(val => val === true);
     aiOsCheckbox.checked = allToolsEnabledInitially;
     deepSearchCheckbox.checked = chatConfig.deepsearch;
     browseAiCheckbox.checked = chatConfig.browse_ai;
 
-    const updateToolsIndicator = () => {
+    // Make updateToolsIndicator available globally
+    window.updateToolsIndicator = function() {
         const anyActive = aiOsCheckbox.checked || deepSearchCheckbox.checked || browseAiCheckbox.checked;
         toolsBtn.classList.toggle('has-active', anyActive);
     };
@@ -416,6 +417,7 @@ function initializeToolsMenu() {
         toolsMenu.classList.toggle('visible');
     });
 
+    //Existing
     aiOsCheckbox.addEventListener('change', (e) => {
         const enableAll = e.target.checked;
         for (const key in chatConfig.tools) {
@@ -426,36 +428,56 @@ function initializeToolsMenu() {
             browseAiCheckbox.checked = false;
             chatConfig.deepsearch = false;
             chatConfig.browse_ai = false;
+            //Close Browse AI Webview if open
+            ipcRenderer.send('close-browse-ai-webview');
+            updateChatLayout();
         }
-        updateToolsIndicator();
+        window.updateToolsIndicator();
         e.stopPropagation();
     });
 
+    //Existing
     deepSearchCheckbox.addEventListener('change', (e) => {
         chatConfig.deepsearch = e.target.checked;
         if (e.target.checked) {
             aiOsCheckbox.checked = false;
             browseAiCheckbox.checked = false;
             chatConfig.browse_ai = false;
+            //Close Browse AI Webview if open
+            ipcRenderer.send('close-browse-ai-webview');
+            updateChatLayout();
+
             for (const key in chatConfig.tools) {
                 chatConfig.tools[key] = false;
             }
         }
-        updateToolsIndicator();
+        window.updateToolsIndicator();
         e.stopPropagation();
     });
 
+    // NEW: Browse AI Checkbox Handler
     browseAiCheckbox.addEventListener('change', (e) => {
         chatConfig.browse_ai = e.target.checked;
+        browseAiWebViewVisible = e.target.checked;
+
         if (e.target.checked) {
+            // Disable other tools
             aiOsCheckbox.checked = false;
             deepSearchCheckbox.checked = false;
             chatConfig.deepsearch = false;
             for (const key in chatConfig.tools) {
                 chatConfig.tools[key] = false;
             }
+            // Open/Close Browse AI WebView
+            ipcRenderer.send('open-browse-ai-webview');
+            updateChatLayout();
+
+        } else {
+           // Open/Close Browse AI WebView
+            ipcRenderer.send('close-browse-ai-webview');
+            updateChatLayout();
         }
-        updateToolsIndicator();
+        window.updateToolsIndicator();
         e.stopPropagation();
     });
 
@@ -465,8 +487,8 @@ function initializeToolsMenu() {
             toolsMenu.classList.remove('visible');
         }
     });
-
-    updateToolsIndicator();
+    
+    window.updateToolsIndicator();
 }
 
 /**
@@ -733,7 +755,7 @@ class UnifiedPreviewHandler {
 /**
  * Initializes the chat module.
  */
-function init() {
+function    init() {
     const elements = {
         container: document.getElementById('chat-container'),
         messages: document.getElementById('chat-messages'),
@@ -806,6 +828,227 @@ function init() {
             btn.classList.remove('active');
         });
     });
+    ipcRenderer.on('browse-ai-webview-created', () => {
+        console.log('browse-ai-webview-created event received');
+        
+        let browseAiContainer = document.getElementById('browse-ai-container');
+        
+        if (!browseAiContainer) {
+            browseAiContainer = createBrowseAiContainer();
+        }
+        
+        browseAiContainer.classList.remove('hidden');
+        
+        const header = browseAiContainer.querySelector('.browse-ai-header');
+        if (header && !header.querySelector('#browse-ai-controls')) {
+            header.appendChild(createBrowseAiControls());
+        }
+        
+        // Use requestAnimationFrame to ensure DOM is ready
+        requestAnimationFrame(() => {
+            const header = browseAiContainer.querySelector('.browse-ai-header');
+            if (header) {
+                const headerHeight = header.offsetHeight;
+                console.log('Measured browse-ai-header height:', headerHeight);
+                ipcRenderer.send('browse-ai-header-height', headerHeight);
+            }
+            
+            browseAiWebViewVisible = true;
+            updateChatLayout();
+        });
+    });
+    
+    ipcRenderer.on('browse-ai-webview-closed', () => {
+        console.log('browse-ai-webview-closed event received');
+        
+        // Hide the container (don't remove it to preserve state)
+        const browseAiContainer = document.getElementById('browse-ai-container');
+        if (browseAiContainer) {
+            browseAiContainer.classList.add('hidden');
+        }
+    
+        // Reset chat layout
+        browseAiWebViewVisible = false;
+        updateChatLayout();
+        
+        // Uncheck the Browse AI checkbox
+        const browseAiCheckbox = document.getElementById('browse_ai');
+        if (browseAiCheckbox) {
+            browseAiCheckbox.checked = false;
+        }
+        
+        // Update the chatConfig
+        chatConfig.browse_ai = false;
+        
+        // Update the tools indicator
+        if (window.updateToolsIndicator) {
+            window.updateToolsIndicator();
+        }
+    });
+    //NEW: Navigation Updates of browse Ai
+     ipcRenderer.on('browse-ai-webview-navigation-updated', (event, data) => {
+    const urlBar = document.getElementById('browse-ai-url-bar');
+    const backButton = document.getElementById('browse-ai-back');
+    const forwardButton = document.getElementById('browse-ai-forward');
+
+    if (urlBar) {
+        urlBar.value = data.url || '';
+    }
+    if (backButton) {
+        backButton.disabled = !data.canGoBack;
+    }
+    if (forwardButton) {
+        forwardButton.disabled = !data.canGoForward;
+    }
+    if (data.error) {
+        showNotification(`Browse AI: ${data.error}`, 'error');
+    }
+});
+}
+
+function updateChatLayout() {
+    const chatContainer = document.getElementById('chat-container');
+    const inputContainer = document.getElementById('floating-input-container');
+    const browseAiContainer = document.getElementById('browse-ai-container');
+    const chatWindow = document.querySelector('.chat-window');
+
+    if (browseAiWebViewVisible) {
+        // When Browse AI is visible
+        chatContainer.classList.add('with-browse-ai');
+        inputContainer.classList.add('with-browse-ai');
+        chatWindow.style.width = '100%';
+        
+        if (browseAiContainer) {
+            browseAiContainer.classList.remove('hidden');
+            // Force a reflow to ensure proper rendering
+            browseAiContainer.offsetHeight;
+        }
+    } else {
+        // When Browse AI is hidden
+        chatContainer.classList.remove('with-browse-ai');
+        inputContainer.classList.remove('with-browse-ai');
+        chatWindow.style.width = '';
+        
+        if (browseAiContainer) {
+            browseAiContainer.classList.add('hidden');
+        }
+    }
+}
+
+//NEW: Function to create Browse AI controls
+function createBrowseAiControls() {
+    const controls = document.createElement('div');
+    controls.className = 'browse-ai-controls';
+
+    // Create left section for navigation controls
+    const leftControls = document.createElement('div');
+    leftControls.className = 'left-controls';
+
+    // Back button
+    const backButton = document.createElement('button');
+    backButton.id = 'browse-ai-back';
+    backButton.innerHTML = '<i class="fas fa-arrow-left"></i>';
+    backButton.title = 'Go Back';
+    backButton.onclick = () => {
+        ipcRenderer.send('browse-ai-webview-navigate', { type: 'back' });
+    };
+
+    // Forward button
+    const forwardButton = document.createElement('button');
+    forwardButton.id = 'browse-ai-forward';
+    forwardButton.innerHTML = '<i class="fas fa-arrow-right"></i>';
+    forwardButton.title = 'Go Forward';
+    forwardButton.onclick = () => {
+        ipcRenderer.send('browse-ai-webview-navigate', { type: 'forward' });
+    };
+
+    // Refresh button
+    const refreshButton = document.createElement('button');
+    refreshButton.id = 'browse-ai-refresh';
+    refreshButton.innerHTML = '<i class="fas fa-sync-alt"></i>';
+    refreshButton.title = 'Refresh';
+    refreshButton.onclick = () => {
+        ipcRenderer.send('browse-ai-webview-navigate', { type: 'refresh' });
+    };
+
+    // Close button
+    const closeButton = document.createElement('button');
+    closeButton.innerHTML = '<i class="fas fa-times"></i>';
+    closeButton.title = 'Close Browse AI';
+    closeButton.onclick = () => {
+        ipcRenderer.send('close-browse-ai-webview');
+    };
+
+    // Add all control buttons to left section
+    leftControls.appendChild(backButton);
+    leftControls.appendChild(forwardButton);
+    leftControls.appendChild(refreshButton);
+    leftControls.appendChild(closeButton);
+
+    // Create right section for URL bar
+    const rightSection = document.createElement('div');
+    rightSection.className = 'right-section';
+
+    // URL input
+    const urlBar = document.createElement('input');
+    urlBar.type = 'text';
+    urlBar.id = 'browse-ai-url-bar';
+    urlBar.placeholder = 'Enter URL';
+    urlBar.value = 'https://www.google.com';
+
+    // Go button
+    const goButton = document.createElement('button');
+    goButton.innerHTML = '<i class="fas fa-arrow-circle-right"></i>';
+    goButton.title = 'Go to URL';
+
+    // Add URL bar and Go button to right section
+    rightSection.appendChild(urlBar);
+    rightSection.appendChild(goButton);
+
+    // Add event listener for Go button and Enter key
+    const navigateToUrl = () => {
+        const url = urlBar.value;
+        if (url) {
+            ipcRenderer.send('browse-ai-webview-navigate', { type: 'load', url: url });
+        }
+    };
+
+    goButton.onclick = navigateToUrl;
+    urlBar.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            navigateToUrl();
+        }
+    });
+
+    // Add sections to controls
+    controls.appendChild(leftControls);
+    controls.appendChild(rightSection);
+
+    return controls;
+}
+
+function createBrowseAiContainer() {
+    let container = document.getElementById('browse-ai-container');
+    
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'browse-ai-container';
+        container.className = 'browse-ai-container hidden';
+        
+        const wrapper = document.createElement('div');
+        wrapper.className = 'browse-ai-wrapper';
+        
+        const header = document.createElement('div');
+        header.className = 'browse-ai-header';
+        
+        wrapper.appendChild(header);
+        container.appendChild(wrapper);
+        
+        // Add to the body instead of chat-container
+        document.body.appendChild(container);
+    }
+    
+    return container;
 }
 
 window.chatModule = { init };

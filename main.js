@@ -5,7 +5,9 @@ const PythonBridge = require('./python-bridge');
 
 let mainWindow;
 let pythonBridge;
-let webView = null;
+let linkWebView = null; // Keep existing linkWebView
+let browseAiWebView = null; // New BrowserView for Browse AI
+let browseAiHeaderHeight = 0;
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -18,7 +20,7 @@ function createWindow() {
             enableRemoteModule: true,
             webSecurity: false
         },
-        frame: false,
+        frame: true,
         transparent: true
     });
 
@@ -92,33 +94,33 @@ function createWindow() {
 
     ipcMain.on('open-webview', (event, url) => {
         console.log('Received open-webview request for URL:', url);
-        
-        // Close existing webview if there is one
-        if (webView) {
+
+        // Close existing linkWebView if there is one
+        if (linkWebView) {
             try {
-                mainWindow.removeBrowserView(webView);
-                webView.webContents.destroy();
-                webView = null;
+                mainWindow.removeBrowserView(linkWebView);
+                linkWebView.webContents.destroy();
+                linkWebView = null;
             } catch (error) {
-                console.error('Error closing existing webview:', error);
+                console.error('Error closing existing linkWebView:', error);
             }
         }
-    
+
         try {
-            // Create new webview
-            webView = new BrowserView({
+            // Create new linkWebView
+            linkWebView = new BrowserView({
                 webPreferences: {
                     nodeIntegration: false,
                     contextIsolation: true,
                     webSecurity: true
                 }
             });
-            
-            mainWindow.addBrowserView(webView);
-            
+
+            mainWindow.addBrowserView(linkWebView);
+
             // Get the content bounds for proper sizing
             const contentBounds = mainWindow.getContentBounds();
-            
+
             // Create a smaller window positioned in the top-right
             const bounds = {
                 x: Math.round(contentBounds.width * 0.65), // Position more to the right
@@ -126,65 +128,65 @@ function createWindow() {
                 width: Math.round(contentBounds.width * 0.30), // 30% of window width
                 height: Math.round(contentBounds.height * 0.5) // 50% of window height
             };
-            
+
             // Set bounds with offset for header and borders
-            // Make the actual webview much smaller to avoid overlapping controls
-            webView.setBounds({
+            // Make the actual linkWebView much smaller to avoid overlapping controls
+            linkWebView.setBounds({
                 x: bounds.x + 10, // Add padding for left border
                 y: bounds.y + 60, // Add significant padding for header 
                 width: bounds.width - 20, // Remove width for left and right borders
                 height: bounds.height - 70 // Remove height for header and borders
             });
-            
+
             // Set up navigation event handlers
-            webView.webContents.on('did-start-loading', () => {
-                mainWindow.webContents.send('webview-navigation-updated', { 
-                    url: webView.webContents.getURL(),
+            linkWebView.webContents.on('did-start-loading', () => {
+                mainWindow.webContents.send('webview-navigation-updated', {
+                    url: linkWebView.webContents.getURL(),
                     loading: true
                 });
             });
-            
-            webView.webContents.on('did-finish-load', () => {
-                const currentUrl = webView.webContents.getURL();
-                mainWindow.webContents.send('webview-navigation-updated', { 
+
+            linkWebView.webContents.on('did-finish-load', () => {
+                const currentUrl = linkWebView.webContents.getURL();
+                mainWindow.webContents.send('webview-navigation-updated', {
                     url: currentUrl,
                     loading: false,
-                    canGoBack: webView.webContents.canGoBack(),
-                    canGoForward: webView.webContents.canGoForward()
+                    canGoBack: linkWebView.webContents.canGoBack(),
+                    canGoForward: linkWebView.webContents.canGoForward()
                 });
-                
+
                 mainWindow.webContents.send('webview-page-loaded');
             });
-            
-            webView.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-                console.error('Webview failed to load:', errorDescription);
-                mainWindow.webContents.send('webview-navigation-updated', { 
+
+            linkWebView.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+                console.error('linkWebView failed to load:', errorDescription);
+                mainWindow.webContents.send('webview-navigation-updated', {
                     error: errorDescription
                 });
             });
-            
+
             // Finally load the URL
-            webView.webContents.loadURL(url).then(() => {
+            linkWebView.webContents.loadURL(url).then(() => {
                 console.log('URL loaded successfully:', url);
                 mainWindow.webContents.send('webview-created', bounds);
             }).catch((error) => {
                 console.error('Failed to load URL:', error);
-                mainWindow.webContents.send('socket-error', { 
+                mainWindow.webContents.send('socket-error', {
                     message: `Failed to load URL: ${error.message}`
                 });
             });
         } catch (error) {
-            console.error('Error creating webview:', error);
-            mainWindow.webContents.send('socket-error', { 
-                message: `Error creating webview: ${error.message}`
+            console.error('Error creating linkWebView:', error);
+            mainWindow.webContents.send('socket-error', {
+                message: `Error creating linkWebView: ${error.message}`
             });
         }
     });
 
     ipcMain.on('resize-webview', (event, bounds) => {
-        if (webView) {
+        if (linkWebView) {
             // Use a more aggressive padding to ensure the content doesn't overlap controls
-            webView.setBounds({
+            linkWebView.setBounds({
                 x: bounds.x + 10, // Add padding for left border
                 y: bounds.y + 60, // Add significant padding for header
                 width: bounds.width - 20, // Remove width for left and right borders
@@ -194,9 +196,9 @@ function createWindow() {
     });
 
     ipcMain.on('drag-webview', (event, { x, y }) => {
-        if (webView) {
-            const currentBounds = webView.getBounds();
-            webView.setBounds({
+        if (linkWebView) {
+            const currentBounds = linkWebView.getBounds();
+            linkWebView.setBounds({
                 x: x + 10, // Add padding for left border
                 y: y + 60, // Add significant padding for header
                 width: currentBounds.width,
@@ -206,11 +208,182 @@ function createWindow() {
     });
 
     ipcMain.on('close-webview', () => {
-        if (webView) {
-            mainWindow.removeBrowserView(webView);
-            webView.webContents.destroy();
-            webView = null;
+        if (linkWebView) {
+            mainWindow.removeBrowserView(linkWebView);
+            linkWebView.webContents.destroy();
+            linkWebView = null;
             mainWindow.webContents.send('webview-closed');
+        }
+    });
+
+    ipcMain.on('open-browse-ai-webview', () => {
+        if (browseAiWebView) {
+            mainWindow.addBrowserView(browseAiWebView);
+            browseAiWebView.webContents.focus();
+            updateBrowseAiWebViewBounds(mainWindow.getContentBounds());
+            return;
+        }
+    
+        browseAiWebView = new BrowserView({
+            webPreferences: {
+                nodeIntegration: false,
+                contextIsolation: true,
+                webSecurity: true,
+            }
+        });
+        mainWindow.addBrowserView(browseAiWebView);
+        updateBrowseAiWebViewBounds(mainWindow.getContentBounds());
+    
+        browseAiWebView.webContents.loadURL('https://www.google.com').then(() => {
+            browseAiWebView.webContents.focus();
+        });
+    
+        browseAiWebView.webContents.on('did-start-loading', () => {
+            mainWindow.webContents.send('browse-ai-webview-navigation-updated', {
+                url: browseAiWebView.webContents.getURL(),
+                loading: true,
+                canGoBack: browseAiWebView.webContents.canGoBack(),
+                canGoForward: browseAiWebView.webContents.canGoForward()
+            });
+        });
+    
+        browseAiWebView.webContents.on('did-finish-load', () => {
+            mainWindow.webContents.send('browse-ai-webview-navigation-updated', {
+                url: browseAiWebView.webContents.getURL(),
+                loading: false,
+                canGoBack: browseAiWebView.webContents.canGoBack(),
+                canGoForward: browseAiWebView.webContents.canGoForward()
+            });
+        });
+    
+        browseAiWebView.webContents.on('did-navigate', () => {
+            mainWindow.webContents.send('browse-ai-webview-navigation-updated', {
+                url: browseAiWebView.webContents.getURL(),
+                loading: false,
+                canGoBack: browseAiWebView.webContents.canGoBack(),
+                canGoForward: browseAiWebView.webContents.canGoForward()
+            });
+        });
+    
+        browseAiWebView.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+            console.error("Browse AI WebView failed to load:", errorDescription);
+            mainWindow.webContents.send('browse-ai-webview-navigation-updated', { error: errorDescription });
+        });
+    
+        mainWindow.webContents.send('browse-ai-webview-created');
+    });
+
+    ipcMain.on('browse-ai-header-height', (event, height) => {
+        console.log('Received browse-ai-header-height:', height);
+        browseAiHeaderHeight = height;
+        
+        // If the BrowserView exists, update its bounds immediately
+        if (browseAiWebView) {
+            updateBrowseAiWebViewBounds(mainWindow.getContentBounds());
+            
+            // Log the bounds for debugging
+            const bounds = browseAiWebView.getBounds();
+            console.log('After updating, BrowserView bounds are:', bounds);
+        }
+    });
+
+    ipcMain.on('close-browse-ai-webview', () => {
+        if (browseAiWebView) {
+            mainWindow.removeBrowserView(browseAiWebView);
+            // Don't destroy, just hide it.
+            // browseAiWebView.webContents.destroy();
+            // browseAiWebView = null;
+            mainWindow.webContents.send('browse-ai-webview-closed');
+        }
+    });
+
+    ipcMain.on('browse-ai-webview-navigate', (event, action) => {
+        if (!browseAiWebView) {
+            console.error('No BrowserView available for navigation');
+            mainWindow.webContents.send('browse-ai-webview-navigation-updated', {
+                error: 'Browser view not initialized'
+            });
+            return;
+        }
+
+        try {
+            console.log('Navigation action:', action);
+            switch (action.type) {
+                case 'back':
+                    if (browseAiWebView.webContents.canGoBack()) {
+                        browseAiWebView.webContents.goBack();
+                        console.log('Navigating back');
+                    } else {
+                        console.log('Cannot go back - no history');
+                    }
+                    break;
+                case 'forward':
+                    if (browseAiWebView.webContents.canGoForward()) {
+                        browseAiWebView.webContents.goForward();
+                        console.log('Navigating forward');
+                    } else {
+                        console.log('Cannot go forward - no history');
+                    }
+                    break;
+                case 'refresh':
+                    browseAiWebView.webContents.reload();
+                    console.log('Refreshing page');
+                    break;
+                case 'load':
+                    if (action.url) {
+                        if (!/^(https?):\/\//i.test(action.url)) {
+                            console.error("Invalid URL:", action.url);
+                            mainWindow.webContents.send('browse-ai-webview-navigation-updated', {
+                                error: "Invalid URL. Must start with http:// or https://"
+                            });
+                            return;
+                        }
+                        browseAiWebView.webContents.loadURL(action.url);
+                        console.log('Loading URL:', action.url);
+                    }
+                    break;
+            }
+
+            // Focus the webview after navigation
+            browseAiWebView.webContents.focus();
+
+        } catch (error) {
+            console.error('Failed to navigate Browse AI WebView:', error);
+            mainWindow.webContents.send('browse-ai-webview-navigation-updated', {
+                error: error.message
+            });
+        }
+    });
+
+    // Helper function to calculate and set Browse AI WebView bounds
+    function updateBrowseAiWebViewBounds(contentBounds) {
+        if (!browseAiWebView) return;
+        
+        // Calculate dimensions with padding
+        const topPadding = 25;  // Match CSS top spacing
+        const rightPadding = 20;  // Match CSS right spacing
+        const chatWidth = Math.floor(contentBounds.width * 0.32); // 32% for chat
+        const browseAiWidth = contentBounds.width - chatWidth - (rightPadding * 2); // Account for right padding
+        
+        // Ensure we have a minimum header height
+        const headerHeight = Math.max(browseAiHeaderHeight || 45, 45);
+        
+        // Calculate bounds with proper offsets and padding
+        const bounds = {
+            x: chatWidth + rightPadding,  // Add right padding
+            y: topPadding + headerHeight,  // Add top padding
+            width: browseAiWidth,
+            height: contentBounds.height - (topPadding * 2) - headerHeight  // Account for top/bottom padding
+        };
+        
+        console.log('Setting BrowserView bounds:', bounds);
+        browseAiWebView.setBounds(bounds);
+    }
+
+    // Listen for window resize events to update the Browse AI WebView bounds.
+    mainWindow.on('resize', () => {
+        if (browseAiWebView) {
+            updateBrowseAiWebViewBounds(mainWindow.getContentBounds());
         }
     });
 }
@@ -255,13 +428,22 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', (event) => {
     // Clean up resources before quitting
-    if (webView) {
+    if (linkWebView) {
         try {
-            mainWindow.removeBrowserView(webView);
-            webView.webContents.destroy();
-            webView = null;
+            mainWindow.removeBrowserView(linkWebView);
+            linkWebView.webContents.destroy();
+            linkWebView = null;
         } catch (error) {
-            console.error('Error cleaning up webView:', error.message);
+            console.error('Error cleaning up linkWebView:', error.message);
+        }
+    }
+    if (browseAiWebView) {
+        try {
+            mainWindow.removeBrowserView(browseAiWebView);
+            browseAiWebView.webContents.destroy();
+            browseAiWebView = null;
+        } catch (error) {
+            console.error('Error cleaning up browseAiWebView:', error.message);
         }
     }
     

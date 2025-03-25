@@ -2,12 +2,19 @@ const electron = require('electron');
 const { app, BrowserWindow, ipcMain, BrowserView } = electron;
 const path = require('path');
 const PythonBridge = require('./python-bridge');
+const { spawn } = require('child_process'); // Add spawn for launching browser agent
+
+// Enable Chrome DevTools Protocol for all browser instances at startup
+// This must be called before app.whenReady()
+app.commandLine.appendSwitch('remote-debugging-port', '9222');
+app.commandLine.appendSwitch('enable-features', 'NetworkService,NetworkServiceInProcess');
 
 let mainWindow;
 let pythonBridge;
 let linkWebView = null; // Keep existing linkWebView
 let browseAiWebView = null; // New BrowserView for Browse AI
 let browseAiHeaderHeight = 0;
+let browserAgentProcess = null; // Track browser agent process
 
 function createWindow() {
     mainWindow = new BrowserWindow({
@@ -224,18 +231,35 @@ function createWindow() {
             return;
         }
     
+        // No need to set remote-debugging-port here as it's set at app startup
+        
         browseAiWebView = new BrowserView({
             webPreferences: {
                 nodeIntegration: false,
                 contextIsolation: true,
                 webSecurity: true,
+                devTools: true, // Enable DevTools for CDP access
+                additionalArguments: ['--remote-debugging-port=9222'] // Set debugging port
             }
         });
+        
+        // Explicitly enable remote debugging on the webContents
+        browseAiWebView.webContents.setDevToolsWebContents = true;
+        
         mainWindow.addBrowserView(browseAiWebView);
         updateBrowseAiWebViewBounds(mainWindow.getContentBounds());
     
         browseAiWebView.webContents.loadURL('https://www.google.com').then(() => {
             browseAiWebView.webContents.focus();
+            
+            // Open DevTools in detached mode to ensure CDP is available
+            browseAiWebView.webContents.openDevTools({ mode: 'detach' });
+            // Close it after a short delay - this ensures the CDP endpoint is active
+            setTimeout(() => {
+                if (browseAiWebView && browseAiWebView.webContents) {
+                    browseAiWebView.webContents.closeDevTools();
+                }
+            }, 1000);
         });
     
         browseAiWebView.webContents.on('did-start-loading', () => {
@@ -290,10 +314,10 @@ function createWindow() {
     ipcMain.on('close-browse-ai-webview', () => {
         if (browseAiWebView) {
             mainWindow.removeBrowserView(browseAiWebView);
-            // Don't destroy, just hide it.
-            // browseAiWebView.webContents.destroy();
-            // browseAiWebView = null;
             mainWindow.webContents.send('browse-ai-webview-closed');
+            
+            // Terminate browser agent if running
+            terminateBrowserAgent();
         }
     });
 
@@ -447,6 +471,16 @@ app.on('before-quit', (event) => {
         }
     }
     
+    // Clean up browser agent process
+    if (browserAgentProcess) {
+        try {
+            browserAgentProcess.kill();
+            browserAgentProcess = null;
+        } catch (error) {
+            console.error('Error cleaning up browser agent process:', error.message);
+        }
+    }
+    
     // Make sure Python bridge is properly cleaned up
     if (pythonBridge) {
         try {
@@ -455,5 +489,418 @@ app.on('before-quit', (event) => {
         } catch (error) {
             console.error('Error stopping Python bridge:', error.message);
         }
+    }
+});
+
+// Function to get CDP URL from a BrowserView
+async function getWebViewCDPUrl(browserView) {
+    try {
+        // First, ensure Chrome DevTools Protocol debugging is enabled
+        // Check if debugger is already attached
+        if (!browserView.webContents.debugger.isAttached()) {
+            try {
+                // Attach debugger with a specific protocol version
+                browserView.webContents.debugger.attach('1.3');
+                console.log('Debugger attached successfully');
+            } catch (err) {
+                console.error('Failed to attach debugger:', err);
+                // Continue anyway as it might already be attached in a way we can't detect
+            }
+        }
+        
+        // Get the internal process ID that Chromium uses
+        const pid = browserView.webContents.getOSProcessId();
+        console.log('Browser process ID:', pid);
+        
+        // Use a more direct approach: port discovery through the remote-debugging-port
+        // that Electron uses internally for its chromium process
+        const { execSync } = require('child_process');
+        let debuggingPort;
+        
+        if (process.platform === 'win32') {
+            // On Windows, use netstat to find the port that Chrome is listening on
+            const output = execSync('netstat -ano | findstr /r "LISTENING.*chrome"').toString();
+            const lines = output.split('\n').filter(line => line.includes('LISTENING'));
+            console.log('Candidate debugging ports:', lines);
+            
+            // Extract port numbers (usually 9222 or similar)
+            const portMatches = lines.map(line => line.match(/127\.0\.0\.1:(\d+)/)).filter(Boolean);
+            if (portMatches.length > 0) {
+                // Use the first port found, typically 9222 for Chrome's remote debugging
+                debuggingPort = portMatches[0][1];
+                console.log('Found debugging port:', debuggingPort);
+            }
+        } else {
+            // On macOS/Linux use lsof
+            try {
+                const output = execSync(`lsof -i -P | grep chrome | grep LISTEN`).toString();
+                const portMatch = output.match(/:(\d+) \(LISTEN\)/);
+                if (portMatch && portMatch[1]) {
+                    debuggingPort = portMatch[1];
+                }
+            } catch (err) {
+                console.error('Error finding debug port via lsof:', err);
+            }
+        }
+        
+        // If we found a debugging port
+        if (debuggingPort) {
+            // Construct the CDP URL
+            const cdpUrl = `http://localhost:${debuggingPort}`;
+            console.log('Using CDP URL:', cdpUrl);
+            return cdpUrl;
+        }
+        
+        // Fallback to default port if we couldn't determine it
+        console.log('Using fallback CDP URL with default port 9222');
+        return 'http://localhost:9222';
+    } catch (error) {
+        console.error('Error getting CDP URL:', error);
+        // Fallback to a default port as last resort
+        return 'http://localhost:9222';
+    }
+}
+
+// Initialize browser agent
+ipcMain.on('initialize-browser-agent', async (event) => {
+    if (browserAgentProcess) {
+        console.log('Browser agent already running');
+        mainWindow.webContents.send('browse-ai-agent-initialized');
+        return;
+    }
+
+    // Ensure the browser view exists before initializing the agent
+    if (!browseAiWebView) {
+        console.error('BrowserView not created. Cannot initialize browser agent.');
+        mainWindow.webContents.send('browse-ai-error', 'BrowserView not created');
+        return;
+    }
+
+    // Make sure DevTools is activated to ensure CDP is available
+    try {
+        // Open DevTools if not already open (this ensures CDP endpoint is active)
+        if (!browseAiWebView.webContents.isDevToolsOpened()) {
+            browseAiWebView.webContents.openDevTools({ mode: 'detach' });
+            // Give it a moment to initialize
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            // Close it to avoid cluttering the UI
+            browseAiWebView.webContents.closeDevTools();
+            // Small delay after closing
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+        // Get CDP debugging URL with retry logic
+        let debuggingUrl = null;
+        let retries = 3;
+        
+        while (retries > 0 && !debuggingUrl) {
+            try {
+                debuggingUrl = await getWebViewCDPUrl(browseAiWebView);
+                if (debuggingUrl) {
+                    console.log('Successfully obtained CDP URL:', debuggingUrl);
+                    break;
+                }
+            } catch (error) {
+                console.error(`Error getting CDP URL (${retries} retries left):`, error);
+            }
+            
+            retries--;
+            if (retries > 0) {
+                console.log(`Retrying CDP URL retrieval in 1 second (${retries} retries left)...`);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+        }
+        
+        if (!debuggingUrl) {
+            throw new Error('Could not get CDP URL after multiple attempts');
+        }
+        
+        // Start browser agent process with CDP URL
+        browserAgentProcess = spawn('python', ['python-backend/browser_agent.py'], {
+            env: { ...process.env, CDP_URL: debuggingUrl },
+            // Ensure we use the 'pipe' option for stdin/stdout/stderr
+            stdio: ['pipe', 'pipe', 'pipe']
+        });
+        
+        console.log('Browser agent process started with CDP URL:', debuggingUrl);
+        
+        // Initialize buffer to handle incomplete lines in stdout
+        let stdoutBuffer = '';
+        
+        // Handle stdout from browser agent (JSON messages)
+        browserAgentProcess.stdout.on('data', (data) => {
+            try {
+                // Append new data to buffer and process complete lines
+                stdoutBuffer += data.toString();
+                
+                // Find complete lines (ending with newline)
+                const lines = stdoutBuffer.split('\n');
+                
+                // The last element might be incomplete, keep it in the buffer
+                stdoutBuffer = lines.pop() || '';
+                
+                // Process complete lines
+                lines.forEach(line => {
+                    const trimmedLine = line.trim();
+                    if (trimmedLine) {
+                        try {
+                            // Explicitly verify this looks like JSON before parsing
+                            if (trimmedLine.startsWith('{') && trimmedLine.endsWith('}')) {
+                                const parsedMessage = JSON.parse(trimmedLine);
+                            handleBrowserAgentMessage(parsedMessage);
+                            } else {
+                                // If it doesn't look like JSON, log it but don't try to parse
+                                console.log('Non-JSON output from browser agent:', trimmedLine);
+                            }
+                        } catch (error) {
+                            console.error('Error parsing JSON message:', error.message);
+                            // Only log the problematic line if it's not too long
+                            if (trimmedLine.length < 200) {
+                                console.error('Problem line:', trimmedLine);
+                            } else {
+                                console.error('Problem line (truncated):', trimmedLine.substring(0, 200) + '...');
+                            }
+                        }
+                    }
+                });
+                
+                // Safety check: if buffer gets too large, clear it to prevent memory issues
+                if (stdoutBuffer.length > 10000) {
+                    console.warn('Stdout buffer too large, clearing to prevent memory issues');
+                    stdoutBuffer = '';
+                }
+            } catch (error) {
+                console.error('Error processing browser agent output:', error);
+            }
+        });
+        
+        // Handle stderr for errors and logging
+        browserAgentProcess.stderr.on('data', (data) => {
+            const message = data.toString().trim();
+            
+            // Debug mode: uncomment to see all stderr output
+            // console.log('Browser agent stderr:', message);
+            
+            // Only log important messages to console to reduce noise
+            if (message.includes('ERROR') || 
+                message.includes('CRITICAL') || 
+                message.includes('WARNING') ||
+                message.includes('CDP') ||
+                message.includes('EXCEPTION') ||
+                message.includes('browser_use')) {
+            console.log('Browser agent stderr:', message);
+            }
+            
+            // Send important error messages to the renderer
+            if (message.includes('ERROR') || message.includes('CRITICAL') || 
+                message.includes('EXCEPTION') || message.includes('Traceback')) {
+                mainWindow.webContents.send('browse-ai-error', message);
+            }
+        });
+        
+        // Handle process exit
+        browserAgentProcess.on('close', (code) => {
+            console.log(`Browser agent process exited with code ${code}`);
+            
+            // Clean up reference to avoid using terminated process
+            browserAgentProcess = null;
+            
+            if (code !== 0) {
+                // Non-zero exit status indicates an error
+                mainWindow.webContents.send('browse-ai-error', `Browser agent exited with code ${code}`);
+            }
+        });
+        
+        // Handle unexpected errors
+        browserAgentProcess.on('error', (error) => {
+            console.error('Browser agent process error:', error);
+            mainWindow.webContents.send('browse-ai-error', `Browser agent error: ${error.message}`);
+            
+            // Clean up
+            browserAgentProcess = null;
+        });
+        
+        // Set up a heartbeat to check if the agent is still responsive
+        let heartbeatInterval = setInterval(() => {
+            if (browserAgentProcess) {
+                try {
+                    browserAgentProcess.stdin.write(JSON.stringify({
+                        type: 'ping'
+                    }) + '\n');
+                } catch (error) {
+                    console.error('Error sending heartbeat to browser agent:', error);
+                    clearInterval(heartbeatInterval);
+                }
+            } else {
+                // Process is gone, clear the interval
+                clearInterval(heartbeatInterval);
+            }
+        }, 30000); // Check every 30 seconds
+        
+        // Wait for first status message before notifying renderer
+        // This ensures the agent is properly initialized
+        let initTimeout = setTimeout(() => {
+            if (browserAgentProcess) {
+                console.log('Browser agent initialization timed out, notifying renderer anyway');
+                mainWindow.webContents.send('browse-ai-agent-initialized');
+            }
+        }, 10000); // 10 second timeout
+        
+        // Set up temporary listener for initialization status
+        const initListener = (message) => {
+            if (message.type === 'status' && message.content === 'Browser agent ready') {
+                clearTimeout(initTimeout);
+                console.log('Browser agent initialization confirmed');
+        mainWindow.webContents.send('browse-ai-agent-initialized');
+            }
+        };
+        
+        // Add this to browserAgentMessageHandlers
+        handleBrowserAgentMessage(initListener);
+        
+    } catch (error) {
+        console.error('Error initializing browser agent:', error);
+        mainWindow.webContents.send('browse-ai-error', error.message);
+        
+        // Clean up if initialization failed
+        if (browserAgentProcess) {
+            try {
+                browserAgentProcess.kill();
+                browserAgentProcess = null;
+            } catch (cleanupError) {
+                console.error('Error cleaning up browser agent process:', cleanupError);
+            }
+        }
+    }
+});
+
+// Function to safely terminate the browser agent process
+function terminateBrowserAgent() {
+    if (browserAgentProcess) {
+        try {
+            // Try to send a clean shutdown message
+            browserAgentProcess.stdin.write(JSON.stringify({
+                type: 'shutdown'
+            }) + '\n');
+            
+            // Give it a moment to clean up
+            setTimeout(() => {
+                try {
+                    // If still running, force terminate
+                    if (browserAgentProcess) {
+                        browserAgentProcess.kill();
+                        browserAgentProcess = null;
+                        console.log('Browser agent process terminated');
+                    }
+                } catch (error) {
+                    console.error('Error terminating browser agent process:', error);
+                }
+            }, 1000);
+        } catch (error) {
+            // If we can't write to stdin, just kill it
+            try {
+                browserAgentProcess.kill();
+                browserAgentProcess = null;
+                console.log('Browser agent process terminated');
+            } catch (innerError) {
+                console.error('Error terminating browser agent process:', innerError);
+            }
+        }
+    }
+}
+
+// Handle browser agent messages
+function handleBrowserAgentMessage(message) {
+    if (typeof message === 'function') {
+        // Special case: this is a message handler function
+        // Add it to an array of handlers to be called for each message
+        browserAgentMessageHandlers.push(message);
+        return;
+    }
+    
+    console.log('Browser agent message:', message);
+    
+    // Call all registered message handlers
+    if (browserAgentMessageHandlers && browserAgentMessageHandlers.length > 0) {
+        browserAgentMessageHandlers.forEach(handler => handler(message));
+    }
+    
+    switch (message.type) {
+        case 'navigation':
+            // Handle navigation events
+            if (browseAiWebView && message.url) {
+                browseAiWebView.webContents.loadURL(message.url).catch(err => {
+                    console.error('Failed to navigate:', err);
+                });
+            }
+            break;
+        
+        case 'interaction':
+            // Could highlight elements being interacted with
+            mainWindow.webContents.send('browse-ai-interaction', message.element);
+            break;
+            
+        case 'result':
+            // Send the result back to chat
+            mainWindow.webContents.send('browse-ai-response', message.content);
+            break;
+            
+        case 'status':
+            // Update status in UI
+            mainWindow.webContents.send('browse-ai-status', message.content);
+            break;
+            
+        case 'error':
+            console.error('Browser agent error:', message.error);
+            mainWindow.webContents.send('browse-ai-error', message.error);
+            break;
+            
+        case 'pong':
+            // Heartbeat response - agent is alive
+            console.log('Browser agent heartbeat received');
+            break;
+    }
+}
+
+// Initialize empty array for message handlers
+const browserAgentMessageHandlers = [];
+
+// When sending tasks to browser agent
+ipcMain.on('browse-ai-send-message', (event, message) => {
+    if (browserAgentProcess) {
+        try {
+            // Add a request ID to track this specific request
+            const requestId = `req_${Date.now()}`;
+            const taskMessage = JSON.stringify({
+                type: 'task',
+                content: message,
+                request_id: requestId
+            }) + '\n';
+            
+            console.log(`Sending browser agent task (${requestId}): ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`);
+            browserAgentProcess.stdin.write(taskMessage);
+            
+            // Set a timeout for this specific request
+            setTimeout(() => {
+                // Check if this request is still in progress and report if it's taking too long
+                console.log(`Task ${requestId} check: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
+            }, 30000); // Check after 30 seconds
+            
+        } catch (error) {
+            console.error('Error sending message to browser agent:', error);
+            mainWindow.webContents.send('browse-ai-error', 'Failed to send message to browser agent');
+            
+            // If we can't write to stdin, the process might be dead
+            if (error.code === 'EPIPE' || error.code === 'ERR_STREAM_DESTROYED' || error.code === 'ECONNRESET') {
+                console.error('Browser agent process appears to be dead, cleaning up');
+                browserAgentProcess = null;
+                
+                // Notify UI
+                mainWindow.webContents.send('browse-ai-error', 'Browser agent process terminated unexpectedly. Please restart Browse AI.');
+            }
+        }
+    } else {
+        console.error('Browser agent not initialized');
+        mainWindow.webContents.send('browse-ai-error', 'Browser agent not initialized. Please restart Browse AI.');
     }
 });

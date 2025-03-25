@@ -6,13 +6,11 @@ import uuid
 from flask import Flask, request
 from flask_socketio import SocketIO, emit
 from assistant import get_llm_os
-from deepsearch import get_deepsearch  # Import the deepsearch agent
-from browser_agent import BrowserAgent  # Import the BrowserAgent
+from deepsearch import get_deepsearch  
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import traceback
-#from queue import Queue  <- No longer needed at the top-level import
-import eventlet  # Import eventlet
+import eventlet  
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -37,7 +35,6 @@ class IsolatedAssistant:
     def __init__(self, sid):  # Pass sid to the constructor
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.sid = sid  # Store the sid
-        #self.response_queue = Queue()  <- No longer needed
 
     def run_safely(self, agent, message, context=None):
         """Runs agent in isolated thread and handles crashes"""
@@ -95,14 +92,7 @@ class ConnectionManager:
                 self.terminate_session(sid)
 
             # Choose the agent based on the flags
-            if is_browse_ai:
-                # BrowserAgent is already an instance of CustomBrowserAgent
-                agent = BrowserAgent
-                if not agent or not agent.agent:
-                    error_msg = "BrowserAgent not properly initialized"
-                    logger.error(error_msg)
-                    raise RuntimeError(error_msg)
-            elif is_deepsearch:
+            if is_deepsearch:
                 agent = get_deepsearch(
                     ddg_search=config.get("ddg_search", False),
                     web_crawler=config.get("web_crawler", False),
@@ -196,20 +186,18 @@ def on_send_message(data):
             connection_manager.terminate_session(sid)
             return
         
-        isolated_assistant.message_id = message_id # Store message_id
+        isolated_assistant.message_id = message_id 
 
         combined_message = message
         for file_data in files:
             file_name = file_data.get('name', 'unnamed_file')
             file_header = f"\n\n--- File: {file_name} ---\n"
             
-            # If we have extracted text from special file types, use that instead of raw content
             if 'extractedText' in file_data and file_data['extractedText']:
                 combined_message += file_header + file_data['extractedText']
             else:
                 combined_message += file_header + file_data.get('content', '')
 
-        # No need for a separate loop, the _run_agent function handles streaming
         isolated_assistant.run_safely(agent, combined_message, context)
 
 

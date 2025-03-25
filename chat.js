@@ -1,15 +1,17 @@
+// chat.js
+
 import { messageFormatter } from './message-formatter.js';
 import ContextHandler from './context-handler.js';
 import FileAttachmentHandler from './add-files.js';
 
-const fs = require('fs').promises; 
+const fs = require('fs').promises;
 const path = require('path');
 const { ipcRenderer } = require('electron');
 
 let chatConfig = {
-    memory: false,  
-    tasks: false,    
-    tools: {        
+    memory: false,
+    tasks: false,
+    tools: {
         calculator: true,
         ddg_search: true,
         python_assistant: true,
@@ -26,7 +28,7 @@ let sessionActive = false;  // Flag to indicate if a chat session is active.
 let contextHandler = null;  // Instance of the ContextHandler.
 let fileAttachmentHandler = null; // Instance of the FileAttachmentHandler.
 let connectionStatus = false; // Track connection status
-let browseAiWebViewVisible = false; // new new new 
+let browseAiWebViewVisible = false; // new new new
 const maxFileSize = 10 * 1024 * 1024; // 10MB limit
 const supportedFileTypes = {
     'txt': 'text/plain',
@@ -38,7 +40,7 @@ const supportedFileTypes = {
     'pdf': 'application/pdf',
     'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'c': 'text/x-c'
-};  
+};
 
 /**
  * Set up IPC listeners for communication with python-bridge.js
@@ -52,16 +54,16 @@ function setupIpcListeners() {
             sessionActive = false;
         } else {
             let statusMessage = 'Connecting to server...';
-            
+
             if (data.error) {
                 statusMessage = `Connection error: ${data.error}`;
                 console.error('Connection error:', data.error);
             } else if (data.reconnecting) {
                 statusMessage = `Reconnecting to server... (Attempt ${data.attempt}/${data.maxAttempts})`;
             }
-            
+
             showConnectionError(statusMessage);
-            
+
             // If we're having connection issues, auto-retry after 30 seconds
             if (data.error) {
                 setTimeout(() => {
@@ -86,18 +88,18 @@ function setupIpcListeners() {
             // If this is a completion signal, make sure we clean up the UI
             if (isDone && messageId && ongoingStreams[messageId]) {
                 const messageDiv = ongoingStreams[messageId];
-                
+
                 // Clear the timer
                 if (messageDiv.timer) {
                     clearInterval(messageDiv.timer);
                 }
-                
+
                 // Remove thinking indicator
                 const thinkingIndicator = messageDiv.querySelector('.thinking-indicator');
                 if (thinkingIndicator) {
                     thinkingIndicator.remove();
                 }
-                
+
                 // Finish streaming and cleanup
                 messageFormatter.finishStreaming(messageId);
                 delete ongoingStreams[messageId];
@@ -140,6 +142,121 @@ function setupIpcListeners() {
 
     // Check initial connection status
     ipcRenderer.send('check-socket-connection');
+
+    // Listen for responses from Browse AI in setupIpcListeners function
+    ipcRenderer.on('browse-ai-response', (content) => {
+        // Add the response to the chat
+        if (typeof content === 'object') {
+            content = content.content || JSON.stringify(content);
+        }
+        
+        // Find ongoing message by ID or use the most recent
+        const messageId = Object.keys(ongoingStreams)[0];
+        if (messageId) {
+            updateMessage(messageId, content, false);
+            delete ongoingStreams[messageId]; // Clear the stream
+        } else {
+            addMessage(content, false);
+        }
+        
+        // Re-enable input
+        document.getElementById('floating-input').disabled = false;
+        document.getElementById('send-message').disabled = false;
+    });
+
+    ipcRenderer.on('browse-ai-error', (error) => {
+        // If error is an object, extract the message
+        const errorMessage = typeof error === 'object' ? error.message || error.error || JSON.stringify(error) : error;
+        
+        // Add error to chat with distinctive styling
+        const messageId = Object.keys(ongoingStreams)[0];
+        if (messageId) {
+            updateMessage(messageId, `Error: ${errorMessage}`, false, true);
+            delete ongoingStreams[messageId]; // Clear the stream
+        } else {
+            // Add a new error message
+            const errorContent = `<div class="error-message"><i class="fas fa-exclamation-triangle"></i> ${errorMessage}</div>`;
+            addMessage(errorContent, false, false, null, true, true);
+        }
+        
+        showNotification(`Browser AI error: ${errorMessage}`, 'error');
+        
+        // Add restart button if the error suggests agent is dead
+        if (errorMessage.includes('terminated') || 
+            errorMessage.includes('not initialized') || 
+            errorMessage.includes('restart')) {
+            
+            // Add restart button to the last message
+            const messages = document.querySelectorAll('.message');
+            if (messages.length > 0) {
+                const lastMessage = messages[messages.length - 1];
+                const restartButton = document.createElement('button');
+                restartButton.className = 'restart-browse-ai-btn';
+                restartButton.innerHTML = '<i class="fas fa-redo"></i> Restart Browser AI';
+                restartButton.addEventListener('click', () => {
+                    restartBrowseAI();
+                });
+                
+                // Check if button already exists
+                if (!lastMessage.querySelector('.restart-browse-ai-btn')) {
+                    lastMessage.querySelector('.message-content').appendChild(restartButton);
+                }
+            }
+        }
+        
+        // Re-enable input
+        document.getElementById('floating-input').disabled = false;
+        document.getElementById('send-message').disabled = false;
+    });
+
+    ipcRenderer.on('browse-ai-status', (status) => {
+        // Status should create temporary message if from initialization
+        if (status.includes('initializing') || status.includes('starting')) {
+            showNotification(`Browser AI: ${status}`, 'info');
+        }
+        
+        // If it's a navigation status, add to chat
+        if (status.includes('navigate') || status.includes('Going to')) {
+            const statusContent = `<div class="status-message"><i class="fas fa-globe"></i> ${status}</div>`;
+            addMessage(statusContent, false, false, null, true, true);
+        }
+        
+        // Process status updates
+        if (status.includes('Processing')) {
+            // Update thinking indicator if present
+            const messageId = Object.keys(ongoingStreams)[0];
+            if (messageId) {
+                const thinkingEl = document.querySelector(`.message[data-id="${messageId}"] .thinking-indicator .thinking-content`);
+                if (thinkingEl) {
+                    thinkingEl.textContent = status;
+                }
+            }
+        }
+    });
+
+    ipcRenderer.on('browse-ai-interaction', (element) => {
+        // Add interaction log to chat with distinctive styling
+        const interactionContent = `<div class="interaction-message"><i class="fas fa-mouse-pointer"></i> Interacting with: ${element}</div>`;
+        addMessage(interactionContent, false, false, null, true, true);
+    });
+
+    ipcRenderer.on('browse-ai-agent-initialized', () => {
+        showNotification('Browser AI is ready', 'success');
+        
+        // Update UI status
+        const statusIndicator = document.querySelector('.browse-ai-status');
+        if (statusIndicator) {
+            statusIndicator.innerHTML = '<i class="fas fa-check-circle"></i> Browser AI Ready';
+            statusIndicator.classList.add('ready');
+        }
+        
+        // Enable input if it was disabled
+        document.getElementById('floating-input').disabled = false;
+        document.getElementById('send-message').disabled = false;
+        
+        // Add a welcome message
+        addMessage('Browser AI is ready. What would you like me to do?', false);
+    });
 }
 
 /**
@@ -147,13 +264,13 @@ function setupIpcListeners() {
  */
 function showConnectionError(message = 'Connecting to server...') {
     let errorDiv = document.querySelector('.connection-error');
-    
+
     if (!errorDiv) {
         errorDiv = document.createElement('div');
         errorDiv.className = 'connection-error';
         document.body.appendChild(errorDiv);
     }
-    
+
     // Update the error message
     errorDiv.innerHTML = `
         <div class="connection-error-content">
@@ -162,7 +279,7 @@ function showConnectionError(message = 'Connecting to server...') {
             <button class="retry-connection">Retry Connection</button>
         </div>
     `;
-    
+
     // Add retry button click handler
     errorDiv.querySelector('.retry-connection').addEventListener('click', () => {
         errorDiv.querySelector('span').textContent = 'Restarting connection...';
@@ -193,7 +310,7 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
         if (!messageDiv) {
             messageDiv = document.createElement('div');
             messageDiv.className = 'message message-bot';
-            
+
             // Add thinking indicator
             const thinkingIndicator = document.createElement('div');
             thinkingIndicator.className = 'thinking-indicator';
@@ -268,11 +385,21 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
  */
 async function handleSendMessage() {
     const floatingInput = document.getElementById('floating-input');
-    const sendMessageBtn = document.getElementById('send-message');
     const message = floatingInput.value.trim();
-    const attachedFiles = fileAttachmentHandler.getAttachedFiles();
+    const sendMessageBtn = document.getElementById('send-message');
 
-    if (!message && attachedFiles.length === 0) {
+    if (!message) {
+        return; // Don't send empty messages
+    }
+
+    floatingInput.disabled = true;
+    sendMessageBtn.disabled = true;
+
+    // If browser AI is active, route the message there
+    if (browseAiWebViewVisible && chatConfig.browse_ai) {
+        sendBrowseAITask(message);
+        floatingInput.value = '';
+        floatingInput.style.height = 'auto';
         return;
     }
 
@@ -282,8 +409,8 @@ async function handleSendMessage() {
         return;
     }
 
-    floatingInput.disabled = true;
-    sendMessageBtn.disabled = true;
+    // Normal chat processing with Python backend
+    const attachedFiles = fileAttachmentHandler.getAttachedFiles();
 
     if (message) {
         addMessage(message, true);
@@ -311,7 +438,7 @@ async function handleSendMessage() {
 
         let combinedContext = "";
         const selectedSessions = contextHandler.getSelectedSessions();
-        
+
         if (selectedSessions && selectedSessions.length > 0) {
             const contextStr = selectedSessions.map(session => {
                 if (!session.interactions || !session.interactions.length) return '';
@@ -341,7 +468,7 @@ async function handleSendMessage() {
                 showNotification("Error reading context files. Check console.", "error");
             }
         }
-        
+
         if (combinedContext) {
             messageData.context = combinedContext;
         }
@@ -468,13 +595,22 @@ function initializeToolsMenu() {
             for (const key in chatConfig.tools) {
                 chatConfig.tools[key] = false;
             }
-            // Open/Close Browse AI WebView
+            
+            // First open the webview
             ipcRenderer.send('open-browse-ai-webview');
+            showNotification('Opening Browse AI webview...', 'info');
+            
+            // Initialize browser agent after a longer delay to ensure webview is fully loaded
+            setTimeout(() => {
+                ipcRenderer.send('initialize-browser-agent');
+                showNotification('Initializing Browser AI agent...', 'info');
+            }, 3000); // Wait 3 seconds for the webview to initialize
+            
             updateChatLayout();
-
         } else {
-           // Open/Close Browse AI WebView
+            // Close Browse AI WebView
             ipcRenderer.send('close-browse-ai-webview');
+            showNotification('Closed Browse AI', 'info');
             updateChatLayout();
         }
         window.updateToolsIndicator();
@@ -487,7 +623,7 @@ function initializeToolsMenu() {
             toolsMenu.classList.remove('visible');
         }
     });
-    
+
     window.updateToolsIndicator();
 }
 
@@ -609,7 +745,7 @@ class UnifiedPreviewHandler {
                 tabs.forEach(t => t.classList.remove('active'));
                 // Add active class to clicked tab
                 tab.classList.add('active');
-                
+
                 // Show the corresponding tab content
                 const tabId = tab.getAttribute('data-tab');
                 this.viewer.querySelectorAll('.tab-content').forEach(content => {
@@ -726,11 +862,11 @@ class UnifiedPreviewHandler {
     updateContextIndicator() {
         const indicator = document.querySelector('.context-active-indicator');
         const badge = indicator.querySelector('.context-badge');
-        
+
         const sessionCount = this.contextHandler?.getSelectedSessions()?.length || 0;
         const fileCount = this.fileAttachmentHandler?.getAttachedFiles()?.length || 0;
         const totalCount = sessionCount + fileCount;
-        
+
         if (totalCount > 0) {
             indicator.classList.add('visible');
             if (totalCount > 1) {
@@ -743,7 +879,7 @@ class UnifiedPreviewHandler {
             indicator.classList.remove('visible');
             badge.classList.remove('visible');
         }
-        
+
         // Add click handler if not already added
         if (!indicator.hasClickHandler) {
             indicator.addEventListener('click', () => this.showViewer());
@@ -772,7 +908,7 @@ function    init() {
     handleMemoryToggle();
     handleTasksToggle(); // Initialize the Tasks button
     setupIpcListeners(); // Set up IPC communication
-    initializeAutoExpandingTextarea();  
+    initializeAutoExpandingTextarea();
     fileAttachmentHandler = new FileAttachmentHandler(null, supportedFileTypes, maxFileSize);
     window.unifiedPreviewHandler = new UnifiedPreviewHandler(contextHandler, fileAttachmentHandler);
 
@@ -830,20 +966,20 @@ function    init() {
     });
     ipcRenderer.on('browse-ai-webview-created', () => {
         console.log('browse-ai-webview-created event received');
-        
+
         let browseAiContainer = document.getElementById('browse-ai-container');
-        
+
         if (!browseAiContainer) {
             browseAiContainer = createBrowseAiContainer();
         }
-        
+
         browseAiContainer.classList.remove('hidden');
-        
+
         const header = browseAiContainer.querySelector('.browse-ai-header');
         if (header && !header.querySelector('#browse-ai-controls')) {
             header.appendChild(createBrowseAiControls());
         }
-        
+
         // Use requestAnimationFrame to ensure DOM is ready
         requestAnimationFrame(() => {
             const header = browseAiContainer.querySelector('.browse-ai-header');
@@ -852,34 +988,34 @@ function    init() {
                 console.log('Measured browse-ai-header height:', headerHeight);
                 ipcRenderer.send('browse-ai-header-height', headerHeight);
             }
-            
+
             browseAiWebViewVisible = true;
             updateChatLayout();
         });
     });
-    
+
     ipcRenderer.on('browse-ai-webview-closed', () => {
         console.log('browse-ai-webview-closed event received');
-        
+
         // Hide the container (don't remove it to preserve state)
         const browseAiContainer = document.getElementById('browse-ai-container');
         if (browseAiContainer) {
             browseAiContainer.classList.add('hidden');
         }
-    
+
         // Reset chat layout
         browseAiWebViewVisible = false;
         updateChatLayout();
-        
+
         // Uncheck the Browse AI checkbox
         const browseAiCheckbox = document.getElementById('browse_ai');
         if (browseAiCheckbox) {
             browseAiCheckbox.checked = false;
         }
-        
+
         // Update the chatConfig
         chatConfig.browse_ai = false;
-        
+
         // Update the tools indicator
         if (window.updateToolsIndicator) {
             window.updateToolsIndicator();
@@ -917,7 +1053,7 @@ function updateChatLayout() {
         chatContainer.classList.add('with-browse-ai');
         inputContainer.classList.add('with-browse-ai');
         chatWindow.style.width = '100%';
-        
+
         if (browseAiContainer) {
             browseAiContainer.classList.remove('hidden');
             // Force a reflow to ensure proper rendering
@@ -928,7 +1064,7 @@ function updateChatLayout() {
         chatContainer.classList.remove('with-browse-ai');
         inputContainer.classList.remove('with-browse-ai');
         chatWindow.style.width = '';
-        
+
         if (browseAiContainer) {
             browseAiContainer.classList.add('hidden');
         }
@@ -937,118 +1073,301 @@ function updateChatLayout() {
 
 //NEW: Function to create Browse AI controls
 function createBrowseAiControls() {
-    const controls = document.createElement('div');
-    controls.className = 'browse-ai-controls';
-
-    // Create left section for navigation controls
+    const container = document.querySelector('.browse-ai-header');
+    if (!container) return;
+    
+    // Clear container first to prevent duplicate elements
+    container.innerHTML = '';
+    
+    // Create the controls
+    const controlsElement = document.createElement('div');
+    controlsElement.className = 'browse-ai-controls';
+    
+    // Left side controls
     const leftControls = document.createElement('div');
     leftControls.className = 'left-controls';
-
-    // Back button
+    
     const backButton = document.createElement('button');
-    backButton.id = 'browse-ai-back';
-    backButton.innerHTML = '<i class="fas fa-arrow-left"></i>';
     backButton.title = 'Go Back';
-    backButton.onclick = () => {
-        ipcRenderer.send('browse-ai-webview-navigate', { type: 'back' });
-    };
-
-    // Forward button
+    backButton.innerHTML = '<i class="fas fa-arrow-left"></i>';
+    backButton.disabled = true;
+    
     const forwardButton = document.createElement('button');
-    forwardButton.id = 'browse-ai-forward';
-    forwardButton.innerHTML = '<i class="fas fa-arrow-right"></i>';
     forwardButton.title = 'Go Forward';
-    forwardButton.onclick = () => {
-        ipcRenderer.send('browse-ai-webview-navigate', { type: 'forward' });
-    };
-
-    // Refresh button
+    forwardButton.innerHTML = '<i class="fas fa-arrow-right"></i>';
+    forwardButton.disabled = true;
+    
     const refreshButton = document.createElement('button');
-    refreshButton.id = 'browse-ai-refresh';
-    refreshButton.innerHTML = '<i class="fas fa-sync-alt"></i>';
     refreshButton.title = 'Refresh';
-    refreshButton.onclick = () => {
-        ipcRenderer.send('browse-ai-webview-navigate', { type: 'refresh' });
-    };
-
-    // Close button
-    const closeButton = document.createElement('button');
-    closeButton.innerHTML = '<i class="fas fa-times"></i>';
-    closeButton.title = 'Close Browse AI';
-    closeButton.onclick = () => {
-        ipcRenderer.send('close-browse-ai-webview');
-    };
-
-    // Add all control buttons to left section
+    refreshButton.innerHTML = '<i class="fas fa-sync"></i>';
+    
     leftControls.appendChild(backButton);
     leftControls.appendChild(forwardButton);
     leftControls.appendChild(refreshButton);
-    leftControls.appendChild(closeButton);
-
-    // Create right section for URL bar
+    
+    // Right side with URL bar
     const rightSection = document.createElement('div');
     rightSection.className = 'right-section';
-
-    // URL input
+    
     const urlBar = document.createElement('input');
     urlBar.type = 'text';
     urlBar.id = 'browse-ai-url-bar';
-    urlBar.placeholder = 'Enter URL';
-    urlBar.value = 'https://www.google.com';
-
-    // Go button
+    urlBar.placeholder = 'Enter URL...';
+    
     const goButton = document.createElement('button');
-    goButton.innerHTML = '<i class="fas fa-arrow-circle-right"></i>';
-    goButton.title = 'Go to URL';
-
-    // Add URL bar and Go button to right section
+    goButton.title = 'Go';
+    goButton.innerHTML = '<i class="fas fa-arrow-right"></i>';
+    
+    // Add status indicator
+    const statusIndicator = document.createElement('div');
+    statusIndicator.className = 'browse-ai-status';
+    statusIndicator.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Initializing...';
+    
     rightSection.appendChild(urlBar);
     rightSection.appendChild(goButton);
-
-    // Add event listener for Go button and Enter key
+    rightSection.appendChild(statusIndicator);
+    
+    // Add to controls
+    controlsElement.appendChild(leftControls);
+    controlsElement.appendChild(rightSection);
+    
+    // Add to container
+    container.appendChild(controlsElement);
+    
+    // Event listeners
+    backButton.addEventListener('click', () => {
+        ipcRenderer.send('browse-ai-webview-navigate', 'back');
+    });
+    
+    forwardButton.addEventListener('click', () => {
+        ipcRenderer.send('browse-ai-webview-navigate', 'forward');
+    });
+    
+    refreshButton.addEventListener('click', () => {
+        ipcRenderer.send('browse-ai-webview-navigate', 'refresh');
+    });
+    
+    // Navigate to URL
     const navigateToUrl = () => {
-        const url = urlBar.value;
+        let url = urlBar.value.trim();
+        
+        // Add https:// prefix if needed
+        if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+            url = 'https://' + url;
+            urlBar.value = url;
+        }
+        
         if (url) {
-            ipcRenderer.send('browse-ai-webview-navigate', { type: 'load', url: url });
+            ipcRenderer.send('browse-ai-webview-navigate', url);
         }
     };
-
-    goButton.onclick = navigateToUrl;
-    urlBar.addEventListener('keypress', (e) => {
+    
+    goButton.addEventListener('click', navigateToUrl);
+    
+    urlBar.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             navigateToUrl();
         }
     });
-
-    // Add sections to controls
-    controls.appendChild(leftControls);
-    controls.appendChild(rightSection);
-
-    return controls;
+    
+    // Listen for navigation updates
+    ipcRenderer.on('browse-ai-webview-navigation-updated', (data) => {
+        if (data.url) {
+            urlBar.value = data.url;
+        }
+        
+        backButton.disabled = !data.canGoBack;
+        forwardButton.disabled = !data.canGoForward;
+    });
+    
+    // Let the main process know the height of the header after DOM is updated
+    setTimeout(() => {
+        const headerHeight = container.offsetHeight;
+        ipcRenderer.send('browse-ai-header-height', headerHeight);
+    }, 100);
+    
+    return container;
 }
 
 function createBrowseAiContainer() {
     let container = document.getElementById('browse-ai-container');
-    
+
     if (!container) {
         container = document.createElement('div');
         container.id = 'browse-ai-container';
         container.className = 'browse-ai-container hidden';
-        
+
         const wrapper = document.createElement('div');
         wrapper.className = 'browse-ai-wrapper';
-        
+
         const header = document.createElement('div');
         header.className = 'browse-ai-header';
-        
+
         wrapper.appendChild(header);
         container.appendChild(wrapper);
-        
+
         // Add to the body instead of chat-container
         document.body.appendChild(container);
     }
-    
+
     return container;
 }
+
+// Function to send tasks to browser agent
+function sendBrowseAITask(task) {
+    ipcRenderer.send('browse-ai-send-message', task);
+    
+    // Add user message to chat
+    addMessage(task, true, false, generateMessageId());
+    
+    // Add thinking indicator for AI response
+    const messageId = generateMessageId();
+    addMessage('', false, true, messageId);
+    
+    // Store the messageId in ongoingStreams
+    ongoingStreams[messageId] = {
+        startTime: Date.now(),
+        content: ''
+    };
+    
+    // Disable input while waiting
+    document.getElementById('floating-input').disabled = true;
+    document.getElementById('send-message').disabled = true;
+}
+
+/**
+ * Generates a unique message ID for tracking
+ * @returns {string} A unique message ID
+ */
+function generateMessageId() {
+    return 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+/**
+ * Updates an existing message content
+ * @param {string} messageId - The ID of the message to update
+ * @param {string} content - The new content
+ * @param {boolean} isStreaming - Whether it's a streaming message
+ */
+function updateMessage(messageId, content, isStreaming = false) {
+    const messageDiv = ongoingStreams[messageId];
+    if (!messageDiv) return;
+    
+    // Clear the timer if it exists
+    if (messageDiv.timer) {
+        clearInterval(messageDiv.timer);
+    }
+    
+    // Remove thinking indicator
+    const thinkingIndicator = messageDiv.querySelector('.thinking-indicator');
+    if (thinkingIndicator) {
+        thinkingIndicator.remove();
+    }
+    
+    // Update the content
+    const contentDiv = messageDiv.querySelector('.message-content');
+    if (contentDiv) {
+        contentDiv.innerHTML = messageFormatter.format(content);
+        
+        if (contentDiv.querySelector('.mermaid')) {
+            mermaid.init(undefined, contentDiv.querySelectorAll('.mermaid'));
+        }
+    }
+    
+    // Cleanup streaming
+    if (!isStreaming) {
+        delete ongoingStreams[messageId];
+    }
+}
+
+// Function to restart Browse AI
+function restartBrowseAI() {
+    // Show notification
+    showNotification('Restarting Browser AI...', 'info');
+    
+    // Close and reopen Browse AI webview
+    ipcRenderer.send('close-browse-ai-webview');
+    
+    // Give it a moment to clean up
+    setTimeout(() => {
+        ipcRenderer.send('open-browse-ai-webview');
+        
+        // Initialize browser agent after a delay
+        setTimeout(() => {
+            ipcRenderer.send('initialize-browser-agent');
+        }, 2000);
+    }, 1000);
+    
+    // Add status message to chat
+    const statusContent = `<div class="status-message"><i class="fas fa-redo"></i> Restarting Browser AI...</div>`;
+    addMessage(statusContent, false, false, null, true, true);
+}
+
+// Add CSS for error and status messages to the head
+const style = document.createElement('style');
+style.textContent = `
+.error-message {
+    color: var(--error-500);
+    padding: 8px 12px;
+    border-radius: 8px;
+    background-color: var(--error-100);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.dark-mode .error-message {
+    background-color: rgba(239, 68, 68, 0.2);
+}
+.status-message {
+    color: var(--text-color);
+    font-style: italic;
+    opacity: 0.8;
+    padding: 4px 8px;
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.interaction-message {
+    color: var(--accent-color);
+    padding: 4px 8px;
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.restart-browse-ai-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background-color: var(--accent-muted);
+    color: var(--accent-color);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9em;
+    margin-top: 8px;
+    transition: all 0.2s ease;
+}
+.restart-browse-ai-btn:hover {
+    background-color: var(--accent-color);
+    color: white;
+}
+.browse-ai-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8em;
+    color: var(--text-muted);
+    margin-left: auto;
+}
+.browse-ai-status.ready {
+    color: var(--success-500);
+}
+`;
+document.head.appendChild(style);
 
 window.chatModule = { init };

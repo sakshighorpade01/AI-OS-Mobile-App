@@ -8,6 +8,7 @@ import os
 import logging
 import time
 import io
+from urllib.parse import urlparse
 
 # Custom stdout filter to ensure only valid JSON goes to stdout
 class JsonOnlyStream(io.TextIOBase):
@@ -61,13 +62,18 @@ class BrowserAgent:
         Initialize the BrowserAgent using CDP URL from environment
         """
         try:
-            # Get CDP URL from environment (passed by Electron)
+            # Get CDP URL and target ID from environment (passed by Electron)
             cdp_url = os.environ.get('CDP_URL')
+            target_id = os.environ.get('TARGET_ID')
+            initial_url = os.environ.get('INITIAL_URL', 'https://www.google.com')
+            
             self._write_output({"type": "status", "content": "Initializing browser agent..."})
             
             if cdp_url:
                 # Connect to existing webview using CDP
                 logger.info(f"Connecting to existing browser via CDP: {cdp_url}")
+                if target_id:
+                    logger.info(f"With target ID: {target_id}")
                 
                 # First try to verify if the CDP endpoint is actually responsive
                 self._write_output({"type": "status", "content": f"Validating CDP endpoint at {cdp_url}..."})
@@ -77,24 +83,64 @@ class BrowserAgent:
                     logger.warning("CDP validation failed, attempting connection anyway")
                     self._write_output({"type": "status", "content": "CDP validation failed, attempting connection anyway"})
                 
-                # Configure browser_use
+                # Attempt several approaches to ensure we connect only to the BrowserView
                 try:
+                    # Extract domain from initial URL to restrict navigation
+                    parsed_url = urlparse(initial_url)
+                    allowed_domain = parsed_url.netloc
+                    if allowed_domain:
+                        logger.info(f"Restricting navigation to domain: {allowed_domain}")
+                    
+                    # Create a BrowserContext config that restricts to current domain
+                    from browser_use.browser.context import BrowserContextConfig
+                    context_config = BrowserContextConfig(
+                        # This ensures the agent can only interact with the intended website
+                        allowed_domains=[allowed_domain] if allowed_domain else None,
+                        # Wait longer for network to settle to ensure complete page loading
+                        wait_for_network_idle_page_load_time=3.0,
+                        # Don't auto-expand viewport beyond what's visible
+                        viewport_expansion=0 
+                    )
+                    
+                    # Configure browser_use with target ID if available
+                    extra_args = []
+                    if target_id:
+                        extra_args.append(f"--target={target_id}")
+                    
                     config = BrowserConfig(
                         cdp_url=cdp_url,
                         headless=False,
-                        disable_security=True
+                        disable_security=True,
+                        extra_chromium_args=extra_args,
+                        new_context_config=context_config  # Apply the context config
                     )
+                    
+                    self._write_output({"type": "status", "content": "Connecting with domain restriction..."})
                     self.browser = Browser(config=config)
-                    logger.info("Connected to browser via CDP")
+                    logger.info("Connected to browser via CDP with domain restriction")
                 except Exception as browser_error:
-                    logger.error(f"Failed to connect via CDP: {str(browser_error)}")
+                    logger.error(f"Failed to connect via CDP with domain restriction: {str(browser_error)}")
                     self._write_output({"type": "error", "error": f"CDP connection failed: {str(browser_error)}"})
                     
-                    # Fallback to launching a new browser
-                    logger.info("Falling back to launching a new browser instance")
-                    self._write_output({"type": "status", "content": "Falling back to launching a new browser"})
-                    config = BrowserConfig(headless=False)
-                    self.browser = Browser(config=config)
+                    # Try one more time with a simpler approach
+                    try:
+                        logger.info("Trying fallback connection approach")
+                        self._write_output({"type": "status", "content": "Trying fallback connection..."})
+                        
+                        config = BrowserConfig(
+                            cdp_url=cdp_url,
+                            headless=False,
+                            disable_security=True
+                        )
+                        self.browser = Browser(config=config)
+                        logger.info("Connected to browser via fallback CDP method")
+                    except Exception as fallback_error:
+                        # Fallback to launching a new browser
+                        logger.error(f"Failed fallback CDP connection: {str(fallback_error)}")
+                        logger.info("Falling back to launching a new browser instance")
+                        self._write_output({"type": "status", "content": "Launching a new browser as last resort"})
+                        config = BrowserConfig(headless=False)
+                        self.browser = Browser(config=config)
             else:
                 # Fallback to launching a new browser if no CDP URL
                 logger.info("No CDP URL provided, launching new browser")
@@ -105,19 +151,19 @@ class BrowserAgent:
             try:
                 self.agent = Agent(
                     browser=self.browser,
-                    task="Browse the web and interact with pages",
-                    llm=ChatGoogleGenerativeAI(model="gemini-1.5-flash"),
+                    task="",
+                    llm=ChatGoogleGenerativeAI(model="gemini-2.0-flash"),
                     use_vision=True,
                     max_failures=3,
                     retry_delay=5
                 )
             except Exception as model_error:
                 # Fallback to an alternate model if needed
-                logger.warning(f"Failed to use gemini-1.5-flash: {model_error}. Trying alternative model.")
+                logger.warning(f"Failed to use gemini-2.0-flash: {model_error}. Trying alternative model.")
                 self.agent = Agent(
                     browser=self.browser,
-                    task="Browse the web and interact with pages",
-                    llm=ChatGoogleGenerativeAI(model="gemini-1.0-pro"),
+                    task="",
+                    llm=ChatGoogleGenerativeAI(model="gemini-2.0-flash"),
                     use_vision=True,
                     max_failures=3,
                     retry_delay=5

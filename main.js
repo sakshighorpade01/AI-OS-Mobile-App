@@ -2,7 +2,8 @@ const electron = require('electron');
 const { app, BrowserWindow, ipcMain, BrowserView } = electron;
 const path = require('path');
 const PythonBridge = require('./python-bridge');
-const { spawn } = require('child_process'); // Add spawn for launching browser agent
+const { spawn } = require('child_process');
+const http = require('http');  
 
 // Enable Chrome DevTools Protocol for all browser instances at startup
 // This must be called before app.whenReady()
@@ -495,7 +496,6 @@ app.on('before-quit', (event) => {
 // Function to get CDP URL from a BrowserView
 async function getWebViewCDPUrl(browserView) {
     try {
-        // First, ensure Chrome DevTools Protocol debugging is enabled
         // Check if debugger is already attached
         if (!browserView.webContents.debugger.isAttached()) {
             try {
@@ -508,55 +508,130 @@ async function getWebViewCDPUrl(browserView) {
             }
         }
         
+        // Set a unique title to help identify the target
+        await browserView.webContents.executeJavaScript(`
+            document.title = "AI-OS BrowseAI - " + document.title;
+        `).catch(err => {
+            console.error('Failed to update title:', err);
+            // Continue anyway, it's just a helper
+        });
+        
+        // Focus the BrowserView to make it the active target
+        browserView.webContents.focus();
+        
+        // Get the current URL to help identify the target
+        const currentUrl = browserView.webContents.getURL();
+        console.log('Current BrowserView URL:', currentUrl);
+        
         // Get the internal process ID that Chromium uses
         const pid = browserView.webContents.getOSProcessId();
         console.log('Browser process ID:', pid);
         
-        // Use a more direct approach: port discovery through the remote-debugging-port
-        // that Electron uses internally for its chromium process
-        const { execSync } = require('child_process');
-        let debuggingPort;
+        // First determine the debugging port - default is 9222 from app.commandLine.appendSwitch
+        let debuggingPort = 9222;
         
-        if (process.platform === 'win32') {
-            // On Windows, use netstat to find the port that Chrome is listening on
-            const output = execSync('netstat -ano | findstr /r "LISTENING.*chrome"').toString();
-            const lines = output.split('\n').filter(line => line.includes('LISTENING'));
-            console.log('Candidate debugging ports:', lines);
-            
-            // Extract port numbers (usually 9222 or similar)
-            const portMatches = lines.map(line => line.match(/127\.0\.0\.1:(\d+)/)).filter(Boolean);
-            if (portMatches.length > 0) {
-                // Use the first port found, typically 9222 for Chrome's remote debugging
-                debuggingPort = portMatches[0][1];
-                console.log('Found debugging port:', debuggingPort);
-            }
-        } else {
-            // On macOS/Linux use lsof
-            try {
-                const output = execSync(`lsof -i -P | grep chrome | grep LISTEN`).toString();
-                const portMatch = output.match(/:(\d+) \(LISTEN\)/);
-                if (portMatch && portMatch[1]) {
-                    debuggingPort = portMatch[1];
+        // Function to get the list of targets with some error handling and retry
+        const getTargetsList = async (maxRetries = 3) => {
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    return new Promise((resolve, reject) => {
+                        const targetUrl = `http://localhost:${debuggingPort}/json/list`;
+                        console.log(`Fetching CDP targets from ${targetUrl} (attempt ${attempt + 1}/${maxRetries})`);
+                        
+                        http.get(targetUrl, (res) => {
+                            let data = '';
+                            
+                            res.on('data', (chunk) => {
+                                data += chunk;
+                            });
+                            
+                            res.on('end', () => {
+                                try {
+                                    const targets = JSON.parse(data);
+                                    resolve(targets);
+                                } catch (e) {
+                                    reject(new Error(`Failed to parse targets: ${e.message}`));
+                                }
+                            });
+                        }).on('error', (err) => {
+                            reject(new Error(`Failed to get targets: ${err.message}`));
+                        });
+                    });
+                } catch (error) {
+                    console.error(`Error getting CDP targets (attempt ${attempt + 1})`, error);
+                    if (attempt === maxRetries - 1) throw error;
+                    await new Promise(resolve => setTimeout(resolve, 1000));
                 }
-            } catch (err) {
-                console.error('Error finding debug port via lsof:', err);
             }
+        };
+        
+        // Get the list of targets with retry
+        const targets = await getTargetsList();
+        
+        // Log all available targets for debugging
+        console.log('Available CDP targets:', targets.map(t => ({ 
+            type: t.type, 
+            url: t.url, 
+            title: t.title,
+            id: t.id
+        })));
+        
+        // Try to find the BrowserView's target
+        // First look for our unique title prefix
+        let target = targets.find(t => 
+            t.type === 'page' && 
+            t.title && 
+            t.title.startsWith('AI-OS BrowseAI -')
+        );
+        
+        // If not found by title, try to match by URL
+        if (!target) {
+            target = targets.find(t => t.url === currentUrl);
         }
         
-        // If we found a debugging port
-        if (debuggingPort) {
-            // Construct the CDP URL
+        // If still no exact match, look for a page target that's not the main app window
+        if (!target) {
+            // Look for the most likely one - a page that doesn't have 'Electron' in the title
+            // and doesn't contain our index.html
+            target = targets.find(t => 
+                t.type === 'page' && 
+                t.url !== 'chrome://inspect/#devices' && 
+                !t.url.includes('index.html') &&
+                t.title && 
+                !t.title.includes('Electron')
+            );
+        }
+        
+        // If still no target, use any page target
+        if (!target) {
+            target = targets.find(t => t.type === 'page');
+        }
+        
+        if (target) {
+            console.log('Found specific target for BrowserView:', {
+                type: target.type,
+                url: target.url,
+                title: target.title,
+                id: target.id
+            });
+            
+            // We'll now pass the regular CDP URL rather than the WebSocket URL
+            // Browser Use doesn't seem to handle the WebSocket URL consistently
             const cdpUrl = `http://localhost:${debuggingPort}`;
-            console.log('Using CDP URL:', cdpUrl);
+            console.log('Using CDP URL with target ID:', cdpUrl, 'Target ID:', target.id);
+            
+            // Encode the target ID in the environment variable
+            process.env.TARGET_ID = target.id;
+            
             return cdpUrl;
         }
         
-        // Fallback to default port if we couldn't determine it
-        console.log('Using fallback CDP URL with default port 9222');
-        return 'http://localhost:9222';
+        // Fallback - use a CDP URL with the correct port
+        console.log('Could not find specific target - using default CDP URL with detected port');
+        return `http://localhost:${debuggingPort}`;
     } catch (error) {
         console.error('Error getting CDP URL:', error);
-        // Fallback to a default port as last resort
+        // Fallback to default port as last resort
         return 'http://localhost:9222';
     }
 }
@@ -591,13 +666,22 @@ ipcMain.on('initialize-browser-agent', async (event) => {
         
         // Get CDP debugging URL with retry logic
         let debuggingUrl = null;
+        let targetId = null;
         let retries = 3;
         
         while (retries > 0 && !debuggingUrl) {
             try {
                 debuggingUrl = await getWebViewCDPUrl(browseAiWebView);
+                // Target ID will be set in process.env.TARGET_ID by getWebViewCDPUrl
+                targetId = process.env.TARGET_ID;
+                
                 if (debuggingUrl) {
                     console.log('Successfully obtained CDP URL:', debuggingUrl);
+                    if (targetId) {
+                        console.log('Using target ID:', targetId);
+                    } else {
+                        console.warn('No target ID found, may connect to main application');
+                    }
                     break;
                 }
             } catch (error) {
@@ -615,14 +699,35 @@ ipcMain.on('initialize-browser-agent', async (event) => {
             throw new Error('Could not get CDP URL after multiple attempts');
         }
         
-        // Start browser agent process with CDP URL
+        // Create environment object with both CDP_URL and TARGET_ID
+        const env = { 
+            ...process.env, 
+            CDP_URL: debuggingUrl
+        };
+        
+        // Add TARGET_ID if available
+        if (targetId) {
+            env.TARGET_ID = targetId;
+        }
+        
+        // Add the current URL to help with domain restriction
+        const currentUrl = browseAiWebView.webContents.getURL();
+        if (currentUrl) {
+            console.log('Setting initial URL for browser agent:', currentUrl);
+            env.INITIAL_URL = currentUrl;
+        } else {
+            console.log('No URL available, using default');
+            env.INITIAL_URL = 'https://www.google.com';
+        }
+        
+        // Start browser agent process with CDP URL and target ID
         browserAgentProcess = spawn('python', ['python-backend/browser_agent.py'], {
-            env: { ...process.env, CDP_URL: debuggingUrl },
+            env: env,
             // Ensure we use the 'pipe' option for stdin/stdout/stderr
             stdio: ['pipe', 'pipe', 'pipe']
         });
         
-        console.log('Browser agent process started with CDP URL:', debuggingUrl);
+        console.log('Browser agent process started with CDP URL:', debuggingUrl, 'Target ID:', targetId || 'none');
         
         // Initialize buffer to handle incomplete lines in stdout
         let stdoutBuffer = '';

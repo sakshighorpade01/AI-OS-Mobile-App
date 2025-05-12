@@ -1,14 +1,15 @@
 # AI-OS: An AI-Powered Desktop Assistant
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://your-build-system-url)  <!-- Replace with your actual build status badge -->
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://your-build-system-url) <!-- Replace with your actual build status badge -->
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) <!-- Add a LICENSE file if you haven't -->
-![AI-OS Interface](home_dark.png)[](home_light.png)  <!-- Use a descriptive image; consider a GIF demonstrating key features -->
+![AI-OS Interface](home_dark.png) <!-- Consider adding both light/dark mode screenshots or a GIF -->
 
-AI-OS is a powerful, extensible desktop application built with Electron.js and Python, designed to be an intelligent assistant that seamlessly integrates with your workflow.  It leverages multiple Large Language Models (LLMs) to perform a variety of tasks, incorporating natural language processing, web browsing, local file access, code execution, and more.
+AI-OS is a powerful, extensible desktop application built with Electron.js and Python, designed to be an intelligent assistant that seamlessly integrates with your workflow. It leverages multiple Large Language Models (LLMs) and specialized agents to perform a variety of tasks, incorporating natural language processing, web browsing (both passive viewing and active agent control), local file access, code execution, context management, and more.
 
 ## Table of Contents
 
 *   [Features](#features)
+*   [Architecture](#architecture)
 *   [Prerequisites](#prerequisites)
 *   [Installation](#installation)
 *   [Usage](#usage)
@@ -17,10 +18,11 @@ AI-OS is a powerful, extensible desktop application built with Electron.js and P
     *   [Tools and Capabilities](#tools-and-capabilities)
     *   [Context Management](#context-management)
     *   [File Attachments](#file-attachments)
-    *   [Web View](#web-view)
+    *   [In-App Web View](#in-app-web-view)
+    *   [Browse AI](#browse-ai)
     *   [To-Do List](#to-do-list)
     *   [AIOS Settings](#aios-settings)
-*   [Architecture](#architecture)
+*   [Key Components](#key-components)
 *   [Dependencies](#dependencies)
 *   [Contributing](#contributing)
 *   [Troubleshooting](#troubleshooting)
@@ -29,352 +31,256 @@ AI-OS is a powerful, extensible desktop application built with Electron.js and P
 
 ## Features
 
-*   **Conversational AI:** Interact with the assistant using natural language through a chat interface.
-*   **Multiple LLM Agents:**
-    *   **AI-OS (Main Agent):**  Handles core interactions, manages tools, and delegates tasks.  Powered by Gemini (default) or Groq.
-    *   **DeepSearch:**  Provides in-depth research capabilities, combining knowledge base search, web search (DuckDuckGo), and tool/assistant delegation.  Powered by Gemini.
-    *   **Web Crawler:** Extracts and summarizes information from provided URLs. Powered by Gemini.
-    *   **Investment Assistant:** Generates investment reports for given stock symbols using YFinanceTools. Powered by Gemini.
-    *   **Python Assistant:**  Writes and executes Python code, with support for installing pip packages. Powered by Groq.
-    *  **BrowserAgent**: AI agent built to perform tasks on Browser.
+*   **Conversational AI:** Interact with the assistant using natural language through a modern chat interface (`chat.js`, `chat.html`, `chat.css`).
+*   **Multiple AI Agents:**
+    *   **AI-OS (Main Agent):** Handles core interactions, manages tools, and delegates tasks. Powered by Gemini or Groq (`assistant.py`).
+    *   **DeepSearch:** Provides in-depth research capabilities, combining knowledge base search, web search (DuckDuckGo), and tool/assistant delegation. Powered by Gemini (`deepsearch.py`).
+    *   **BrowserAgent:** An AI agent built to perform tasks on web pages within a dedicated browser view, controlled via CDP (`browser_agent.py`, `browser_use` library).
+    *   **Web Crawler:** Extracts and summarizes information from provided URLs (`assistant.py`, `Crawl4aiTools`).
+    *   **Investment Assistant:** Generates investment reports for given stock symbols using YFinanceTools (`assistant.py`).
+    *   **Python Assistant:** Writes and executes Python code, with support for installing pip packages (`assistant.py`, `PythonTools`).
 *   **Tool Integration:**
     *   **Calculator:** Performs mathematical calculations.
-    *   **DuckDuckGo Search:**  Retrieves information from the web.
+    *   **DuckDuckGo Search:** Retrieves information from the web.
     *   **YFinanceTools:** Accesses financial data (stock prices, company info, news, analyst recommendations).
-    *   **Shell Tools:** Executes shell commands (for file system and system operations).
+    *   **Shell Tools:** Executes shell commands for file system and system operations.
     *   **Crawl4aiTools:** Used by the Web Crawler for web content extraction.
     *   **Python Tools:** Executes Python code.
 *   **Context Management:**
-    *   Load and utilize previous chat sessions as context for ongoing conversations.
+    *   Load and utilize previous chat sessions as context (`context-handler.js`).
     *   Select and combine multiple sessions to create a richer context.
+    *   View selected context (sessions and files) in a unified sidebar (`chat.js` - `UnifiedPreviewHandler`).
     *   Automatic synchronization of chat sessions using `context_manager.py`.
 *   **File Attachments:**
-    *   Attach various file types (text, images, PDFs, documents, audio, video).
+    *   Attach various file types (text, images, PDFs, documents, audio, video) (`add-files.js`).
     *   Automatic text extraction from PDFs (using PDF.js).
     *   OCR (Optical Character Recognition) for images (using Tesseract.js).
-    *   Placeholder implementations for document, audio, and video transcription (suggesting integration with external services).
-*   **Web View:** Open and interact with web pages within a dedicated, resizable, and draggable panel inside the application.
-*   **To-Do List:** Manage tasks directly within the application, with features for descriptions, deadlines, priorities, and tags.
-*   **User Context:** Customize AI-OS behavior with user preferences and settings (name, location, preferred language, working hours, API keys, etc.).
+    *   Preview attached files and extracted text in the unified context viewer.
+    *   Placeholder implementations for document, audio, and video transcription.
+*   **In-App Web View:** Open and interact with web pages clicked within chat messages in a dedicated, resizable, and draggable panel (`main.js`, `renderer.js`).
+*   **Browse AI Feature:** A dedicated, controllable browser view managed by the `BrowserAgent` for performing complex web tasks (`main.js`, `chat.js`, `browser_agent.py`).
+*   **To-Do List:** Manage tasks directly within the application, with features for descriptions, priorities, deadlines, and tags (`to-do-list.js`, `to-do-list.html`, `to-do-list.css`).
+*   **User Context:** Customize AI-OS behavior with user preferences and system access settings (`to-do-list.js` - context modal).
+*   **AIOS Settings:** Manage profile information, account actions (logout, delete), view application info, and submit support requests (`aios.js`, `aios.html`, `aios.css`).
 *   **Long-Term Memory (Optional):**
     *   Enable persistent memory using an SQLite database (`agent_memory.db`).
     *   Includes memory classification and summarization (using Groq).
     *   Searchable knowledge base (`search_knowledge_base` tool).
-*   **Streamed Responses:**  See responses generated in real-time, providing a more interactive experience.
+*   **Streamed Responses:** See responses generated in real-time.
 *   **Code and Diagram Viewers:**
-    *   View code snippets with syntax highlighting (using highlight.js).
+    *   View code snippets with syntax highlighting (using highlight.js) (`artifact-handler.js`, `artifact-ui.css`).
     *   Render Mermaid diagrams.
     *   Copy code/diagrams to clipboard.
-    *   Download code/diagrams as files.
-*   **Dark Mode:**  A visually appealing dark theme is enabled by default (toggleable).
-*   **Error Handling:**  Robust error handling and reconnection logic to maintain a stable user experience.
-*   **Window Controls:** Minimize, maximize/restore, and close the application window.
-*  **Tasks Integration:** Access and manage local context files (`user_context.txt` and `tasklist.txt`) for task-oriented interactions.
+    *   Download code/diagrams as files (using Electron IPC for save dialog).
+*   **Dark Mode:** A visually appealing dark theme is enabled by default (toggleable via window controls).
+*   **Error Handling & Reconnection:** Robust error handling for the Python backend connection (`python-bridge.js`).
+*   **Window Controls:** Standard minimize, maximize/restore, and close controls.
 
+## Architecture
+
+AI-OS utilizes a client-server architecture:
+
+*   **Frontend (Electron.js):** Built with HTML, CSS, and JavaScript. Provides the user interface, manages application windows and views (including BrowserViews for Web View and Browse AI), handles user input, displays formatted responses (Markdown, code, diagrams), and communicates with the backend.
+*   **Backend (Python):** A Flask-SocketIO server (`app.py`) manages agent sessions (`assistant.py`, `deepsearch.py`), handles LLM interactions (using `phi-agent`, Gemini, Groq), executes tools, and manages optional memory. A separate `browser_agent.py` handles direct browser control via CDP.
+*   **Communication:** Real-time, bidirectional communication between the frontend and backend is handled via Socket.IO, managed by `python-bridge.js` in the Electron main process.
+*   **Browser Control:** The Browse AI feature uses Electron's `BrowserView` and connects a dedicated Python agent (`browser_agent.py`) to it via the Chrome DevTools Protocol (CDP) for advanced web automation.
 
 ## Prerequisites
 
-*   **Python 3.7+:**  The backend server and agents are written in Python.
+*   **Python 3.7+:** Required for the backend server and agents.
 *   **Node.js and npm:** Required for the Electron.js frontend and JavaScript dependencies.
-*   **pip:** Python's package installer, used to install backend dependencies.
+*   **pip:** Python's package installer.
 
 ## Installation
 
 1.  **Clone the repository:**
-
     ```bash
     git clone <your_repository_url>
     cd <repository_name>
     ```
 
 2.  **Install Python dependencies:**
-
-    ```bash
-    cd python-backend
-    pip install -r requirements.txt
-    ```
     It's highly recommended to use a virtual environment:
     ```bash
-    python3 -m venv venv
-    source venv/bin/activate  # On Linux/macOS
-    venv\Scripts\activate  # On Windows
-    pip install -r requirements.txt
+    # Create and activate virtual environment (example for Linux/macOS)
+    python3 -m venv aios_env
+    source aios_env/bin/activate
+    # On Windows: aios_env\Scripts\activate
+
+    # Install dependencies
+    pip install -r requirements.txt # Ensure requirements.txt is in the root or adjust path
+    # Or if requirements are in python-backend:
+    # pip install -r python-backend/requirements.txt
     ```
 
 3.  **Install Node.js dependencies:**
-
     ```bash
-    cd ..  # Navigate back to the project root
     npm install
     ```
 
-4. **Create necessary directories:**
-
-    mkdir tmp
-    mkdir tmp/agent_sessions_json
-    mkdir context
-
-    These directories are used for storing temporary data, agent session data, and extracted conversation data, respectively.
-
-    ## Usage
-
-    ### Starting the Application
-
+4.  **Create necessary directories (if they don't exist):**
+    The application might require specific directories at runtime. Based on the code, ensure the following exist in the project root:
     ```bash
-    npm start
+    mkdir -p tmp/agent_sessions_json
+    mkdir -p context
+    mkdir -p userData # Used by aios.js
+    ```
+    *(Adjust paths based on actual implementation if needed)*
 
-This command launches the Electron application. The Python backend server should start automatically. If there are issues with the Python server starting, see the Troubleshooting section.
+## Usage
 
-## Chat Interface
-Type your message in the input field at the bottom and press Enter or click the "Send" button.
+### Starting the Application
 
-**New Chat:** Click the "+" button to start a new conversation. This clears the current chat history and resets the agent.
+```bash
+npm start
+```
 
-**Minimize Chat:** Click the minimize button in the chat window header to hide the chat interface.
+This command launches the Electron application. The Python backend server (`app.py`) should start automatically, managed by `python-bridge.js`.
 
-**Tools and Capabilities**
-**Tools Menu:** Click the wrench icon to access the tools menu.
+### Chat Interface
 
-**AI-OS Checkbox:** Enables or disables the core set of tools (calculator, DuckDuckGo search, shell tools, etc.). When unchecked, the AI-OS agent will behave in a more limited, "vanilla" mode.
+*   **Send Messages:** Type your message in the input field at the bottom and press Enter or click the send button.
+*   **New Chat:** Click the "+" button to start a new conversation, clearing history and resetting the agent state.
+*   **Minimize Chat:** Click the minimize button ("-") in the chat window header.
 
-**DeepSearch Checkbox:** Enables the DeepSearch agent for comprehensive research. When enabled, other tools and agents are typically disabled.
+### Tools and Capabilities
 
-**Browse AI Checkbox:** Enables the Browse AI agent for accessing specific web pages.
+*   **Tools Menu (Wrench Icon):**
+    *   **AI-OS Checkbox:** Toggles the main set of tools (calculator, search, shell, etc.).
+    *   **DeepSearch Checkbox:** Enables the specialized DeepSearch agent for research tasks. Disables AI-OS tools when active.
+    *   **Browse AI Checkbox:** Enables the `BrowserAgent` and opens the controllable browser view. Disables other tools when active.
+*   **Memory (Brain Icon):** Toggles the use of long-term memory (requires `use_memory=True` in agent configuration).
+*   **Context (Network Icon):** Opens the context management window.
+*   **Tasks (List Icon):** Toggles the inclusion of `user_context.txt` and `tasklist.txt` in the agent's context.
 
-**Memory Checkbox:** Toggles the use of long-term memory (if enabled in your configuration).
+### Context Management
 
-**Tasks Checkbox:** Enable the use of local context files.
+1.  Click the "Context" icon in the chat tools area to open the session list.
+2.  **Sync Sessions:** Click the sync button (refresh icon) to process recent agent interactions (`tmp/agent_sessions_json`) into loadable context files (`context/`).
+3.  **Select Sessions:** Check the boxes next to the sessions you want to use as context.
+4.  **Use Selected:** Click "Use Selected". The chosen sessions will provide context for the *next* message sent in a *new* chat session.
+5.  **Clear Selection:** Click "Clear" to deselect all sessions.
+6.  **View Details:** Click on a session item to see the conversation history within that session.
+7.  **View Selected Context:** Click the "Context" indicator above the chat input (visible when context is selected) or use the unified viewer sidebar to see the content of selected sessions and files.
 
-**Context Management**
-Click the "Context" icon (network icon) in the chat tools area. This opens the context window, showing a list of previous chat sessions.
+### File Attachments
 
-**Sync Sessions:** Click the "Sync" button in the context window to run context_manager.py. This script extracts conversation data from tmp/agent_sessions_json and creates individual JSON files for each session in the context folder. This step is crucial for making previous sessions available as context.
+1.  Click the "Attach" button (paperclip icon) in the input area.
+2.  Select one or more files. Supported types include text, PDF, images, etc. (see `add-files.js` for details).
+3.  Text content is automatically extracted where possible (plain text, PDF text, image OCR).
+4.  Attached files and their extracted text (if any) are sent with the *next* message.
+5.  View attached files and previews in the "Files" tab of the unified context viewer sidebar.
 
-**Select Sessions:** Check the boxes next to the sessions you want to include in the context.
+### In-App Web View
 
-**Use Selected:** Click the "Use Selected" button. The selected sessions will be used to provide context for subsequent messages.
+*   Clicking a URL within an assistant message automatically opens it in a draggable, resizable web view panel.
+*   Use the header to drag and the corners to resize.
+*   Click the "X" button in the header to close the panel.
 
-**Clear Selection:** Click "Clear" to remove the selected context.
+### Browse AI
 
-**View Session Details:** Click on the session item to view details.
+1.  Enable the "Browse AI" checkbox in the Tools menu. This opens a dedicated browser panel.
+2.  The `BrowserAgent` (Python) connects to this panel via CDP.
+3.  Interact with the chat interface. Messages sent while Browse AI is active are interpreted as tasks for the `BrowserAgent` (e.g., "Go to example.com and click the login button", "Summarize the main points on this page").
+4.  The agent performs actions in the browser panel, and results/summaries are sent back to the chat.
+5.  Use the browser controls (back, forward, refresh, URL bar) in the Browse AI panel header for manual navigation.
 
-**File Attachments**
-Click the "Attach" button (paperclip icon) in the input area.
+### To-Do List
 
-Select files using the file dialog. Multiple files can be selected. Supported file types include text files, images, PDFs, and more.
+1.  Click the "Tasks" icon (list icon) in the main taskbar to open the To-Do List window.
+2.  **Add Task:** Click the "+" button, fill in the details (name required, others optional) in the modal, and click "Add Task".
+3.  **Manage Tasks:** Check boxes to mark complete, click the trash icon to delete.
+4.  **User Context:** Click the user-cog icon to open the User Context modal. Fill in personal details, preferences, capabilities, goals, and system access settings. This data is saved to `user_context.txt` and can be used by the agent when the "Tasks" toggle is active.
 
-**View attached files:** The attached files will be listed in a dedicated file attachment pane.
+### AIOS Settings
 
-**Extracted Text:** Text content will be extracted from supported file types (text, PDF, and images) and sent to the LLM as additional context. You can view extracted text by clicking on the attached file.
+1.  Click the "AIOS" icon (atom icon) in the main taskbar.
+2.  Navigate through the tabs (Profile, Account, About, Support) to manage settings, view information, or submit feedback.
+3.  Profile changes are saved locally (`userData/profile.json`).
+4.  Support submissions are saved locally (`userData/feedback.json`).
 
-## Web View
-Clicking on a URL within a message from the assistant will automatically open the URL in a web view panel within the application.
+## Key Components
 
-**Web View Controls:**
-
-**Close:** Click the close button to close the web view.
-
-**Drag:** Drag the web view header to reposition the panel.
-
-**Resize:** Use the resize handles (corners) to adjust the panel's size.
-
-## To-Do List
-**Open the To-Do List:** Click the "Tasks" icon (list icon) in the taskbar.
-
-**Add a Task:** Click the "+" button in the To-Do List input area.
-
-**Enter Task Details:** Fill in the task name (required), description, priority, deadline, and tags.
-
-**Save Task:** Click "Add Task" to save the new task.
-
-**Mark as Complete/Incomplete:** Click the checkbox next to a task to toggle its completion status.
-
-**Delete Task:** Click the trash can icon to delete a task.
-
-**User Context:** Click the "Context" button to access a form where you can provide personal information, preferences, and system access settings.
-
-## AIOS Settings
-**Open the Settings:** Click the "AIOS" icon (atom icon) in the taskbar.
-
-**Profile:** Change Full Name, Nickname, and Occupation.
-
-**Account:** Displays Email and options to Log out or Delete Account.
-
-**About:** Displays version and description. Links to Privacy Policy, Terms of Service, and Documentation.
-
-**Support:** Submit feedback/issues.
-
-## Architecture
-**The application follows a client-server architecture:**
-
-## Frontend (Electron.js):
-
-Provides the user interface (chat, to-do list, settings, web view).
-
-Handles user input and displays responses.
-
-Communicates with the backend via Socket.IO.
-
-Uses renderer.js for UI management and chat.js for chat-specific logic.
-
-Uses aios.js for account settings.
-
-Uses to-do-list.js for to-do list functionalities.
-
-Uses message-formatter.js for handling and formatting messages.
-
-Uses context-handler.js for managing chat session context.
-
-Uses add-files.js to handle files.
-
-## Backend (Python):
-
-**app.py:** The main Flask-SocketIO server. Manages client connections, creates and manages AI agent sessions, and handles message routing.
-
-**assistant.py:** Defines the get_llm_os function, which creates and configures the main AI-OS agent, including its tools, team members, and memory.
-
-**deepsearch.py:** Defines the get_deepsearch function which creates and configures the DeepSearch agent.
-
-**context_manager.py:** A utility script that extracts conversation data from agent session files and saves each session to a separate JSON file for context management.
-
-**python-bridge.js:** A Node.js module that manages the Python process (starting, stopping, restarting) and facilitates communication between the Electron frontend and the Python backend via Socket.IO.
+*   **`main.js`:** Electron main process logic, window creation, IPC handling, BrowserView management.
+*   **`renderer.js`:** Frontend UI management, state handling (`StateManager`), module loading.
+*   **`python-bridge.js`:** Manages the Python backend process lifecycle and Socket.IO communication bridge.
+*   **`chat.js`:** Core chat UI logic, message sending/receiving, tool/context integration, Browse AI coordination.
+*   **`add-files.js`:** File attachment handling, text extraction (PDF, OCR).
+*   **`context-handler.js`:** Logic for loading, selecting, and viewing chat session context.
+*   **`artifact-handler.js`:** Displays code and Mermaid diagrams in a dedicated viewer.
+*   **`to-do-list.js`:** Functionality for the To-Do list and User Context management.
+*   **`aios.js`:** Logic for the AIOS settings window.
+*   **`python-backend/app.py`:** Flask-SocketIO server, session management, agent interaction entry point.
+*   **`python-backend/assistant.py`:** Defines the main AI-OS agent, tools, and team configuration.
+*   **`python-backend/deepsearch.py`:** Defines the DeepSearch agent configuration.
+*   **`python-backend/browser_agent.py`:** Agent for controlling the Browse AI browser view via CDP.
+*   **`python-backend/context_manager.py`:** Utility script to process raw agent session logs into usable context files.
 
 ## Dependencies
-**Frontend (Node.js):**
 
-**electron:** Framework for building cross-platform desktop applications with JavaScript, HTML, and CSS.
+### Frontend (Node.js / Electron)
 
-**socket.io-client:** Real-time communication library for bidirectional event-based communication.
+*   **Electron:** Core framework for desktop application.
+*   **socket.io-client:** Real-time communication with the backend.
+*   **highlight.js / prismjs:** Syntax highlighting for code blocks.
+*   **mermaid:** Rendering Mermaid diagrams.
+*   **marked:** Markdown parsing.
+*   **DOMPurify:** HTML sanitization.
+*   **pdf.js (mozilla):** PDF parsing and text extraction.
+*   **tesseract.js:** OCR for images.
 
-**highlight.js:** Syntax highlighting for code blocks.
+### Backend (Python)
 
-**mermaid:** Generation of diagrams and flowcharts from text in a similar manner to Markdown.
-
-**marked:** Markdown parser and compiler.
-
-**prismjs:** Lightweight, robust, and elegant syntax highlighting.
-
-**KaTeX:** Fast math typesetting library for the web.
-
-**dompurify:** DOM-only, super-fast, and robust HTML sanitization library.
-
-**turndown:** HTML to Markdown converter.
-
-**@mozilla/pdf.js:** Library to handle and extract pdf content.
-
-**tesseract.js:** Library to perform OCR.
-
-## Backend (Python):
-
-**Flask:** Micro web framework for building web applications.
-
-**Flask-SocketIO:** Socket.IO integration for Flask, enabling real-time communication.
-
-**python-dotenv:** Loads environment variables from a .env file.
-
-**eventlet:** Concurrent networking library. Crucially important for asynchronous I/O with Flask-SocketIO.
-
-**phi-agent:** (This appears to be a custom or local package. Make sure it's accessible to your Python environment.) This is the core AI agent library, providing the Agent, AgentMemory, Toolkit, and various tools.
-
-Other dependencies listed in python-backend/requirements.txt
+*   **Flask / Flask-SocketIO / eventlet:** Web server and real-time communication.
+*   **phi-agent:** Core AI agent library (likely custom or internal).
+*   **langchain-google-genai:** Google Gemini LLM integration.
+*   **groq:** Groq LLM integration.
+*   **browser-use:** Library for browser automation (used by `browser_agent.py`).
+*   **duckduckgo-search:** Tool for web search.
+*   **yfinance:** Tool for financial data.
+*   **python-dotenv:** Environment variable management.
+*   *(See `requirements.txt` for a full list)*
 
 ## Contributing
-Contributions are welcome! Please follow these steps:
 
-Fork the repository.
+Contributions are welcome! Please follow standard Git workflow practices:
 
-Create a new branch for your feature or bug fix: git checkout -b feature/your-feature-name
-
-Make your changes and commit them with clear messages: git commit -m "Add: Implemented awesome feature"
-
-Push your branch to your fork: git push origin feature/your-feature-name
-
-Create a pull request to the main branch of the original repository.
-
-Please ensure your code adheres to the project's coding style and includes appropriate tests.
+1.  Fork the repository.
+2.  Create a feature branch (`git checkout -b feature/AmazingFeature`).
+3.  Commit your changes (`git commit -m 'Add some AmazingFeature'`).
+4.  Push to the branch (`git push origin feature/AmazingFeature`).
+5.  Open a Pull Request.
 
 ## Troubleshooting
-Python server fails to start:
 
-Ensure all Python dependencies are installed correctly.
+*   **Python server fails to start:**
+    *   Ensure all Python dependencies (`requirements.txt`) are installed in the correct virtual environment.
+    *   Check console logs (`npm start` output) for specific Python errors.
+    *   Verify that port 8765 is not already in use.
+    *   Try running `python python-backend/app.py` directly to isolate backend issues.
+*   **Socket.IO connection issues:**
+    *   Confirm the Python server (`app.py`) is running.
+    *   Check for firewall issues blocking port 8765.
+    *   Look for "Connection error" messages in the UI or console. Use the "Retry Connection" button if it appears.
+*   **Browse AI issues:**
+    *   Ensure the Chrome DevTools Protocol port (9222) is accessible. Electron enables this via `remote-debugging-port`.
+    *   Check logs from `browser_agent.py` (stderr) for CDP connection errors or task execution problems.
+    *   If the agent seems unresponsive, try restarting Browse AI via the chat interface if a restart button appears after an error.
+*   **Context not loading:** Run the sync script (`python python-backend/context_manager.py`) to process session logs.
+*   **UI Glitches:** Use Electron's Developer Tools (Ctrl+Shift+I or Cmd+Option+I) to inspect elements and check the console for JavaScript errors.
 
-Check for errors in the console output (both Electron's main process and renderer process).
+## License
 
-Verify that port 8765 is not in use by another application.
-
-If you're seeing a "startup timeout" error, try increasing this.serverStartTimeout in python-bridge.js.
-
-## Socket.IO connection issues:
-
-Ensure the Python server is running and listening on the correct port (8765).
-
-Check for network connectivity problems.
-
-Examine console logs for connection errors.
-
-**"Module not found" errors (Python):** Double-check that you've activated your Python virtual environment and that all dependencies are installed.
-
-Chat doesn't respond: If the agent stops responding, check the console for any python errors, check if your selected context is valid and not corrupted.
-
-**UI Issues:** Use the developer tools (usually opened with Ctrl+Shift+I or Cmd+Option+I) to inspect elements and debug JavaScript code.
+Distributed under the MIT License. See `LICENSE` for more information. (Note: You need to add a LICENSE file).
 
 ## Roadmap
-This section outlines potential future enhancements and is based on features and improvements inferred from the code and existing functionalities:
 
-**Improved User Context Management:**
-
-UI enhancements for managing context (e.g., editing/deleting context files).
-
-More sophisticated context selection mechanisms (e.g., keyword search, automatic relevance ranking).
-
-## Enhanced Task Management:
-
-Recurring tasks.
-
-Subtasks.
-
-Integration with external calendar or task management systems.
-
-## Customizable Agents:
-
-Allow users to create and configure their own agents with specific tools, instructions, and models.
-
-A UI for managing agent configurations.
-
-## Plugin System:
-
-Enable the development and integration of third-party plugins to extend functionality.
-
-## Voice Input/Output:
-
-Integrate speech recognition and text-to-speech for voice interaction.
-
-## Improved Web View:
-
-Browser-like features (back/forward navigation, URL bar). This has been partially implemented, but could be significantly expanded.
-
-Content extraction and summarization directly from the web view.
-
-Knowledge Base Editor:
-
-A dedicated UI for managing and editing the agent's knowledge base.
-
-More Robust Error Handling:
-
-More specific error messages and guidance to the user.
-
-Automatic recovery from certain types of errors.
-
-User Authentication:
-
-Implement secure user authentication and account management.
-
-Cloud Sync:
-
-Synchronize tasks, settings, and context across multiple devices.
-
-Improved Logging:
-
-More detailed logging of backend events, LLM calls and responses to enable better troubleshooting and debugging.
-
-Testing: Add unit and integration tests to increase project stability.
+*   **Improved User Context Management:** UI for editing/deleting context files, keyword search within context.
+*   **Enhanced Task Management:** Subtasks, recurring tasks, potential calendar integration.
+*   **Agent Customization:** UI for users to define custom agents, tools, and prompts.
+*   **Plugin System:** Allow third-party extensions.
+*   **Voice Input/Output:** Integrate speech-to-text and text-to-speech.
+*   **Refined Browse AI:** More robust error handling, better state management, potentially visual interaction cues.
+*   **Knowledge Base Editor:** UI for managing the agent's long-term memory/knowledge base.
+*   **Testing:** Implement comprehensive unit and integration tests.
+*   **Cloud Sync:** Option to sync tasks, settings, and context.

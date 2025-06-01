@@ -185,11 +185,9 @@ class ArtifactHandler {
         if (!content) return;
 
         try {
-            // Use Electron's IPC to communicate with the main process
-            const { ipcRenderer } = require('electron');
-            
+            // Use the exposed ipcRenderer from preload.js
             // Request the main process to show a save dialog
-            const result = await ipcRenderer.invoke('show-save-dialog', {
+            const result = await window.electron.ipcRenderer.invoke('show-save-dialog', {
                 title: 'Save File',
                 defaultPath: suggestedName + extension,
                 filters: [{
@@ -198,24 +196,22 @@ class ArtifactHandler {
                 }]
             });
             
-            if (result.canceled) {
-                return; // User canceled the save dialog
-            }
+            if (result.canceled || !result.filePath) return;
             
-            // Send the content to be saved by the main process
-            const success = await ipcRenderer.invoke('save-file', {
+            // Save the file using the main process
+            const success = await window.electron.ipcRenderer.invoke('save-file', {
                 filePath: result.filePath,
                 content: content
             });
             
             if (success) {
-                this.showNotification('File saved successfully!', 'success');
+                this.showNotification('File saved successfully', 'success');
             } else {
                 this.showNotification('Failed to save file', 'error');
             }
-        } catch (err) {
-            console.error('Error saving file:', err);
-            this.showNotification('Failed to save file', 'error');
+        } catch (error) {
+            console.error('Error saving file:', error);
+            this.showNotification('Error: ' + error.message, 'error');
         }
     }
 

@@ -1,12 +1,35 @@
-const fs = require('fs');
-const path = require('path');
-const { spawn } = require('child_process');
+// ContextHandler module - Using electron APIs exposed through contextBridge
 
 class ContextHandler {
     constructor() {
         this.selectedContextSessions = null;
+        this.contextDir = null; // Will be set during initialization
         this.initializeElements();
         this.bindEvents();
+    }
+
+    async init() {
+        await this._initializePaths();
+    }
+
+    async _initializePaths() {
+        try {
+            // Get the app path from the main process
+            const appPath = await window.electron.ipcRenderer.invoke('get-app-path');
+            this.contextDir = window.electron.path.join(appPath, 'context');
+            
+            // Create the context directory if it doesn't exist
+            if (!window.electron.fs.existsSync(this.contextDir)) {
+                window.electron.fs.mkdirSync(this.contextDir, { recursive: true });
+            }
+        } catch (error) {
+            console.error('Failed to initialize paths:', error);
+            // Fallback to a relative path if the IPC call fails
+            this.contextDir = 'context';
+            if (!window.electron.fs.existsSync(this.contextDir)) {
+                window.electron.fs.mkdirSync(this.contextDir, { recursive: true });
+            }
+        }
     }
 
     initializeElements() {
@@ -74,8 +97,9 @@ class ContextHandler {
     
 
     bindEvents() {
-        this.elements.contextBtn.addEventListener('click', () => {
+        this.elements.contextBtn.addEventListener('click', async () => {
             this.elements.contextWindow.classList.remove('hidden');
+            await this._initializePaths(); // Ensure paths are initialized before loading
             this.loadSessions();
         });
 
@@ -92,40 +116,52 @@ class ContextHandler {
     }
 
     syncSessions() {
-        const pythonProcess = spawn('python', ['python-backend/context_manager.py']);
+        // Use the IPC approach instead of direct spawn
+        window.electron.ipcRenderer.send('run-context-sync');
         
-        pythonProcess.stdout.on('data', (data) => {
+        // Set up listeners for the process output
+        window.electron.ipcRenderer.on('context-sync-stdout', (data) => {
             console.log(`Sync stdout: ${data}`);
         });
         
-        pythonProcess.stderr.on('data', (data) => {
+        window.electron.ipcRenderer.on('context-sync-stderr', (data) => {
             console.error(`Sync stderr: ${data}`);
         });
         
-        pythonProcess.on('close', (code) => {
+        window.electron.ipcRenderer.on('context-sync-close', (code) => {
             console.log(`Sync process exited with code ${code}`);
             this.showNotification('Sessions synced successfully!', 'info', 3000);
             this.loadSessions();
+            
+            // Clean up listeners to avoid memory leaks
+            window.electron.ipcRenderer.removeAllListeners('context-sync-stdout');
+            window.electron.ipcRenderer.removeAllListeners('context-sync-stderr');
+            window.electron.ipcRenderer.removeAllListeners('context-sync-close');
         });
     }
 
     loadSessions() {
-        const contextPath = path.join(__dirname, 'context');
+        if (!this.contextDir) {
+            console.error('Context directory path not initialized');
+            this.elements.sessionsContainer.innerHTML = '<div class="session-item">No sessions directory found</div>';
+            return;
+        }
+
         this.elements.sessionsContainer.style.gridTemplateColumns = 'repeat(auto-fill, minmax(280px, 1fr))';
         this.elements.sessionsContainer.innerHTML = '';
 
         try {
-            if (!fs.existsSync(contextPath)) {
+            if (!window.electron.fs.existsSync(this.contextDir)) {
                 console.error('Context directory does not exist');
                 this.elements.sessionsContainer.innerHTML = '<div class="session-item">No sessions directory found</div>';
                 return;
             }
 
-            const files = fs.readdirSync(contextPath)
+            const files = window.electron.fs.readdirSync(this.contextDir)
                 .filter(file => file.endsWith('.json'))
                 .sort((a, b) => {
-                    return fs.statSync(path.join(contextPath, b)).mtime.getTime() - 
-                           fs.statSync(path.join(contextPath, a)).mtime.getTime();
+                    return window.electron.fs.statSync(window.electron.path.join(this.contextDir, b)).mtime.getTime() - 
+                           window.electron.fs.statSync(window.electron.path.join(this.contextDir, a)).mtime.getTime();
                 });
             
             if (files.length === 0) {
@@ -134,7 +170,7 @@ class ContextHandler {
             }
 
             this.addSelectionHeader();
-            this.renderSessionItems(files, contextPath);
+            this.renderSessionItems(files);
             this.initializeSelectionControls();
 
         } catch (err) {
@@ -156,11 +192,11 @@ class ContextHandler {
         this.elements.sessionsContainer.appendChild(selectionHeader);
     }
 
-    renderSessionItems(files, contextPath) {
+    renderSessionItems(files) {
         files.forEach(file => {
             try {
-                const filePath = path.join(contextPath, file);
-                const data = fs.readFileSync(filePath, 'utf8');
+                const filePath = window.electron.path.join(this.contextDir, file);
+                const data = window.electron.fs.readFileSync(filePath, 'utf8');
                 const session = JSON.parse(data);
                 
                 const sessionItem = this.createSessionItem(file, filePath, session);
@@ -181,7 +217,7 @@ class ContextHandler {
             .map(word => word.charAt(0).toUpperCase() + word.slice(1))
             .join(' ');
         
-        const creationDate = new Date(session.created_at || fs.statSync(filePath).mtime);
+        const creationDate = new Date(session.created_at || window.electron.fs.statSync(filePath).mtime);
         const formattedDate = creationDate.toLocaleDateString() + ' ' + 
                             creationDate.toLocaleTimeString();
         
@@ -245,15 +281,26 @@ class ContextHandler {
     }
 
     updateSelectionUI() {
+        try {
         const selectionActions = document.querySelector('.selection-actions');
+            if (!selectionActions) {
+                console.warn('Selection actions element not found');
+                return;
+            }
+            
         const selectedCount = document.querySelectorAll('.session-checkbox:checked').length;
         
         if (selectedCount > 0) {
             selectionActions.classList.remove('hidden');
-            selectionActions.querySelector('.selected-count').textContent = 
-                `${selectedCount} selected`;
+                const countElement = selectionActions.querySelector('.selected-count');
+                if (countElement) {
+                    countElement.textContent = `${selectedCount} selected`;
+                }
         } else {
             selectionActions.classList.add('hidden');
+            }
+        } catch (error) {
+            console.error('Error updating selection UI:', error);
         }
     }
 
@@ -263,7 +310,7 @@ class ContextHandler {
             const sessionItem = checkbox.closest('.session-item');
             const filePath = sessionItem.dataset.filepath;
             try {
-                const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                const data = JSON.parse(window.electron.fs.readFileSync(filePath, 'utf8'));
                 if (data && data.interactions) {
                     selectedSessions.push({
                         interactions: data.interactions.map(interaction => ({
@@ -282,25 +329,27 @@ class ContextHandler {
 
     showSessionDetails(filePath) {
         try {
-            const data = fs.readFileSync(filePath, 'utf8');
+            const data = window.electron.fs.readFileSync(filePath, 'utf8');
             const session = JSON.parse(data);
-            
-            this.elements.sessionsContainer.style.gridTemplateColumns = '1fr';
-            
-            const sessionName = path.basename(filePath, '.json')
+            const sessionName = window.electron.path.basename(filePath, '.json')
                 .split('_')
                 .map(word => word.charAt(0).toUpperCase() + word.slice(1))
                 .join(' ');
             
-            this.elements.sessionsContainer.innerHTML = this.getSessionDetailsHTML(sessionName, session);
-
-            document.getElementById('back-to-sessions').addEventListener('click', (e) => {
-                e.preventDefault();
-                this.loadSessions();
-            });
+            const detailsDialog = document.getElementById('session-details-dialog');
+            detailsDialog.innerHTML = this.getSessionDetailsHTML(sessionName, session);
             
-        } catch (err) {
-            console.error('Error showing session details:', err);
+            // Setup close button
+            const closeBtn = detailsDialog.querySelector('.close-details-btn');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => {
+                    detailsDialog.close();
+                });
+            }
+            
+            detailsDialog.showModal();
+        } catch (error) {
+            console.error('Error loading session details:', error);
             this.showSessionDetailsError();
         }
     }
@@ -362,16 +411,37 @@ class ContextHandler {
     }
 
     clearSelectedContext() {
-        document.querySelectorAll('.session-checkbox').forEach(checkbox => {
-            checkbox.checked = false;
+        try {
+            // Clear checked checkboxes
+            const checkboxes = document.querySelectorAll('.session-checkbox');
+            if (checkboxes) {
+                checkboxes.forEach(checkbox => {
+                    if (checkbox) checkbox.checked = false;
         });
-        document.querySelectorAll('.session-item').forEach(item => {
-            item.classList.remove('selected');
+            }
+            
+            // Remove selected class from items
+            const sessionItems = document.querySelectorAll('.session-item');
+            if (sessionItems) {
+                sessionItems.forEach(item => {
+                    if (item) item.classList.remove('selected');
         });
-        this.selectedContextSessions = null;
+            }
+            
+            // Clear the selected sessions array
+            this.selectedContextSessions = [];
+            
+            // Update UI
+            this.updateSelectionUI();
         this.updateContextIndicator();
-        this.updateSelectionUI();
+            
+            // Hide context viewer if it exists
+            if (typeof this.hideContextViewer === 'function') {
         this.hideContextViewer();
+            }
+        } catch (error) {
+            console.error('Error clearing selected context:', error);
+        }
     }
 
     updateContextIndicator() {

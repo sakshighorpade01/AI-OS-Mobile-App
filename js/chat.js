@@ -4,9 +4,10 @@ import { messageFormatter } from './message-formatter.js';
 import ContextHandler from './context-handler.js';
 import FileAttachmentHandler from './add-files.js';
 
-const fs = require('fs').promises;
-const path = require('path');
-const { ipcRenderer } = require('electron');
+// Use the exposed electron APIs instead of direct requires
+const fs = window.electron?.fs?.promises;
+const path = window.electron?.path;
+const ipcRenderer = window.electron?.ipcRenderer;
 
 let chatConfig = {
     memory: false,
@@ -47,7 +48,7 @@ const supportedFileTypes = {
  */
 function setupIpcListeners() {
     // Listen for socket connection status updates
-    ipcRenderer.on('socket-connection-status', (event, data) => {
+    ipcRenderer.on('socket-connection-status', (data) => {
         connectionStatus = data.connected;
         if (data.connected) {
             document.querySelectorAll('.connection-error').forEach(e => e.remove());
@@ -77,7 +78,7 @@ function setupIpcListeners() {
     });
 
     // Listen for chat responses from the Python backend
-    ipcRenderer.on('chat-response', (event, data) => {
+    ipcRenderer.on('chat-response', (data) => {
         try {
             if (!data) return;
 
@@ -122,21 +123,38 @@ function setupIpcListeners() {
     });
 
     // Listen for errors from the socket connection
-    ipcRenderer.on('socket-error', (event, error) => {
+    ipcRenderer.on('socket-error', (error) => {
         console.error('Socket error:', error);
+        
+        try {
+            // Add error message to the chat
         addMessage(error.message || 'An error occurred', false);
         showNotification(error.message || 'An error occurred. Starting new session.');
+            
+            // Safe DOM updates
+            if (document.getElementById('floating-input')) {
         document.getElementById('floating-input').disabled = false;
+            }
+            
+            if (document.getElementById('send-message')) {
         document.getElementById('send-message').disabled = false;
+            }
 
         if (error.reset) {
             sessionActive = false;
-            document.querySelector('.add-btn').click();
+                // Only try to add a new message if the button exists
+                const addBtn = document.querySelector('.add-btn');
+                if (addBtn) {
+                    addBtn.click();
+                }
+            }
+        } catch (e) {
+            console.error('Error handling socket error:', e);
         }
     });
 
     // Listen for status messages from the Python backend
-    ipcRenderer.on('socket-status', (event, data) => {
+    ipcRenderer.on('socket-status', (data) => {
         console.log('Socket status:', data);
     });
 

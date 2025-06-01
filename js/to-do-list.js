@@ -1,5 +1,4 @@
-const fs = require('fs');
-const path = require('path');
+// ToDoList module - Using electron APIs exposed through contextBridge
 
 class ToDoList {
     constructor() {
@@ -38,29 +37,49 @@ class ToDoList {
         };
         this.elements = {};
         this.dataPath = {
-            tasks: path.join(__dirname, 'tasklist.txt'),
-            userContext: path.join(__dirname, 'user_context.txt')
+            tasks: null,
+            userContext: null
         };
     }
 
-    init() {
+    async init() {
+        await this._initializePaths();
         this.cacheElements();
         this.setupEventListeners();
-        this.loadData();
+        await this.loadData();
         this.renderTasks();
     }
 
-    loadData() {
+    async _initializePaths() {
+        try {
+            // Get the app path from the main process
+            const appPath = await window.electron.ipcRenderer.invoke('get-app-path');
+            
+            this.dataPath = {
+                tasks: window.electron.path.join(appPath, 'tasklist.txt'),
+                userContext: window.electron.path.join(appPath, 'user_context.txt')
+            };
+        } catch (error) {
+            console.error('Failed to initialize paths:', error);
+            // Fallback to relative paths if the IPC call fails
+            this.dataPath = {
+                tasks: 'tasklist.txt',
+                userContext: 'user_context.txt'
+            };
+        }
+    }
+
+    async loadData() {
         try {
             // Load tasks
-            if (fs.existsSync(this.dataPath.tasks)) {
-                const tasksData = fs.readFileSync(this.dataPath.tasks, 'utf8');
+            if (window.electron.fs.existsSync(this.dataPath.tasks)) {
+                const tasksData = window.electron.fs.readFileSync(this.dataPath.tasks, 'utf8');
                 this.tasks = JSON.parse(tasksData || '[]');
             }
 
             // Load user context
-            if (fs.existsSync(this.dataPath.userContext)) {
-                const contextData = fs.readFileSync(this.dataPath.userContext, 'utf8');
+            if (window.electron.fs.existsSync(this.dataPath.userContext)) {
+                const contextData = window.electron.fs.readFileSync(this.dataPath.userContext, 'utf8');
                 this.userContext = JSON.parse(contextData || '{}');
             }
         } catch (error) {
@@ -72,14 +91,14 @@ class ToDoList {
     saveData() {
         try {
             // Save tasks
-            fs.writeFileSync(
+            window.electron.fs.writeFileSync(
                 this.dataPath.tasks, 
                 JSON.stringify(this.tasks, null, 2),
                 'utf8'
             );
 
             // Save user context
-            fs.writeFileSync(
+            window.electron.fs.writeFileSync(
                 this.dataPath.userContext,
                 JSON.stringify(this.userContext, null, 2),
                 'utf8'
@@ -91,7 +110,6 @@ class ToDoList {
             this.showToast('Error saving data', 'error');
         }
     }
-
 
     showToast(message, type = 'success') {
         const toast = document.createElement('div');

@@ -34,26 +34,6 @@ class FileAttachmentHandler {
         this.maxFileSize = maxFileSize || 10 * 1024 * 1024; // 10MB default
         this.attachedFiles = [];
         this.initialize();
-        this.loadDependencies();
-    }
-
-    async loadDependencies() {
-        try {
-            // Load PDF.js for PDF extraction
-            window.pdfjsLib = window.pdfjsLib || await import('https://mozilla.github.io/pdf.js/build/pdf.mjs');
-            window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://mozilla.github.io/pdf.js/build/pdf.worker.mjs';
-            
-            // Load Tesseract.js for OCR on images
-            if (!window.Tesseract) {
-                const tesseractScript = document.createElement('script');
-                tesseractScript.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-                document.head.appendChild(tesseractScript);
-                await new Promise(resolve => tesseractScript.onload = resolve);
-            }
-            console.log('Dependencies loaded successfully');
-        } catch (error) {
-            console.error('Error loading dependencies:', error);
-        }
     }
 
     initialize() {
@@ -105,80 +85,43 @@ class FileAttachmentHandler {
             }
 
             try {
-                // Processing status indicator
-                const processingStatus = document.createElement('div');
-                processingStatus.className = 'processing-status';
-                processingStatus.textContent = `Processing ${file.name}...`;
-                this.previewContent.appendChild(processingStatus);
-                
-                // Handle different file types
-                if (file.type.startsWith('text/') || 
-                    file.type === 'application/json') {
-                    const textContent = await this.readFileAsText(file);
-                    this.attachedFiles.push({
+                // Store file information with the path property
+                const fileObject = {
                         name: file.name,
-                        content: textContent,
-                        type: file.type
-                    });
-                } else if (file.type === 'application/pdf') {
-                    const dataUrl = await this.readFileAsDataURL(file);
-                    const extractedText = await this.extractTextFromPDF(dataUrl);
-                    this.attachedFiles.push({
-                        name: file.name,
-                        content: dataUrl,
-                        extractedText: extractedText,
                         type: file.type,
-                        isMedia: true,
-                        mediaType: 'pdf'
-                    });
-                } else if (file.type.includes('document')) {
-                    const textContent = await this.extractTextFromDoc(file);
-                    this.attachedFiles.push({
-                        name: file.name,
-                        content: await this.readFileAsDataURL(file),
-                        extractedText: textContent,
-                        type: file.type,
-                        isMedia: true,
-                        mediaType: 'document'
-                    });
-                } else if (file.type.startsWith('image/')) {
-                    const dataUrl = await this.readFileAsDataURL(file);
-                    const extractedText = await this.extractTextFromImage(dataUrl);
-                    this.attachedFiles.push({
-                        name: file.name,
-                        content: dataUrl,
-                        extractedText: extractedText,
-                        type: file.type,
-                        isMedia: true,
-                        mediaType: 'image'
-                    });
-                } else if (file.type.startsWith('audio/')) {
-                    const dataUrl = await this.readFileAsDataURL(file);
-                    const transcript = await this.transcribeAudio(file);
-                    this.attachedFiles.push({
-                        name: file.name,
-                        content: dataUrl,
-                        extractedText: transcript,
-                        type: file.type,
-                        isMedia: true,
-                        mediaType: 'audio'
-                    });
-                } else if (file.type.startsWith('video/')) {
-                    const dataUrl = await this.readFileAsDataURL(file);
-                    const transcript = await this.transcribeVideo(file);
-                    this.attachedFiles.push({
-                        name: file.name,
-                        content: dataUrl,
-                        extractedText: transcript,
-                        type: file.type,
-                        isMedia: true,
-                        mediaType: 'video'
-                    });
+                };
+
+                // In Electron, we can access the file's path directly from the File object
+                // This is not available in standard browsers
+                if (file.path) {
+                    fileObject.path = file.path;
+                    console.log(`File path: ${file.path} for ${file.name}`);
+                } else {
+                    console.warn(`No file path available for ${file.name} - multimodal processing may be limited`);
                 }
-                
-                // Remove processing indicator
-                processingStatus.remove();
-                
+
+                // Create a temporary URL for preview purposes only
+                if (file.type.startsWith('image/')) {
+                    fileObject.mediaType = 'image';
+                    fileObject.previewUrl = URL.createObjectURL(file);
+                } else if (file.type.startsWith('audio/')) {
+                    fileObject.mediaType = 'audio';
+                    fileObject.previewUrl = URL.createObjectURL(file);
+                } else if (file.type.startsWith('video/')) {
+                    fileObject.mediaType = 'video';
+                    fileObject.previewUrl = URL.createObjectURL(file);
+                } else if (file.type === 'application/pdf') {
+                    fileObject.mediaType = 'pdf';
+                    // Create preview URL for PDF files
+                    fileObject.previewUrl = URL.createObjectURL(file);
+                } else if (file.type.includes('document')) {
+                    fileObject.mediaType = 'document';
+                } else if (file.type.startsWith('text/') || file.type === 'application/json') {
+                    // For text files, we'll still show a preview
+                    fileObject.content = await this.readFileAsText(file);
+                }
+
+                this.attachedFiles.push(fileObject);
                 this.renderFilePreview();
                 this.toggleSidebar(true);
                 
@@ -187,98 +130,11 @@ class FileAttachmentHandler {
                     window.unifiedPreviewHandler.updateContextIndicator();
                 }
             } catch (error) {
-                console.error('Error reading file:', error);
-                alert(`Error reading file: ${file.name}`);
+                console.error('Error processing file:', error);
+                alert(`Error processing file: ${file.name}`);
             }
         }
         this.fileInput.value = '';
-    }
-
-    async extractTextFromPDF(dataUrl) {
-        try {
-            // Check if PDF.js is loaded
-            if (!window.pdfjsLib) {
-                console.warn('PDF.js not loaded, returning empty string');
-                return 'PDF text extraction not available';
-            }
-
-            // Load the PDF
-            const loadingTask = pdfjsLib.getDocument(dataUrl);
-            const pdf = await loadingTask.promise;
-            
-            // Get the total number of pages
-            const numPages = pdf.numPages;
-            let extractedText = '';
-            
-            // Extract text from each page
-            for (let i = 1; i <= numPages; i++) {
-                const page = await pdf.getPage(i);
-                const content = await page.getTextContent();
-                const pageText = content.items.map(item => item.str).join(' ');
-                extractedText += pageText + '\n';
-            }
-            
-            return extractedText.trim() || 'No text was extracted from this PDF';
-        } catch (error) {
-            console.error('Error extracting text from PDF:', error);
-            return 'Error extracting text from PDF';
-        }
-    }
-
-    async extractTextFromDoc(file) {
-        // For now, we'll use a placeholder - in a real implementation, 
-        // you would use a library like mammoth.js for DOCX files
-        return 'Document text extraction not implemented - please use a text extraction service or convert to PDF first.';
-    }
-
-    async extractTextFromImage(dataUrl) {
-        try {
-            // Check if Tesseract is loaded
-            if (!window.Tesseract) {
-                console.warn('Tesseract not loaded, returning empty string');
-                return 'Image text extraction not available';
-            }
-
-            // Create a progress indicator
-            const progressElement = document.createElement('div');
-            progressElement.className = 'ocr-progress';
-            progressElement.textContent = 'OCR: Starting...';
-            document.body.appendChild(progressElement);
-            
-            // Run OCR on the image
-            const worker = await Tesseract.createWorker('eng');
-            
-            // Listen for progress updates
-            worker.setProgressHandler((progress) => {
-                progressElement.textContent = `OCR: ${(progress.progress * 100).toFixed(0)}%`;
-            });
-            
-            // Process the image
-            const result = await worker.recognize(dataUrl);
-            const text = result.data.text;
-            
-            // Clean up
-            await worker.terminate();
-            progressElement.remove();
-            
-            return text.trim() || 'No text was found in this image';
-        } catch (error) {
-            console.error('Error extracting text from image:', error);
-            return 'Error extracting text from image';
-        }
-    }
-
-    async transcribeAudio(file) {
-        // This is a placeholder - in a real implementation you would:
-        // 1. Either use the Web Speech API (with limitations)
-        // 2. Or send the audio file to a server with a speech-to-text API
-        return 'Audio transcription requires a speech-to-text service. Consider using Google Cloud Speech-to-Text or a similar service.';
-    }
-
-    async transcribeVideo(file) {
-        // Similar placeholder - in a real implementation, you would
-        // extract the audio track from the video and then transcribe it
-        return 'Video transcription requires extracting audio and using a speech-to-text service.';
     }
 
     readFileAsText(file) {
@@ -287,15 +143,6 @@ class FileAttachmentHandler {
             reader.onload = (event) => resolve(event.target.result);
             reader.onerror = (error) => reject(error);
             reader.readAsText(file);
-        });
-    }
-
-    readFileAsDataURL(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (event) => resolve(event.target.result);
-            reader.onerror = (error) => reject(error);
-            reader.readAsDataURL(file);
         });
     }
 
@@ -372,41 +219,45 @@ class FileAttachmentHandler {
             const contentItem = document.createElement('div');
             contentItem.className = 'file-preview-content-item';
 
-            if (file.isMedia) {
-                if (file.mediaType === 'image') {
+            if (file.mediaType === 'image' && file.previewUrl) {
                     contentItem.innerHTML = `
-                        <img src="${file.content}" alt="${file.name}" class="media-preview">
-                        ${file.extractedText ? `<div class="extracted-text"><h4>Extracted Text:</h4><p>${file.extractedText}</p></div>` : ''}
+                    <img src="${file.previewUrl}" alt="${file.name}" class="media-preview">
+                    <p class="file-path-info">File path: ${file.path || "Path not available in browser"}</p>
                     `;
-                } else if (file.mediaType === 'audio') {
+            } else if (file.mediaType === 'audio' && file.previewUrl) {
                     contentItem.innerHTML = `
                         <audio controls class="media-preview">
-                            <source src="${file.content}" type="${file.type}">
+                        <source src="${file.previewUrl}" type="${file.type}">
                             Your browser does not support the audio element.
                         </audio>
-                        ${file.extractedText ? `<div class="extracted-text"><h4>Transcription:</h4><p>${file.extractedText}</p></div>` : ''}
+                    <p class="file-path-info">File path: ${file.path || "Path not available in browser"}</p>
                     `;
-                } else if (file.mediaType === 'video') {
+            } else if (file.mediaType === 'video' && file.previewUrl) {
                     contentItem.innerHTML = `
                         <video controls class="media-preview">
-                            <source src="${file.content}" type="${file.type}">
+                        <source src="${file.previewUrl}" type="${file.type}">
                             Your browser does not support the video element.
                         </video>
-                        ${file.extractedText ? `<div class="extracted-text"><h4>Transcription:</h4><p>${file.extractedText}</p></div>` : ''}
+                    <p class="file-path-info">File path: ${file.path || "Path not available in browser"}</p>
                     `;
-                } else if (file.mediaType === 'pdf') {
+            } else if (file.mediaType === 'pdf' && file.previewUrl) {
                     contentItem.innerHTML = `
-                        <div class="pdf-preview">PDF preview not available</div>
-                        ${file.extractedText ? `<div class="extracted-text"><h4>Extracted Text:</h4><p>${file.extractedText}</p></div>` : ''}
+                    <iframe src="${file.previewUrl}" class="pdf-preview"></iframe>
+                    <p class="file-path-info">File path: ${file.path || "Path not available in browser"}</p>
                     `;
                 } else if (file.mediaType === 'document') {
                     contentItem.innerHTML = `
                         <div class="doc-preview">Document preview not available</div>
-                        ${file.extractedText ? `<div class="extracted-text"><h4>Extracted Text:</h4><p>${file.extractedText}</p></div>` : ''}
+                    <p class="file-path-info">File path: ${file.path || "Path not available in browser"}</p>
                     `;
-                }
+            } else if (file.content) {
+                // For text files, display content
+                contentItem.innerHTML = `<pre>${file.content}</pre>`;
             } else {
-                contentItem.textContent = file.content;
+                // Fallback for other file types
+                contentItem.innerHTML = `
+                    <p class="file-path-info">File path: ${file.path || "Path not available in browser"}</p>
+                `;
             }
 
             fileItem.appendChild(contentItem);
@@ -447,6 +298,11 @@ class FileAttachmentHandler {
     }
 
     removeFile(index) {
+        // Release the object URL if it exists
+        if (this.attachedFiles[index].previewUrl) {
+            URL.revokeObjectURL(this.attachedFiles[index].previewUrl);
+        }
+        
         this.attachedFiles.splice(index, 1);
         this.renderFilePreview();
         
@@ -466,6 +322,13 @@ class FileAttachmentHandler {
     }
 
     clearAttachedFiles() {
+        // Release all object URLs
+        this.attachedFiles.forEach(file => {
+            if (file.previewUrl) {
+                URL.revokeObjectURL(file.previewUrl);
+            }
+        });
+        
         this.attachedFiles = [];
         this.renderFilePreview();
         this.toggleSidebar(false);

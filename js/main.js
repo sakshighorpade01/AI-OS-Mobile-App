@@ -21,7 +21,7 @@ function createWindow() {
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: true,
-            contextIsolation: false,
+            contextIsolation: true,
             enableRemoteModule: true,
             webSecurity: false
         },
@@ -32,27 +32,28 @@ function createWindow() {
     mainWindow.maximize();
     mainWindow.loadFile('index.html');
 
+    // Initialize the Python bridge to connect to the Docker container
     pythonBridge = new PythonBridge(mainWindow);
-    console.log('Starting Python bridge...');
+    console.log('Connecting to Python backend in Docker...');
     pythonBridge.start().catch(error => {
         console.error('Python bridge error:', error.message);
         // Notify the renderer process about the error
         mainWindow.webContents.on('did-finish-load', () => {
             mainWindow.webContents.send('socket-connection-status', { 
                 connected: false,
-                error: 'Failed to start Python server: ' + error.message
+                error: 'Failed to connect to Python backend: ' + error.message
             });
         });
         
-        // Try restarting after a delay
+        // Try reconnecting after a delay
         setTimeout(() => {
-            console.log('Attempting to restart Python bridge...');
+            console.log('Attempting to reconnect to Python backend...');
             if (pythonBridge) {
                 pythonBridge.stop();
             }
             pythonBridge = new PythonBridge(mainWindow);
             pythonBridge.start().catch(err => {
-                console.error('Python bridge restart failed:', err.message);
+                console.error('Python bridge reconnection failed:', err.message);
             });
         }, 10000);
     });
@@ -92,7 +93,7 @@ function createWindow() {
             console.error('Failed to restart Python bridge:', error);
             mainWindow.webContents.send('socket-connection-status', { 
                 connected: false,
-                error: 'Failed to restart Python server: ' + error.message
+                error: 'Failed to connect to Python backend: ' + error.message
             });
         });
     });
@@ -240,6 +241,52 @@ ipcMain.handle('save-file', async (event, { filePath, content }) => {
     console.error('Error saving file:', error);
     return false;
   }
+});
+
+// Path resolution IPC handlers
+ipcMain.handle('get-path', (event, pathName) => {
+    try {
+        return app.getPath(pathName);
+    } catch (error) {
+        console.error(`Error getting path for ${pathName}:`, error);
+        return null;
+    }
+});
+
+ipcMain.handle('get-app-path', () => {
+    return app.getAppPath();
+});
+
+ipcMain.handle('resolve-app-resource', (event, ...segments) => {
+    return path.join(app.getAppPath(), ...segments);
+});
+
+// Context handler syncSessions IPC handler - still uses local Python
+ipcMain.on('run-context-sync', (event) => {
+    try {
+        // Note: this still uses the local Python installation as context_manager.py
+        // handles local file operations that need to be done on the client side
+        const pythonProcess = spawn('python', ['python-backend/context_manager.py']);
+        
+        pythonProcess.stdout.on('data', (data) => {
+            console.log(`Sync stdout: ${data}`);
+            event.sender.send('context-sync-stdout', data.toString());
+        });
+        
+        pythonProcess.stderr.on('data', (data) => {
+            console.error(`Sync stderr: ${data}`);
+            event.sender.send('context-sync-stderr', data.toString());
+        });
+        
+        pythonProcess.on('close', (code) => {
+            console.log(`Sync process exited with code ${code}`);
+            event.sender.send('context-sync-close', code);
+        });
+    } catch (error) {
+        console.error('Error executing sync script:', error);
+        event.sender.send('context-sync-stderr', error.toString());
+        event.sender.send('context-sync-close', 1);
+    }
 });
 
 app.whenReady().then(createWindow);

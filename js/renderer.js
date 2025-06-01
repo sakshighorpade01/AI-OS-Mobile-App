@@ -72,9 +72,10 @@ class UIManager {
 
 
     setupWebViewEvents() {
-        const { ipcRenderer } = require('electron');
+        // Use the exposed ipcRenderer from preload.js instead of requiring electron directly
+        const ipcRenderer = window.electron.ipcRenderer;
 
-        ipcRenderer.on('webview-created', (event, bounds) => {
+        ipcRenderer.on('webview-created', (bounds) => {
             this.createWebViewContainer(bounds);
         });
 
@@ -138,7 +139,7 @@ class UIManager {
             e.preventDefault();
             e.stopPropagation(); // Prevent drag event from firing
             console.log('Close button clicked');
-            require('electron').ipcRenderer.send('close-webview');
+            window.electron.ipcRenderer.send('close-webview');
         }, true); // Use capture
 
         this.elements.webViewContainer.appendChild(header);
@@ -202,7 +203,7 @@ class UIManager {
 
             console.log('Dragging to:', container.style.left, container.style.top);
             
-            require('electron').ipcRenderer.send('drag-webview', {
+            window.electron.ipcRenderer.send('drag-webview', {
                 x: parseInt(container.style.left),
                 y: parseInt(container.style.top)
             });
@@ -275,7 +276,7 @@ class UIManager {
 
             console.log('Resizing to:', newBounds);
             
-            require('electron').ipcRenderer.send('resize-webview', newBounds);
+            window.electron.ipcRenderer.send('resize-webview', newBounds);
         };
 
         const stopResizing = () => {
@@ -291,7 +292,8 @@ class UIManager {
 
 
     setupEventListeners() {
-        const { ipcRenderer } = require('electron');
+        // Use the exposed ipcRenderer instead of requiring electron directly
+        const ipcRenderer = window.electron.ipcRenderer;
 
         const addClickHandler = (element, handler) => {
             element?.addEventListener('click', handler);
@@ -306,7 +308,7 @@ class UIManager {
         addClickHandler(this.elements.toDoListIcon, () => this.state.setState({ isToDoListOpen: !this.state.getState().isToDoListOpen }));
 
 
-        ipcRenderer.on('window-state-changed', (_, isMaximized) => {
+        ipcRenderer.on('window-state-changed', (isMaximized) => {
             this.state.setState({ isWindowMaximized: isMaximized });
         });
 

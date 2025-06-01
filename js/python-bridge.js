@@ -1,86 +1,25 @@
-const { spawn } = require('child_process');
-const path = require('path');
 const { ipcMain } = require('electron');
 const io = require('socket.io-client');
+const config = require('./config');
 
 class PythonBridge {
   constructor(mainWindow) {
-    this.pythonProcess = null;
     this.mainWindow = mainWindow;
     this.socket = null;
     this.initialized = false;
     this.reconnectAttempts = 10;
-    this.maxReconnectAttempts = 50;
-    this.reconnectDelay = 20000;
-    this.serverStartTimeout = 120000;
+    this.maxReconnectAttempts = config.backend.maxReconnectAttempts;
+    this.reconnectDelay = config.backend.reconnectDelay;
     this.ongoingStreams = {};
+    
+    // Get configuration for the Docker container from config.js
+    this.serverUrl = config.backend.url;
   }
 
   async start() {
-    if (this.pythonProcess) return;
-    const pythonPath = path.join(__dirname, '../python-backend', 'app.py');
-    this.pythonProcess = spawn('python', [pythonPath], {
-      env: { 
-        ...process.env, 
-        PYTHONIOENCODING: 'utf-8', 
-        PYTHONUTF8: '1',
-        // Set Python logging level to INFO to reduce debug output
-        LOGLEVEL: 'INFO'
-      }
-    });
-    await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('Python server startup timeout'));
-      }, this.serverStartTimeout);
-      
-      const checkForStartupMessage = (data) => {
-        const message = data.toString();
-        // Instead of logging everything, only check for the startup message
-        if (message.includes('Starting server on port 8765')) {
-          console.log('Python server started successfully');
-          clearTimeout(timeout);
-          resolve();
-        }
-      };
-      
-      this.pythonProcess.stdout.on('data', checkForStartupMessage);
-      this.pythonProcess.stderr.on('data', (data) => {
-        const message = data.toString();
-        // Only log connection-related messages and errors
-        if (message.includes('ERROR') || 
-            message.includes('socket') || 
-            message.includes('connect') || 
-            message.includes('Starting server') ||
-            message.includes('port')) {
-          console.error(`Python: ${message.trim()}`);
-        }
-        // Still check for startup message
-        checkForStartupMessage(data);
-      });
-    });
-    this.setupProcessHandlers();
-    await this.connectWebSocket();
-  }
-
-  setupProcessHandlers() {
-    this.pythonProcess.stderr.on('data', (data) => {
-      const message = data.toString();
-      // Only log important messages
-      if (message.includes('ERROR') || 
-          message.includes('socket') || 
-          message.includes('connect') ||
-          message.includes('Starting server') ||
-          message.includes('port')) {
-        console.error(`Python: ${message.trim()}`);
-      }
-    });
-    this.pythonProcess.on('close', (code) => {
-      console.log(`Python process exited with code ${code}`);
-      this.cleanup();
-    });
-    
-    // Set up message handlers for chat functionality
+    console.log(`Connecting to Docker container at ${this.serverUrl}...`);
     this.setupIpcHandlers();
+    await this.connectWebSocket();
   }
 
   setupIpcHandlers() {
@@ -121,27 +60,27 @@ class PythonBridge {
     return new Promise((resolve, reject) => {
       // Only log first connection attempt
       if (this.reconnectAttempts <= 1) {
-        console.log('Connecting to Socket.IO server...');
+        console.log(`Connecting to Socket.IO server at ${this.serverUrl}...`);
       }
       
-      this.socket = io('http://localhost:8765', {
+      this.socket = io(this.serverUrl, {
         transports: ['websocket'],
         reconnection: true,
         reconnectionAttempts: Infinity,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
-        timeout: 20000
+        timeout: config.backend.connectionTimeout
       });
       
       const connectionTimeout = setTimeout(() => {
         console.error('Socket.IO connection timeout');
         this.socket.disconnect();
         reject(new Error('Socket.IO connection timeout'));
-      }, 20000);
+      }, config.backend.connectionTimeout);
       
       this.socket.on('connect', () => {
         clearTimeout(connectionTimeout);
-        console.log('Connected to Socket.IO server');
+        console.log(`Connected to Socket.IO server at ${this.serverUrl}`);
         this.initialized = true;
         this.reconnectAttempts = 0;
         this.mainWindow.webContents.send('socket-connection-status', { connected: true });
@@ -257,10 +196,6 @@ class PythonBridge {
     if (this.socket) {
       this.socket.close();
       this.socket = null;
-    }
-    if (this.pythonProcess) {
-      this.pythonProcess.kill();
-      this.pythonProcess = null;
     }
     this.initialized = false;
     this.ongoingStreams = {};

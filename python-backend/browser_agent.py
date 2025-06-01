@@ -151,7 +151,7 @@ class BrowserAgent:
             try:
                 self.agent = Agent(
                     browser=self.browser,
-                    task="",
+                    task="search youtube for the latest news",
                     llm=ChatGoogleGenerativeAI(model="gemini-2.0-flash"),
                     use_vision=True,
                     max_failures=3,
@@ -162,7 +162,7 @@ class BrowserAgent:
                 logger.warning(f"Failed to use gemini-2.0-flash: {model_error}. Trying alternative model.")
                 self.agent = Agent(
                     browser=self.browser,
-                    task="",
+                    task="search youtube for the latest news",
                     llm=ChatGoogleGenerativeAI(model="gemini-2.0-flash"),
                     use_vision=True,
                     max_failures=3,

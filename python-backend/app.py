@@ -1,5 +1,5 @@
 # app.py (Corrected)
-
+import os
 import logging
 import json
 import uuid
@@ -10,8 +10,12 @@ from deepsearch import get_deepsearch
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import traceback
+from dotenv import load_dotenv 
 import eventlet  
+from agno.media import Image, Audio, Video
+from pathlib import Path
 
+load_dotenv()
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -35,18 +39,63 @@ class IsolatedAssistant:
     def __init__(self, sid):  # Pass sid to the constructor
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.sid = sid  # Store the sid
+        self.message_id = None
 
-    def run_safely(self, agent, message, context=None):
+    def run_safely(self, agent, message, context=None, images=None, audio=None, videos=None):
         """Runs agent in isolated thread and handles crashes"""
 
-        def _run_agent(agent, message, context):
+        def _run_agent(agent, message, context, images, audio, videos):
             try:
                 if context:
                     complete_message = f"Previous conversation context:\n{context}\n\nCurrent message: {message}"
                 else:
                     complete_message = message
 
-                for chunk in agent.run(complete_message, stream=True):
+                # Get supported parameters for agent.run method
+                import inspect
+                params = inspect.signature(agent.run).parameters
+                supported_params = {}
+
+                # Basic parameters that should always be supported
+                supported_params['message'] = complete_message
+                supported_params['stream'] = True
+                
+                # Only add parameters that are supported by the agent's run method
+                # This ensures compatibility with different versions of the library
+                if 'images' in params and images:
+                    supported_params['images'] = images
+                    logger.info(f"Adding {len(images)} images to agent.run")
+                if 'audio' in params and audio:
+                    supported_params['audio'] = audio
+                    logger.info(f"Adding {len(audio)} audio files to agent.run")
+                if 'videos' in params and videos:
+                    supported_params['videos'] = videos
+                    logger.info(f"Adding {len(videos)} video files to agent.run")
+
+                # If we couldn't add media through parameters, add file paths to the message
+                if (images or audio or videos) and len(supported_params) <= 2:  # only message and stream params
+                    file_paths = []
+                    if images:
+                        for img in images:
+                            if hasattr(img, 'filepath') and img.filepath:
+                                file_paths.append(f"Image file: {img.filepath}")
+                    if audio:
+                        for aud in audio:
+                            if hasattr(aud, 'filepath') and aud.filepath:
+                                file_paths.append(f"Audio file: {aud.filepath}")
+                    if videos:
+                        for vid in videos:
+                            if hasattr(vid, 'filepath') and vid.filepath:
+                                file_paths.append(f"Video file: {vid.filepath}")
+                    
+                    if file_paths:
+                        file_paths_str = "\n".join(file_paths)
+                        supported_params['message'] = f"{supported_params['message']}\n\nAttached files:\n{file_paths_str}"
+                        logger.info("Added file paths to message text as fallback")
+
+                # Call agent.run with supported parameters
+                logger.info(f"Calling agent.run with params: {list(supported_params.keys())}")
+                for chunk in agent.run(**supported_params):
                     if chunk and chunk.content:
                         eventlet.sleep(0) # VERY IMPORTANT: Yield to eventlet
                         socketio.emit("response", {
@@ -74,7 +123,7 @@ class IsolatedAssistant:
 
 
         # Use eventlet.spawn to run the agent in a greenlet
-        eventlet.spawn(_run_agent, agent, message, context)
+        eventlet.spawn(_run_agent, agent, message, context, images, audio, videos)
 
 
     def terminate(self):
@@ -153,6 +202,119 @@ def on_disconnect():
     logger.info(f"Client disconnected: {sid}")
     connection_manager.remove_session(sid)
 
+def process_files(files):
+    """Process files and categorize them for Agno's multimodal capabilities"""
+    images = []
+    audio = []
+    videos = []
+    text_content = []
+    
+    logger.info(f"Processing {len(files)} files")
+    
+    for file_data in files:
+        file_path = file_data.get('path')
+        file_type = file_data.get('type', '')
+        file_name = file_data.get('name', 'unnamed_file')
+        
+        logger.info(f"Processing file: {file_name}, type: {file_type}, path: {file_path}")
+        
+        if not file_path:
+            logger.warning(f"Skipping file without path: {file_name}")
+            continue
+            
+        # Handle path normalization
+        try:
+            # Create a Path object to handle different path formats correctly
+            path_obj = Path(file_path)
+            # Convert to absolute path and normalize
+            file_path = str(path_obj.absolute().resolve())
+            logger.info(f"Normalized path: {file_path}")
+            
+            # Make sure the file exists
+            if not path_obj.exists():
+                logger.warning(f"File does not exist at path: {file_path}")
+                continue
+        except Exception as e:
+            logger.error(f"Path normalization error for {file_path}: {str(e)}")
+            continue
+        
+        try:
+            # Categorize files based on their MIME type
+            if file_type.startswith('image/'):
+                try:
+                    img = Image(filepath=file_path)
+                    images.append(img)
+                    logger.info(f"Added image: {file_path}")
+                except Exception as img_err:
+                    logger.error(f"Error creating Image object: {str(img_err)}")
+                    # Try loading content as fallback
+                    try:
+                        with open(file_path, 'rb') as f:
+                            content = f.read()
+                        img = Image(content=content)
+                        images.append(img)
+                        logger.info(f"Added image using content: {file_path}")
+                    except Exception as content_err:
+                        logger.error(f"Error loading image content: {str(content_err)}")
+            elif file_type.startswith('audio/'):
+                try:
+                    aud = Audio(filepath=file_path)
+                    audio.append(aud)
+                    logger.info(f"Added audio: {file_path}")
+                except Exception as aud_err:
+                    logger.error(f"Error creating Audio object: {str(aud_err)}")
+            elif file_type.startswith('video/'):
+                try:
+                    vid = Video(filepath=file_path)
+                    videos.append(vid)
+                    logger.info(f"Added video: {file_path}")
+                except Exception as vid_err:
+                    logger.error(f"Error creating Video object: {str(vid_err)}")
+            elif file_type.startswith('text/') or file_type == 'application/json':
+                # For text files, read the content
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                    text_content.append(f"--- File: {file_name} ---\n{content}")
+                    logger.info(f"Read text content from file: {file_path}")
+                except Exception as e:
+                    logger.error(f"Error reading text file {file_path}: {e}")
+            else:
+                # For other non-media files (like PDF, DOCX), try to extract text if possible
+                try:
+                    if file_type == 'application/pdf':
+                        # Just note that a PDF was attached - we'll handle it based on file path
+                        text_content.append(f"--- PDF File: {file_name} --- (Attached at path: {file_path})")
+                        logger.info(f"Added PDF reference: {file_path}")
+                        # Optionally add as image for visual processing by advanced models
+                        try:
+                            img = Image(filepath=file_path)
+                            images.append(img)
+                            logger.info(f"Also added PDF as image for visual processing: {file_path}")
+                        except Exception as pdf_img_err:
+                            logger.error(f"Error adding PDF as image: {str(pdf_img_err)}")
+                    else:
+                        logger.info(f"File attached but content not processed: {file_path}")
+                        text_content.append(f"--- File: {file_name} (attached at path: {file_path}) ---")
+                except Exception as e:
+                    logger.error(f"Error processing non-text file {file_path}: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error processing file {file_path}: {str(e)}")
+            logger.error(traceback.format_exc())
+    
+    # Log summary of processed files
+    if images:
+        logger.info(f"Processed {len(images)} images")
+    if audio:
+        logger.info(f"Processed {len(audio)} audio files")
+    if videos:
+        logger.info(f"Processed {len(videos)} video files")
+    if text_content:
+        logger.info(f"Processed {len(text_content)} text files")
+    
+    combined_text = "\n\n".join(text_content) if text_content else None
+    return combined_text, images, audio, videos
+
 @socketio.on("send_message")
 def on_send_message(data):
     sid = request.sid
@@ -188,18 +350,23 @@ def on_send_message(data):
         
         isolated_assistant.message_id = message_id 
 
+        # Process files for multimodal input
+        file_content, images, audio, videos = process_files(files)
+        
+        # Combine file content with user message if available
         combined_message = message
-        for file_data in files:
-            file_name = file_data.get('name', 'unnamed_file')
-            file_header = f"\n\n--- File: {file_name} ---\n"
-            
-            if 'extractedText' in file_data and file_data['extractedText']:
-                combined_message += file_header + file_data['extractedText']
-            else:
-                combined_message += file_header + file_data.get('content', '')
+        if file_content:
+            combined_message += f"\n\nContent from attached files:\n{file_content}"
 
-        isolated_assistant.run_safely(agent, combined_message, context)
-
+        # Run the agent with multimodal inputs
+        isolated_assistant.run_safely(
+            agent, 
+            combined_message, 
+            context, 
+            images=images if images else None,
+            audio=audio if audio else None,
+            videos=videos if videos else None
+        )
 
     except Exception as e:
         logger.error(f"Error in message handler: {e}\n{traceback.format_exc()}")
@@ -207,5 +374,6 @@ def on_send_message(data):
         connection_manager.terminate_session(sid)
 
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8765))
     logger.info("Starting server on port 8765")
-    socketio.run(app, host="0.0.0.0", port=8765)
+    socketio.run(app, host="0.0.0.0", port=port, debug=True)

@@ -17,9 +17,7 @@ class ImageAnalysisTools(Toolkit):
             model=Gemini(id="gemini-2.0-flash"),
             instructions=[
                 "provide detailed description of the image",
-                "provide x coordinate and y coordinate of buttons, elements, icons, texts, input fields, etc.",
-                "the coordinates should have title, description",
-                "for example text = file, description = button, coordinates = (100,100)",
+                "You are an Image agent your job is to fulfill the user request related to the image in any way possible",
             ],
             markdown=True,
             debug_mode=False,  # Set to True for debugging

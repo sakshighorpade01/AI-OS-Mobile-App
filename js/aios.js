@@ -3,23 +3,40 @@ class AIOS {
         this.initialized = false;
         this.currentTab = 'profile';
         this.elements = {};
-        this.fs = require('fs');
-        this.path = require('path');
-        this.userDataPath = this.path.join(__dirname, '../userData');
-        this.userData = this.loadUserData();
+        this.userDataPath = null; // Will be set during initialization
+        this.userData = null; // Will be loaded during initialization
     }
 
-    init() {
+    async init() {
         if (this.initialized) return;
 
-        if (!this.fs.existsSync(this.userDataPath)) {
-            this.fs.mkdirSync(this.userDataPath, { recursive: true });
-        }
-
+        await this._initializePaths();
+        this.userData = await this.loadUserData();
+        
         this.cacheElements();
         this.setupEventListeners();
         this.loadSavedData();
         this.initialized = true;
+    }
+
+    async _initializePaths() {
+        try {
+            // Get the user data path from the main process
+            const userDataPath = await window.electron.ipcRenderer.invoke('get-path', 'userData');
+            this.userDataPath = window.electron.path.join(userDataPath, 'userData');
+            
+            // Create the userData directory if it doesn't exist
+            if (!window.electron.fs.existsSync(this.userDataPath)) {
+                window.electron.fs.mkdirSync(this.userDataPath, { recursive: true });
+            }
+        } catch (error) {
+            console.error('Failed to initialize paths:', error);
+            // Fallback to a relative path if the IPC call fails
+            this.userDataPath = window.electron.path.join('userData');
+            if (!window.electron.fs.existsSync(this.userDataPath)) {
+                window.electron.fs.mkdirSync(this.userDataPath, { recursive: true });
+            }
+        }
     }
 
     cacheElements() {
@@ -69,31 +86,31 @@ class AIOS {
         this.elements.screenshot?.addEventListener('change', (e) => this.handleFileUpload(e));
     }
 
-    loadUserData() {
-      const defaultData = {
-          profile: { fullName: '', nickname: '', occupation: '' },
-          account: { email: 'user@example.com' },
-          about: { version: '1.0.0', lastUpdate: new Date().toISOString() }
-      };
-      try {
-          const profilePath = this.path.join(this.userDataPath, 'profile.json');
-          return this.fs.existsSync(profilePath)
-              ? { ...defaultData, ...JSON.parse(this.fs.readFileSync(profilePath, 'utf8')) }
-              : defaultData;
-      } catch (error) {
-          console.error('Error loading user data:', error);
-          return defaultData; // Always return default data on error
-      }
+    async loadUserData() {
+        const defaultData = {
+            profile: { fullName: '', nickname: '', occupation: '' },
+            account: { email: 'user@example.com' },
+            about: { version: '1.0.0', lastUpdate: new Date().toISOString() }
+        };
+        try {
+            const profilePath = window.electron.path.join(this.userDataPath, 'profile.json');
+            return window.electron.fs.existsSync(profilePath)
+                ? { ...defaultData, ...JSON.parse(window.electron.fs.readFileSync(profilePath, 'utf8')) }
+                : defaultData;
+        } catch (error) {
+            console.error('Error loading user data:', error);
+            return defaultData; // Always return default data on error
+        }
     }
 
     saveUserData() {
         try {
-            const profilePath = this.path.join(this.userDataPath, 'profile.json');
+            const profilePath = window.electron.path.join(this.userDataPath, 'profile.json');
             const profileData = {
                 profile: this.userData.profile,
                 lastUpdate: new Date().toISOString()
             };
-            this.fs.writeFileSync(profilePath, JSON.stringify(profileData, null, 2), 'utf8');
+            window.electron.fs.writeFileSync(profilePath, JSON.stringify(profileData, null, 2), 'utf8');
         } catch (error) {
             console.error('Error saving user data:', error);
             this.showNotification('Failed to save profile data', 'error');
@@ -129,10 +146,12 @@ class AIOS {
         };
 
         try {
-            const feedbackPath = this.path.join(this.userDataPath, 'feedback.json');
-            const feedbackHistory = this.fs.existsSync(feedbackPath) ? JSON.parse(this.fs.readFileSync(feedbackPath, 'utf8')) : [];
+            const feedbackPath = window.electron.path.join(this.userDataPath, 'feedback.json');
+            const feedbackHistory = window.electron.fs.existsSync(feedbackPath) 
+                ? JSON.parse(window.electron.fs.readFileSync(feedbackPath, 'utf8')) 
+                : [];
             feedbackHistory.push(formData);
-            this.fs.writeFileSync(feedbackPath, JSON.stringify(feedbackHistory, null, 2), 'utf8');
+            window.electron.fs.writeFileSync(feedbackPath, JSON.stringify(feedbackHistory, null, 2), 'utf8');
             this.elements.supportForm?.reset();
             this.showNotification('Feedback submitted successfully', 'success');
         } catch (error) {
@@ -153,9 +172,9 @@ class AIOS {
         if (confirm('Delete your account? This is irreversible!')) {
             try {
                 ['profile.json', 'feedback.json'].forEach(file => {
-                    const filePath = this.path.join(this.userDataPath, file);
-                    if (this.fs.existsSync(filePath)) {
-                        this.fs.unlinkSync(filePath);
+                    const filePath = window.electron.path.join(this.userDataPath, file);
+                    if (window.electron.fs.existsSync(filePath)) {
+                        window.electron.fs.unlinkSync(filePath);
                     }
                 });
                 sessionStorage.clear();
@@ -169,27 +188,28 @@ class AIOS {
             }
         }
     }
+
     handleFileUpload(event) {
-      const file = event.target.files[0];
-      if (!file) return;
+        const file = event.target.files[0];
+        if (!file) return;
 
-      const validTypes = ['.jpg', '.png', '.gif', '.txt'];
-      const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+        const validTypes = ['.jpg', '.png', '.gif', '.txt'];
+        const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
 
-      if (!validTypes.includes(fileExtension)) {
-          alert('Invalid file type. Please upload .jpg, .png, .gif, or .txt files only.');
-          event.target.value = '';
-          return;
-      }
+        if (!validTypes.includes(fileExtension)) {
+            alert('Invalid file type. Please upload .jpg, .png, .gif, or .txt files only.');
+            event.target.value = '';
+            return;
+        }
 
-      if (fileExtension !== '.txt') {
-          this.createImagePreview(file);
-      }
+        if (fileExtension !== '.txt') {
+            this.createImagePreview(file);
+        }
 
-      try {
-            const uploadPath = this.path.join(this.userDataPath, 'uploads.json');
-            const uploads = this.fs.existsSync(uploadPath)
-                ? JSON.parse(this.fs.readFileSync(uploadPath, 'utf8'))
+        try {
+            const uploadPath = window.electron.path.join(this.userDataPath, 'uploads.json');
+            const uploads = window.electron.fs.existsSync(uploadPath)
+                ? JSON.parse(window.electron.fs.readFileSync(uploadPath, 'utf8'))
                 : [];
 
             uploads.push({
@@ -198,11 +218,13 @@ class AIOS {
                 size: file.size,
                 timestamp: new Date().toISOString()
             });
-            this.fs.writeFileSync(uploadPath, JSON.stringify(uploads, null, 2), 'utf8');
+
+            window.electron.fs.writeFileSync(uploadPath, JSON.stringify(uploads, null, 2), 'utf8');
         } catch (error) {
-            console.error('Error saving upload metadata:', error);
+            console.error('Error updating uploads:', error);
         }
     }
+
     createImagePreview(file) {
       const reader = new FileReader();
       const previewContainer = document.createElement('div');

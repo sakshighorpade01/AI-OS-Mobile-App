@@ -1,6 +1,113 @@
-# Docker Guide for AI-OS
+# AI-OS: Docker Backend Configuration
 
-This document summarizes all Docker-related steps, fixes, and best practices for running the AI-OS project, especially for enabling multimodal file access (images, audio, video, PDFs, etc.) with the Agno framework.
+This document explains how to run the AI-OS Python backend in a Docker container and connect the Electron frontend to it.
+
+## Prerequisites
+
+- [Docker](https://www.docker.com/products/docker-desktop/) installed and running
+- Node.js and npm for the Electron app
+
+## Building the Docker Image
+
+1. Navigate to the project root directory
+2. Build the Docker image:
+
+```bash
+docker build -t aios-backend -f Dockerfile .
+```
+
+## Running the Docker Container
+
+Start the container with the following command:
+
+```bash
+docker run -d -p 8765:8765 --name my-aios-container aios-backend
+```
+
+This will:
+- Run the container in detached mode (`-d`)
+- Map the container's port 8765 to the host's port 8765 (`-p 8765:8765`)
+- Name the container "my-aios-container" for easy reference
+
+## Verifying the Container is Running
+
+Check if the container is running:
+
+```bash
+docker ps
+```
+
+You should see your container in the list. If not, check the logs:
+
+```bash
+docker logs my-aios-container
+```
+
+You should see output similar to:
+```
+[2025-05-29 21:52:06 +0000] [1] [INFO] Starting gunicorn 23.0.0
+[2025-05-29 21:52:06 +0000] [1] [INFO] Listening at: http://0.0.0.0:8765 (1)
+[2025-05-29 21:52:06 +0000] [1] [INFO] Using worker: eventlet
+[2025-05-29 21:52:06 +0000] [7] [INFO] Booting worker with pid: 7
+```
+
+## Running the Electron Application
+
+With the Docker container running, start the Electron application:
+
+```bash
+npm start
+```
+
+The Electron app has been modified to connect to the Docker container automatically.
+
+## Managing the Docker Container
+
+### Stopping the Container
+
+```bash
+docker stop my-aios-container
+```
+
+### Starting an Existing Container
+
+```bash
+docker start my-aios-container
+```
+
+### Removing the Container
+
+```bash
+docker stop my-aios-container
+docker rm my-aios-container
+```
+
+### Rebuilding After Code Changes
+
+If you make changes to the Python backend code, you need to rebuild the Docker image and restart the container:
+
+```bash
+docker stop my-aios-container
+docker rm my-aios-container
+docker build -t aios-backend -f Dockerfile .
+docker run -d -p 8765:8765 --name my-aios-container aios-backend
+```
+
+## Persisting Data (Optional)
+
+To persist data between container restarts, you can mount volumes. For example, to persist the tmp directory:
+
+```bash
+docker run -d -p 8765:8765 -v $(pwd)/tmp:/app/tmp --name my-aios-container aios-backend
+```
+
+## Troubleshooting
+
+1. **Connection Issues**: If the Electron app can't connect to the Docker container, make sure port 8765 is accessible and not blocked by a firewall.
+
+2. **Python Import Errors**: If you see import errors in the Docker logs, you may need to update requirements.txt or install additional dependencies in the Dockerfile.
+
+3. **Context Synchronization**: The context_manager.py script still runs locally in the Electron app, not in the Docker container. This is by design to handle local file access. 
 
 ---
 

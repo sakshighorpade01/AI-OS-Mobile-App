@@ -18,10 +18,6 @@ from pathlib import Path
 load_dotenv()
 
 
-@app.route('/healthz')
-def health_check():
-    return "OK", 200
-    
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 

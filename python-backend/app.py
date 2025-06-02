@@ -3,7 +3,7 @@ import os
 import logging
 import json
 import uuid
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
 from assistant import get_llm_os
 from deepsearch import get_deepsearch  
@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 import eventlet  
 from agno.media import Image, Audio, Video
 from pathlib import Path
+import werkzeug.utils
 
 load_dotenv()
 
@@ -374,7 +375,29 @@ def on_send_message(data):
         emit("error", {"message": "AI service error. Starting new chat...", "reset": True}, room=sid)
         connection_manager.terminate_session(sid)
 
+@app.route('/healthz', methods=['GET'])
+def health_check():
+    """
+    A simple health check endpoint.
+    Returns "OK" with a 200 status code if the application is up and running.
+    """
+    # For a basic health check, just returning 200 is often enough.
+    # You could add more sophisticated checks here if needed, e.g.:
+    # - Check database connectivity
+    # - Check status of critical external services
+    # If any of those fail, you could return a 503 Service Unavailable.
+    # But start simple.
+    logger.debug("Health check endpoint was hit.") # Optional: for seeing it in logs
+    return "OK", 200
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8765))
-    logger.info("Starting server on port 8765")
-    socketio.run(app, host="0.0.0.0", port=port, debug=True)
+    # The debug=True for socketio.run is for Flask's development server.
+    # Gunicorn, which you use in Docker, has its own way of handling debug/reloading.
+    # For Render, Gunicorn will be run, and DEBUG should be False in your env.
+    app_debug_mode = os.environ.get("DEBUG", "False").lower() == "true"
+    logger.info(f"Starting server on host 0.0.0.0 port {port}, Flask debug mode: {app_debug_mode}")
+    
+    # When running locally with `python app.py`, this is used.
+    # On Render, Gunicorn from your Dockerfile's CMD is used.
+    socketio.run(app, host="0.0.0.0", port=port, debug=app_debug_mode, use_reloader=app_debug_mode)

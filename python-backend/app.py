@@ -217,14 +217,22 @@ def process_files(files):
         file_path = file_data.get('path')
         file_type = file_data.get('type', '')
         file_name = file_data.get('name', 'unnamed_file')
+        is_text = file_data.get('isText', False)
+        file_content = file_data.get('content')
         
-        logger.info(f"Processing file: {file_name}, type: {file_type}, path: {file_path}")
+        logger.info(f"Processing file: {file_name}, type: {file_type}, path: {file_path}, isText: {is_text}")
         
-        if not file_path:
-            logger.warning(f"Skipping file without path: {file_name}")
+        if not file_path and not (is_text and file_content):
+            logger.warning(f"Skipping file without path or content: {file_name}")
             continue
             
-        # Handle path normalization
+        # Handle text files with content directly provided
+        if is_text and file_content:
+            text_content.append(f"--- File: {file_name} ---\n{file_content}")
+            logger.info(f"Using provided text content for file: {file_name}")
+            continue
+            
+        # Handle path normalization for files that need path access
         try:
             # Create a Path object to handle different path formats correctly
             path_obj = Path(file_path)
@@ -273,7 +281,7 @@ def process_files(files):
                 except Exception as vid_err:
                     logger.error(f"Error creating Video object: {str(vid_err)}")
             elif file_type.startswith('text/') or file_type == 'application/json':
-                # For text files, read the content
+                # For text files, read the content if it wasn't provided
                 try:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
@@ -300,6 +308,7 @@ def process_files(files):
                         text_content.append(f"--- File: {file_name} (attached at path: {file_path}) ---")
                 except Exception as e:
                     logger.error(f"Error processing non-text file {file_path}: {str(e)}")
+                    logger.error(traceback.format_exc())
         except Exception as e:
             logger.error(f"Error processing file {file_path}: {str(e)}")
             logger.error(traceback.format_exc())

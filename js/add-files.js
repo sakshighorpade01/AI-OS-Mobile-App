@@ -100,25 +100,37 @@ class FileAttachmentHandler {
                     console.warn(`No file path available for ${file.name} - multimodal processing may be limited`);
                 }
 
-                // Create a temporary URL for preview purposes only
+                // Handle file based on type
                 if (file.type.startsWith('image/')) {
                     fileObject.mediaType = 'image';
                     fileObject.previewUrl = URL.createObjectURL(file);
+                    // For images, we only send the path (no content extraction)
+                    fileObject.isMedia = true;
                 } else if (file.type.startsWith('audio/')) {
                     fileObject.mediaType = 'audio';
                     fileObject.previewUrl = URL.createObjectURL(file);
+                    // For audio, we only send the path (no content extraction)
+                    fileObject.isMedia = true;
                 } else if (file.type.startsWith('video/')) {
                     fileObject.mediaType = 'video';
                     fileObject.previewUrl = URL.createObjectURL(file);
+                    // For video, we only send the path (no content extraction)
+                    fileObject.isMedia = true;
                 } else if (file.type === 'application/pdf') {
                     fileObject.mediaType = 'pdf';
                     // Create preview URL for PDF files
                     fileObject.previewUrl = URL.createObjectURL(file);
+                    // For PDFs, we only send the path (no content extraction)
+                    fileObject.isMedia = true;
                 } else if (file.type.includes('document')) {
                     fileObject.mediaType = 'document';
-                } else if (file.type.startsWith('text/') || file.type === 'application/json') {
-                    // For text files, we'll still show a preview
+                    fileObject.isMedia = true;
+                } else if (file.type.startsWith('text/') || file.type === 'application/json' || 
+                          ['py', 'js', 'c', 'cpp', 'java', 'html', 'css', 'txt'].includes(extension)) {
+                    // For text files, extract content and send it along with the path
                     fileObject.content = await this.readFileAsText(file);
+                    fileObject.isText = true; // Flag to indicate this is a text file with content
+                    fileObject.mediaType = 'text';
                 }
 
                 this.attachedFiles.push(fileObject);

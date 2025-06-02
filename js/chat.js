@@ -654,7 +654,7 @@ class UnifiedPreviewHandler {
                         </button>
                     </div>
                 </div>
-                <div class="file-preview-content-item">${file.isMedia ? this.renderMediaPreview(file) : file.content}</div>
+                <div class="file-preview-content-item">${file.isMedia ? this.renderMediaPreview(file) : (file.content || "No preview available")}</div>
             </div>
         `).join('');
 
@@ -673,23 +673,36 @@ class UnifiedPreviewHandler {
 
     renderMediaPreview(file) {
         if (file.mediaType === 'image') {
-            return `<img src="${file.content}" alt="${file.name}" class="media-preview">`;
+            return `<img src="${file.previewUrl}" alt="${file.name}" class="media-preview">
+                   <p class="file-path-info">File path: ${file.path || "Path not available"}</p>`;
         } else if (file.mediaType === 'audio') {
             return `
                 <audio controls class="media-preview">
-                    <source src="${file.content}" type="${file.type}">
+                    <source src="${file.previewUrl}" type="${file.type}">
                     Your browser does not support the audio element.
                 </audio>
+                <p class="file-path-info">File path: ${file.path || "Path not available"}</p>
             `;
         } else if (file.mediaType === 'video') {
             return `
                 <video controls class="media-preview">
-                    <source src="${file.content}" type="${file.type}">
+                    <source src="${file.previewUrl}" type="${file.type}">
                     Your browser does not support the video element.
                 </video>
+                <p class="file-path-info">File path: ${file.path || "Path not available"}</p>
+            `;
+        } else if (file.mediaType === 'pdf') {
+            return `
+                <iframe src="${file.previewUrl}" class="pdf-preview"></iframe>
+                <p class="file-path-info">File path: ${file.path || "Path not available"}</p>
+            `;
+        } else if (file.mediaType === 'document') {
+            return `
+                <div class="doc-preview">Document preview not available</div>
+                <p class="file-path-info">File path: ${file.path || "Path not available"}</p>
             `;
         }
-        return file.content;
+        return file.content || "No preview available";
     }
 
     updateContextIndicator() {

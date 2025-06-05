@@ -10,6 +10,15 @@ const http = require('http');
 app.commandLine.appendSwitch('remote-debugging-port', '9222');
 app.commandLine.appendSwitch('enable-features', 'NetworkService,NetworkServiceInProcess');
 
+// Register custom protocol for deep linking
+if (process.defaultApp) {
+    if (process.argv.length >= 2) {
+        app.setAsDefaultProtocolClient('aios', process.execPath, [path.resolve(process.argv[1])]);
+    }
+} else {
+    app.setAsDefaultProtocolClient('aios');
+}
+
 let mainWindow;
 let pythonBridge;
 let linkWebView = null; // Keep existing linkWebView
@@ -18,6 +27,7 @@ function createWindow() {
     mainWindow = new BrowserWindow({
         width: 800,
         height: 600,
+        icon: path.join(app.getAppPath(), 'assets/icon.ico'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: true,
@@ -223,6 +233,34 @@ function createWindow() {
     });
 }
 
+// Handle deep linking on macOS
+app.on('open-url', (event, url) => {
+    event.preventDefault();
+    handleDeepLink(url);
+});
+
+// Handle deep linking on Windows
+function handleDeepLink(url) {
+    if (!url || !url.startsWith('aios://')) return;
+    
+    try {
+        // Parse the URL
+        const urlObj = new URL(url);
+        
+        // Check if it's an auth callback
+        if (urlObj.hostname === 'auth-callback') {
+            const token = urlObj.searchParams.get('token');
+            const refreshToken = urlObj.searchParams.get('refresh_token');
+            
+            if (token && mainWindow) {
+                mainWindow.webContents.send('auth-state-changed', { token, refreshToken });
+            }
+        }
+    } catch (error) {
+        console.error('Error handling deep link:', error);
+    }
+}
+
 // File handling IPC handlers for artifact download
 const fs = require('fs').promises;
 
@@ -290,6 +328,36 @@ ipcMain.on('run-context-sync', (event) => {
 });
 
 app.whenReady().then(createWindow);
+
+// Handle deep linking on Windows
+if (process.platform === 'win32') {
+    // For Windows: handle the protocol when app is already running
+    app.on('second-instance', (event, commandLine, workingDirectory) => {
+        // Someone tried to run a second instance, we should focus our window.
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.focus();
+        }
+        
+        // Check for deep link in command line arguments
+        const deepLinkUrl = commandLine.find(arg => arg.startsWith('aios://'));
+        if (deepLinkUrl) {
+            handleDeepLink(deepLinkUrl);
+        }
+    });
+    
+    // For Windows: handle the protocol when app starts
+    const gotTheLock = app.requestSingleInstanceLock();
+    if (!gotTheLock) {
+        app.quit();
+    } else {
+        // Check for deep link in process.argv
+        const deepLinkArg = process.argv.find(arg => arg.startsWith('aios://'));
+        if (deepLinkArg) {
+            handleDeepLink(deepLinkArg);
+        }
+    }
+}
 
 app.on('window-all-closed', () => {
     // Clean up Python bridge

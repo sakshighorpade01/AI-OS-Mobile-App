@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const authService = require('./auth-service');
 
 // Define allowed IPC channels for security
 const validSendChannels = [
@@ -26,7 +27,9 @@ const validSendChannels = [
     'browse-ai-send-message',
     'initialize-browser-agent',
     // Context sync channel
-    'run-context-sync'
+    'run-context-sync',
+    // Auth related channels
+    'handle-auth-redirect'
 ];
 
 const validReceiveChannels = [
@@ -52,7 +55,9 @@ const validReceiveChannels = [
     // Context sync events
     'context-sync-stdout',
     'context-sync-stderr',
-    'context-sync-close'
+    'context-sync-close',
+    // Auth related events
+    'auth-state-changed'
 ];
 
 const validInvokeChannels = [
@@ -173,6 +178,21 @@ contextBridge.exposeInMainWorld(
                     },
                     kill: (signal) => childProcess.kill(signal)
                 };
+            }
+        },
+        
+        // Auth service
+        auth: {
+            init: async () => await authService.init(),
+            signUp: async (email, password) => await authService.signUp(email, password),
+            signIn: async (email, password) => await authService.signIn(email, password),
+            signOut: async () => await authService.signOut(),
+            getCurrentUser: () => authService.getCurrentUser(),
+            isAuthenticated: () => authService.isAuthenticated(),
+            onAuthChange: (callback) => {
+                // Create a wrapper function that will be called when auth state changes
+                const wrappedCallback = (user) => callback(user);
+                return authService.onAuthChange(wrappedCallback);
             }
         }
     }

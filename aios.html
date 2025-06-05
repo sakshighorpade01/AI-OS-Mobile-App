@@ -51,19 +51,67 @@
 
                 <div class="tab-content" id="account-tab">
                     <h3 class="tab-heading">Account Settings</h3>
-                    <div class="form-group">
-                        <label>Email ID</label>
-                        <div class="email-display" id="userEmail">user@example.com</div>
+                    
+                    <!-- Logged Out State -->
+                    <div id="account-logged-out" class="auth-state">
+                        <div class="auth-tabs">
+                            <button class="auth-tab-btn active" data-auth-tab="login">Login</button>
+                            <button class="auth-tab-btn" data-auth-tab="signup">Sign Up</button>
+                        </div>
+                        
+                        <!-- Login Form -->
+                        <form id="login-form" class="auth-form active">
+                            <div class="form-group">
+                                <label for="loginEmail">Email</label>
+                                <input type="email" id="loginEmail" placeholder="Enter your email" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="loginPassword">Password</label>
+                                <input type="password" id="loginPassword" placeholder="Enter your password" required>
+                            </div>
+                            <div id="login-error" class="auth-error"></div>
+                            <div class="form-actions">
+                                <button type="submit" class="auth-btn primary">Login</button>
+                            </div>
+                        </form>
+                        
+                        <!-- Sign Up Form -->
+                        <form id="signup-form" class="auth-form">
+                            <div class="form-group">
+                                <label for="signupEmail">Email</label>
+                                <input type="email" id="signupEmail" placeholder="Enter your email" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="signupPassword">Password</label>
+                                <input type="password" id="signupPassword" placeholder="Create a password" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="confirmPassword">Confirm Password</label>
+                                <input type="password" id="confirmPassword" placeholder="Confirm your password" required>
+                            </div>
+                            <div id="signup-error" class="auth-error"></div>
+                            <div class="form-actions">
+                                <button type="submit" class="auth-btn primary">Sign Up</button>
+                            </div>
+                        </form>
                     </div>
-                    <div class="account-actions">
-                        <button class="action-btn secondary" id="logout-btn" aria-label="Logout">
-                            <i class="fas fa-sign-out-alt"></i>
-                            <span>Log out</span>
-                        </button>
-                        <button class="action-btn danger" id="delete-account-btn" aria-label="Delete Account">
-                            <i class="fas fa-trash-alt"></i>
-                            <span>Delete account</span>
-                        </button>
+                    
+                    <!-- Logged In State -->
+                    <div id="account-logged-in" class="auth-state hidden">
+                        <div class="form-group">
+                            <label>Email ID</label>
+                            <div class="email-display" id="userEmail">user@example.com</div>
+                        </div>
+                        <div class="account-actions">
+                            <button class="action-btn secondary" id="logout-btn" aria-label="Logout">
+                                <i class="fas fa-sign-out-alt"></i>
+                                <span>Log out</span>
+                            </button>
+                            <button class="action-btn danger" id="delete-account-btn" aria-label="Delete Account">
+                                <i class="fas fa-trash-alt"></i>
+                                <span>Delete account</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 

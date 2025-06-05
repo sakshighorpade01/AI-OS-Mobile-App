@@ -5,17 +5,29 @@ class AIOS {
         this.elements = {};
         this.userDataPath = null; // Will be set during initialization
         this.userData = null; // Will be loaded during initialization
+        this.authService = null; // Will be set during initialization
     }
 
     async init() {
         if (this.initialized) return;
 
         await this._initializePaths();
+        
+        // Initialize auth service
+        try {
+            // Use the auth service exposed through preload.js
+            this.authService = window.electron.auth;
+            await this.authService.init();
+        } catch (error) {
+            console.error('Failed to initialize auth service:', error);
+        }
+        
         this.userData = await this.loadUserData();
         
         this.cacheElements();
         this.setupEventListeners();
         this.loadSavedData();
+        this.updateAuthUI();
         this.initialized = true;
     }
 
@@ -55,12 +67,25 @@ class AIOS {
             userEmail: document.getElementById('userEmail'),
             subject: document.getElementById('subject'),
             description: document.getElementById('description'),
-            screenshot: document.getElementById('screenshot')
+            screenshot: document.getElementById('screenshot'),
+            // Auth elements
+            accountLoggedOut: document.getElementById('account-logged-out'),
+            accountLoggedIn: document.getElementById('account-logged-in'),
+            authTabs: document.querySelectorAll('.auth-tab-btn'),
+            loginForm: document.getElementById('login-form'),
+            signupForm: document.getElementById('signup-form'),
+            loginEmail: document.getElementById('loginEmail'),
+            loginPassword: document.getElementById('loginPassword'),
+            signupEmail: document.getElementById('signupEmail'),
+            signupPassword: document.getElementById('signupPassword'),
+            confirmPassword: document.getElementById('confirmPassword'),
+            loginError: document.getElementById('login-error'),
+            signupError: document.getElementById('signup-error')
         };
     }
 
     setupEventListeners() {
-      const addClickHandler = (element, handler) => {
+        const addClickHandler = (element, handler) => {
             element?.addEventListener('click', handler);
         };
 
@@ -79,11 +104,42 @@ class AIOS {
             e.preventDefault();
             this.handleSupportSubmit();
         });
+        
         addClickHandler(this.elements.logoutBtn, () => this.handleLogout());
         addClickHandler(this.elements.deleteAccountBtn, () => this.handleDeleteAccount());
 
-
         this.elements.screenshot?.addEventListener('change', (e) => this.handleFileUpload(e));
+        
+        // Auth event listeners
+        this.elements.authTabs?.forEach(tab => {
+            tab.addEventListener('click', () => this.switchAuthTab(tab.dataset.authTab));
+        });
+        
+        this.elements.loginForm?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleLogin();
+        });
+        
+        this.elements.signupForm?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleSignup();
+        });
+        
+        // Listen for auth state changes
+        if (this.authService) {
+            this.authService.onAuthChange((user) => {
+                this.updateAuthUI();
+                if (user) {
+                    // Update email display
+                    if (this.elements.userEmail) {
+                        this.elements.userEmail.textContent = user.email;
+                    }
+                    // Update user data
+                    this.userData.account.email = user.email;
+                    this.saveUserData();
+                }
+            });
+        }
     }
 
     async loadUserData() {
@@ -108,6 +164,7 @@ class AIOS {
             const profilePath = window.electron.path.join(this.userDataPath, 'profile.json');
             const profileData = {
                 profile: this.userData.profile,
+                account: this.userData.account,
                 lastUpdate: new Date().toISOString()
             };
             window.electron.fs.writeFileSync(profilePath, JSON.stringify(profileData, null, 2), 'utf8');
@@ -118,14 +175,22 @@ class AIOS {
     }
 
     loadSavedData() {
-      ['fullName', 'nickname', 'occupation'].forEach(field => {
-        if (this.elements[field]) {
-            this.elements[field].value = this.userData.profile[field] || '';
+        ['fullName', 'nickname', 'occupation'].forEach(field => {
+            if (this.elements[field]) {
+                this.elements[field].value = this.userData.profile[field] || '';
+            }
+        });
+        
+        if (this.elements.userEmail) {
+            // If user is authenticated, use that email
+            const user = this.authService?.getCurrentUser();
+            if (user) {
+                this.elements.userEmail.textContent = user.email;
+                this.userData.account.email = user.email;
+            } else {
+                this.elements.userEmail.textContent = this.userData.account.email || 'user@example.com';
+            }
         }
-      });
-      if (this.elements.userEmail) {
-          this.elements.userEmail.textContent = this.userData.account.email || 'user@example.com';
-      }
     }
 
     handleProfileSubmit() {
@@ -160,11 +225,91 @@ class AIOS {
         }
     }
 
-    handleLogout() {
+    async handleLogin() {
+        if (!this.authService) {
+            this.showNotification('Authentication service not available', 'error');
+            return;
+        }
+        
+        const email = this.elements.loginEmail.value;
+        const password = this.elements.loginPassword.value;
+        
+        if (!email || !password) {
+            this.elements.loginError.textContent = 'Please enter both email and password';
+            return;
+        }
+        
+        try {
+            const result = await this.authService.signIn(email, password);
+            if (result.success) {
+                this.elements.loginForm.reset();
+                this.elements.loginError.textContent = '';
+                this.showNotification('Logged in successfully', 'success');
+                this.updateAuthUI();
+            } else {
+                this.elements.loginError.textContent = result.error || 'Login failed';
+            }
+        } catch (error) {
+            console.error('Login error:', error);
+            this.elements.loginError.textContent = 'An unexpected error occurred';
+        }
+    }
+
+    async handleSignup() {
+        if (!this.authService) {
+            this.showNotification('Authentication service not available', 'error');
+            return;
+        }
+        
+        const email = this.elements.signupEmail.value;
+        const password = this.elements.signupPassword.value;
+        const confirmPassword = this.elements.confirmPassword.value;
+        
+        if (!email || !password || !confirmPassword) {
+            this.elements.signupError.textContent = 'Please fill out all fields';
+            return;
+        }
+        
+        if (password !== confirmPassword) {
+            this.elements.signupError.textContent = 'Passwords do not match';
+            return;
+        }
+        
+        try {
+            const result = await this.authService.signUp(email, password);
+            if (result.success) {
+                this.elements.signupForm.reset();
+                this.elements.signupError.textContent = '';
+                this.showNotification('Account created successfully', 'success');
+                this.switchAuthTab('login');
+            } else {
+                this.elements.signupError.textContent = result.error || 'Signup failed';
+            }
+        } catch (error) {
+            console.error('Signup error:', error);
+            this.elements.signupError.textContent = 'An unexpected error occurred';
+        }
+    }
+
+    async handleLogout() {
+        if (!this.authService) {
+            this.showNotification('Authentication service not available', 'error');
+            return;
+        }
+        
         if (confirm('Are you sure you want to log out?')) {
-            sessionStorage.clear();
-            this.showNotification('Logged out successfully', 'success');
-            this.hideWindow();
+            try {
+                const result = await this.authService.signOut();
+                if (result.success) {
+                    this.showNotification('Logged out successfully', 'success');
+                    this.updateAuthUI();
+                } else {
+                    this.showNotification('Logout failed: ' + result.error, 'error');
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+                this.showNotification('An unexpected error occurred during logout', 'error');
+            }
         }
     }
 
@@ -177,11 +322,16 @@ class AIOS {
                         window.electron.fs.unlinkSync(filePath);
                     }
                 });
-                sessionStorage.clear();
+                
+                // Sign out if authenticated
+                if (this.authService && this.authService.isAuthenticated()) {
+                    this.authService.signOut();
+                }
+                
                 this.userData = this.loadUserData();
                 this.loadSavedData();
                 this.showNotification('Account deleted successfully', 'success');
-                this.hideWindow();
+                this.updateAuthUI();
             } catch (error) {
                 console.error('Error deleting account:', error);
                 this.showNotification('Failed to delete account', 'error');
@@ -226,33 +376,63 @@ class AIOS {
     }
 
     createImagePreview(file) {
-      const reader = new FileReader();
-      const previewContainer = document.createElement('div');
-      previewContainer.className = 'screenshot-preview';
+        const reader = new FileReader();
+        const previewContainer = document.createElement('div');
+        previewContainer.className = 'screenshot-preview';
 
-      reader.onload = (e) => {
-          const img = document.createElement('img');
-          img.src = e.target.result;
-          img.style.maxWidth = '200px';
-          img.style.maxHeight = '200px';
+        reader.onload = (e) => {
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.style.maxWidth = '200px';
+            img.style.maxHeight = '200px';
 
-          previewContainer.innerHTML = '';
-          previewContainer.appendChild(img);
+            previewContainer.innerHTML = '';
+            previewContainer.appendChild(img);
 
-          const previewArea = document.querySelector('.screenshot-preview');
+            const previewArea = document.querySelector('.screenshot-preview');
             if (previewArea) {
                 previewArea.replaceWith(previewContainer);
             } else {
                 this.elements.screenshot.parentNode.appendChild(previewContainer);
             }
-      };
-      reader.readAsDataURL(file);
+        };
+        reader.readAsDataURL(file);
     }
 
     switchTab(tabName) {
         this.elements.tabs.forEach(tab => tab.classList.toggle('active', tab.dataset.tab === tabName));
         this.elements.tabContents.forEach(content => content.classList.toggle('active', content.id === `${tabName}-tab`));
         this.currentTab = tabName;
+    }
+    
+    switchAuthTab(tabName) {
+        // Toggle active class on tab buttons
+        this.elements.authTabs.forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.authTab === tabName);
+        });
+        
+        // Toggle active class on forms
+        if (tabName === 'login') {
+            this.elements.loginForm.classList.add('active');
+            this.elements.signupForm.classList.remove('active');
+        } else {
+            this.elements.loginForm.classList.remove('active');
+            this.elements.signupForm.classList.add('active');
+        }
+    }
+    
+    updateAuthUI() {
+        const isAuthenticated = this.authService?.isAuthenticated() || false;
+        
+        if (this.elements.accountLoggedIn && this.elements.accountLoggedOut) {
+            this.elements.accountLoggedIn.classList.toggle('hidden', !isAuthenticated);
+            this.elements.accountLoggedOut.classList.toggle('hidden', isAuthenticated);
+        }
+        
+        if (isAuthenticated && this.elements.userEmail) {
+            const user = this.authService.getCurrentUser();
+            this.elements.userEmail.textContent = user.email;
+        }
     }
 
     showWindow() {

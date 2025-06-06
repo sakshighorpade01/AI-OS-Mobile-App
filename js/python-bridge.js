@@ -203,25 +203,8 @@ class PythonBridge {
       });
       return;
     }
-    
     try {
-      // Add authentication token to the message if available
-      const token = await authService.getCurrentSession();
-      if (token) {
-        if (typeof message === 'object') {
-          message.auth_token = token;
-        } else if (typeof message === 'string') {
-          try {
-            const messageObj = JSON.parse(message);
-            messageObj.auth_token = token;
-            message = JSON.stringify(messageObj);
-          } catch (e) {
-            // Not JSON, just send as is
-          }
-        }
-      }
-      
-      this.socket.emit('send_message', typeof message === 'string' ? message : JSON.stringify(message));
+      this.socket.emit('send_message', JSON.stringify(message));
     } catch (error) {
       console.error('Error sending message:', error);
       this.mainWindow.webContents.send('socket-error', {

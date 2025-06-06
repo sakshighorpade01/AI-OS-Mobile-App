@@ -65,6 +65,7 @@ class AIOS {
             nickname: document.getElementById('nickname'),
             occupation: document.getElementById('occupation'),
             userEmail: document.getElementById('userEmail'),
+            userName: document.getElementById('userName'),
             subject: document.getElementById('subject'),
             description: document.getElementById('description'),
             screenshot: document.getElementById('screenshot'),
@@ -76,6 +77,7 @@ class AIOS {
             signupForm: document.getElementById('signup-form'),
             loginEmail: document.getElementById('loginEmail'),
             loginPassword: document.getElementById('loginPassword'),
+            signupName: document.getElementById('signupName'),
             signupEmail: document.getElementById('signupEmail'),
             signupPassword: document.getElementById('signupPassword'),
             confirmPassword: document.getElementById('confirmPassword'),
@@ -128,14 +130,27 @@ class AIOS {
         // Listen for auth state changes
         if (this.authService) {
             this.authService.onAuthChange((user) => {
+                console.log('Auth change detected:', user);
                 this.updateAuthUI();
                 if (user) {
                     // Update email display
                     if (this.elements.userEmail) {
                         this.elements.userEmail.textContent = user.email;
                     }
+                    
+                    // Update name display if available
+                    if (this.elements.userName) {
+                        // Check for name in user_metadata
+                        const name = user.user_metadata?.name || 'User';
+                        console.log('Setting user name from metadata:', name);
+                        this.elements.userName.textContent = name;
+                    }
+                    
                     // Update user data
                     this.userData.account.email = user.email;
+                    if (user.user_metadata && user.user_metadata.name) {
+                        this.userData.account.name = user.user_metadata.name;
+                    }
                     this.saveUserData();
                 }
             });
@@ -145,7 +160,7 @@ class AIOS {
     async loadUserData() {
         const defaultData = {
             profile: { fullName: '', nickname: '', occupation: '' },
-            account: { email: 'user@example.com' },
+            account: { email: 'user@example.com', name: 'User Name' },
             about: { version: '1.0.0', lastUpdate: new Date().toISOString() }
         };
         try {
@@ -187,8 +202,19 @@ class AIOS {
             if (user) {
                 this.elements.userEmail.textContent = user.email;
                 this.userData.account.email = user.email;
+                
+                // Update name if available
+                if (this.elements.userName) {
+                    const name = user.user_metadata?.name || 'User';
+                    console.log('Loading user name from metadata:', name);
+                    this.elements.userName.textContent = name;
+                    this.userData.account.name = name;
+                }
             } else {
                 this.elements.userEmail.textContent = this.userData.account.email || 'user@example.com';
+                if (this.elements.userName) {
+                    this.elements.userName.textContent = this.userData.account.name || 'User Name';
+                }
             }
         }
     }
@@ -261,11 +287,12 @@ class AIOS {
             return;
         }
         
+        const name = this.elements.signupName.value;
         const email = this.elements.signupEmail.value;
         const password = this.elements.signupPassword.value;
         const confirmPassword = this.elements.confirmPassword.value;
         
-        if (!email || !password || !confirmPassword) {
+        if (!name || !email || !password || !confirmPassword) {
             this.elements.signupError.textContent = 'Please fill out all fields';
             return;
         }
@@ -276,7 +303,8 @@ class AIOS {
         }
         
         try {
-            const result = await this.authService.signUp(email, password);
+            console.log('Signing up with name:', name);
+            const result = await this.authService.signUp(email, password, name);
             if (result.success) {
                 this.elements.signupForm.reset();
                 this.elements.signupError.textContent = '';
@@ -429,9 +457,19 @@ class AIOS {
             this.elements.accountLoggedOut.classList.toggle('hidden', isAuthenticated);
         }
         
-        if (isAuthenticated && this.elements.userEmail) {
+        if (isAuthenticated) {
             const user = this.authService.getCurrentUser();
-            this.elements.userEmail.textContent = user.email;
+            console.log('Authenticated user:', user);
+            
+            if (this.elements.userEmail) {
+                this.elements.userEmail.textContent = user.email;
+            }
+            
+            if (this.elements.userName) {
+                const name = user.user_metadata?.name || 'User';
+                console.log('Displaying user name:', name);
+                this.elements.userName.textContent = name;
+            }
         }
     }
 

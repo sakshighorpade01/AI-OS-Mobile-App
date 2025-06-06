@@ -21,12 +21,17 @@ class AuthService {
             const { data } = await this.supabase.auth.getSession();
             if (data.session) {
                 this.user = data.session.user;
+                console.log('User from session:', this.user);
                 this._notifyListeners();
             }
             
             // Set up auth state change listener
             this.supabase.auth.onAuthStateChange((event, session) => {
+                console.log('Auth state changed:', event);
                 this.user = session?.user || null;
+                if (this.user) {
+                    console.log('User metadata:', this.user.user_metadata);
+                }
                 this._notifyListeners();
             });
             
@@ -58,15 +63,44 @@ class AuthService {
         });
     }
 
-    // Sign up with email and password
-    async signUp(email, password) {
+    // Sign up with email, password and name
+    async signUp(email, password, name) {
         try {
+            // First sign up the user
             const { data, error } = await this.supabase.auth.signUp({
                 email,
-                password
+                password,
+                options: {
+                    data: {
+                        name: name
+                    }
+                }
             });
             
             if (error) throw error;
+            
+            // Check if we need to update the profile in the database
+            if (data.user) {
+                try {
+                    // Insert or update the user's name in the profiles table
+                    const { error: profileError } = await this.supabase
+                        .from('profiles')
+                        .upsert({ 
+                            id: data.user.id,
+                            email: email,
+                            name: name
+                        }, { 
+                            onConflict: 'id' 
+                        });
+                        
+                    if (profileError) {
+                        console.error('Error updating profile:', profileError);
+                    }
+                } catch (profileUpdateError) {
+                    console.error('Failed to update profile:', profileUpdateError);
+                }
+            }
+            
             return { success: true, data };
         } catch (error) {
             console.error('Sign up error:', error);
@@ -83,6 +117,30 @@ class AuthService {
             });
             
             if (error) throw error;
+            
+            // If sign-in successful, fetch the user's profile to get the name
+            if (data.user) {
+                try {
+                    const { data: profileData, error: profileError } = await this.supabase
+                        .from('profiles')
+                        .select('name')
+                        .eq('id', data.user.id)
+                        .single();
+                        
+                    if (profileError) {
+                        console.error('Error fetching profile:', profileError);
+                    } else if (profileData && profileData.name) {
+                        // Update the user object with the name from profiles
+                        data.user.user_metadata = data.user.user_metadata || {};
+                        data.user.user_metadata.name = profileData.name;
+                        this.user = data.user;
+                        this._notifyListeners();
+                    }
+                } catch (profileFetchError) {
+                    console.error('Failed to fetch profile:', profileFetchError);
+                }
+            }
+            
             return { success: true, data };
         } catch (error) {
             console.error('Sign in error:', error);

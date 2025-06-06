@@ -78,6 +78,10 @@
                         <!-- Sign Up Form -->
                         <form id="signup-form" class="auth-form">
                             <div class="form-group">
+                                <label for="signupName">Name</label>
+                                <input type="text" id="signupName" placeholder="Enter your name" required>
+                            </div>
+                            <div class="form-group">
                                 <label for="signupEmail">Email</label>
                                 <input type="email" id="signupEmail" placeholder="Enter your email" required>
                             </div>
@@ -98,6 +102,10 @@
                     
                     <!-- Logged In State -->
                     <div id="account-logged-in" class="auth-state hidden">
+                        <div class="form-group">
+                            <label>Name</label>
+                            <div class="user-info-display" id="userName">User Name</div>
+                        </div>
                         <div class="form-group">
                             <label>Email ID</label>
                             <div class="email-display" id="userEmail">user@example.com</div>

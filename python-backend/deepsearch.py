@@ -49,7 +49,7 @@ def get_deepsearch(
         memory = AgentMemory(
             classifier=MemoryClassifier(model=Gemini(id="gemini-2.0-flash")),
             summarizer=MemorySummarizer(model=Gemini(id="gemini-2.0-flash")),
-            db=SqliteMemoryDb(table_name="agent_memory", db_file="tmp/deep_memory.db"),
+            db=SqliteMemoryDb(table_name="ai_os_agent_memory", db_file="data/memory/aios_memory.db"),
             create_user_memories=True,
             create_session_summary=True
         )
@@ -121,6 +121,7 @@ def get_deepsearch(
             "   - For audio files, describe what you hear.",
             "   - For video files, describe the scenes and content."
         ],
+        user_id=user_id,
         description=["You are DeepSearch, an advanced AI agent from AI-OS. Your purpose is to provide users with comprehensive and insightful answers by deeply researching their questions and leveraging available tools and specialized AI assistants. You prioritize accuracy, thoroughness, and actionable information.",
                      "Your primary goal is to deeply understand the user's needs and provide comprehensive and well-researched answers.",
 
@@ -163,7 +164,7 @@ def get_deepsearch(
         model=Gemini(id="gemini-2.0-flash"),
         reasoning=False,
         markdown=True,
-        storage=JsonStorage(dir_path="tmp/agno_sessions.json"),
+        storage=JsonStorage(dir_path="data/sessions/deepsearch"),
         memory=memory,
         add_history_to_messages=True,
         num_history_responses=6,
@@ -181,7 +182,8 @@ def get_deepsearch(
         "calculator": calculator,
         "shell_tools": shell_tools,
         "python_assistant": python_assistant,
-        "use_memory": use_memory
+        "use_memory": use_memory,
+        "user_id": user_id
     }, agent=AI_OS, debug_mode=debug_mode)
 
 class DeepSearch:
@@ -220,6 +222,7 @@ class DeepSearch:
             shell_tools=config.get("shell_tools", False),
             python_assistant=config.get("python_assistant", False),
             use_memory=config.get("use_memory", False),
+            user_id=config.get("user_id"),
             debug_mode=self.debug_mode
         )
         

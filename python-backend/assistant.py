@@ -52,6 +52,7 @@ def get_llm_os(
     debug_mode: bool = True,
     computer_use: bool = False,
     image_analysis: bool = False,
+    user_id: str = None,
 ) -> Agent:
     tools: List[Toolkit] = []
     extra_instructions: List[str] = []
@@ -62,8 +63,8 @@ def get_llm_os(
             classifier=MemoryClassifier(model=Gemini(id="gemini-2.0-flash")),
             summarizer=MemorySummarizer(model=Gemini(id="gemini-2.0-flash")),
             db=SqliteMemoryDb(
-                table_name="agent_memory",
-                db_file="tmp/agent_memory.db",
+                table_name="ai_os_agent_memory",
+                db_file="data/memory/aios_memory.db",
             ),
             create_user_memories=True,
             update_user_memories_after_run=True,
@@ -233,6 +234,8 @@ def get_llm_os(
         resources to fulfill them effectively. You are proactive, resourceful, and prioritize providing accurate and relevant
         information.\
         """),
+        # Associate with user if provided
+        user_id=user_id,
         instructions=[
             "Your primary responsibility is to assist the user effectively and efficiently.",
             "**First, analyze the user's message and the conversation history to understand their intent and context.** Pay close attention to any specific requests, topics of interest, or information provided by the user.",
@@ -278,7 +281,7 @@ def get_llm_os(
         ] + extra_instructions,
         
         # Add long-term memory to the LLM OS backed by JSON file storage
-        storage=CustomJsonFileAgentStorage(dir_path="tmp/agent_sessions_json"),
+        storage=CustomJsonFileAgentStorage(dir_path="data/sessions"),
         memory=memory,
         
         # Add selected tools to the LLM OS

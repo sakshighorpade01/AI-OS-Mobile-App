@@ -15,6 +15,9 @@ import eventlet
 from agno.media import Image, Audio, Video
 from pathlib import Path
 import werkzeug.utils
+from user_auth import user_auth
+from metrics_processor import MetricsProcessor
+import supabase_client
 
 load_dotenv()
 
@@ -106,10 +109,34 @@ class IsolatedAssistant:
                             "id": self.message_id, # Use self.message_id here.
                         }, room=self.sid)
 
+                # Get metrics from the agent response if available
+                metrics = {}
+                if hasattr(chunk, 'metrics'):
+                    metrics = chunk.metrics
+                
+                # Get user ID from session if available
+                session = connection_manager.get_session(self.sid)
+                if session and "user_id" in session:
+                    user_id = session["user_id"]
+                    
+                    # Update metrics in Supabase if user is authenticated
+                    if user_id and metrics:
+                        try:
+                            tokens_metrics = {
+                                'input_tokens': metrics.get('input_tokens', 0),
+                                'output_tokens': metrics.get('output_tokens', 0),
+                                'total_tokens': metrics.get('total_tokens', 0),
+                                'request_count': 1
+                            }
+                            supabase_client.update_user_metrics(user_id, tokens_metrics)
+                        except Exception as e:
+                            logger.error(f"Error updating metrics for user {user_id}: {e}")
+                
                 socketio.emit("response", {
                     "content": "",
                     "done": True,
                     "id": self.message_id, # Use self.message_id here.
+                    "metrics": metrics if metrics else None
                 }, room=self.sid)
 
             except Exception as e:
@@ -141,14 +168,25 @@ class ConnectionManager:
         with self.lock:
             if sid in self.sessions:
                 self.terminate_session(sid)
-
+                
+            # Get user ID from request if authenticated
+            user_id = user_auth.get_user_id_from_request()
+            
+            # Check usage limits if user is authenticated
+            if user_id:
+                # Verify user hasn't exceeded limits
+                if not supabase_client.check_usage_limits(user_id):
+                    logger.warning(f"User {user_id} has exceeded usage limits")
+                    # We'll continue but log this - later we can block if needed
+            
             # Choose the agent based on the flags
             if is_deepsearch:
                 agent = get_deepsearch(
                     ddg_search=config.get("ddg_search", False),
                     web_crawler=config.get("web_crawler", False),
                     investment_assistant=config.get("investment_assistant", False),
-                    debug_mode=True
+                    debug_mode=True,
+                    user_id=user_id  # Pass user_id to associate with session
                 )
             else:
                 agent = get_llm_os(
@@ -159,7 +197,8 @@ class ConnectionManager:
                     python_assistant=config.get("python_assistant", False),
                     investment_assistant=config.get("investment_assistant", False),
                     use_memory=config.get("use_memory", False),
-                    debug_mode=True
+                    debug_mode=True,
+                    user_id=user_id  # Pass user_id to associate with session
                 )
 
             self.sessions[sid] = {
@@ -167,10 +206,16 @@ class ConnectionManager:
                 "config": config,
                 "initialized": True,
                 "is_deepsearch": is_deepsearch,
-                "is_browse_ai": is_browse_ai
+                "is_browse_ai": is_browse_ai,
+                "user_id": user_id  # Store user_id in session data
             }
 
             self.isolated_assistants[sid] = IsolatedAssistant(sid) # Pass sid
+            
+            # Associate session with user if authenticated
+            if user_id:
+                user_auth.associate_session_with_user(sid, user_id)
+                logger.info(f"Associated session {sid} with user {user_id}")
 
             logger.info(f"Created new session {sid} with config {config} (Deepsearch: {is_deepsearch}, BrowseAI: {is_browse_ai})")
             return agent
@@ -178,9 +223,27 @@ class ConnectionManager:
     def terminate_session(self, sid):
         with self.lock:
             if sid in self.sessions:
+                # Get user_id before removing session
+                session_data = self.sessions.get(sid, {})
+                user_id = session_data.get("user_id")
+                
+                # Process metrics if user is authenticated
+                if user_id:
+                    try:
+                        # Process metrics for the user
+                        metrics_processor = MetricsProcessor()
+                        metrics_processor.process_user_metrics(user_id)
+                        logger.info(f"Processed metrics for user {user_id}")
+                    except Exception as e:
+                        logger.error(f"Error processing metrics for user {user_id}: {e}")
+                
                 if sid in self.isolated_assistants:
                     self.isolated_assistants[sid].terminate()
                     del self.isolated_assistants[sid]
+                
+                # Remove session from user auth
+                user_auth.remove_session(sid)
+                
                 del self.sessions[sid]
                 logger.info(f"Terminated session {sid}")
 
@@ -398,6 +461,64 @@ def health_check():
     # But start simple.
     logger.debug("Health check endpoint was hit.") # Optional: for seeing it in logs
     return "OK", 200
+
+@app.route('/api/usage', methods=['GET'])
+def get_user_usage():
+    """
+    Get usage statistics for the authenticated user
+    """
+    # Get user ID from request
+    user_id = user_auth.get_user_id_from_request()
+    
+    if not user_id:
+        return jsonify({
+            "error": "Unauthorized",
+            "message": "You must be logged in to view usage statistics"
+        }), 401
+    
+    # Get usage metrics from Supabase
+    metrics = supabase_client.get_user_usage_metrics(user_id)
+    
+    if not metrics:
+        return jsonify({
+            "error": "Not found",
+            "message": "No usage metrics found for this user"
+        }), 404
+    
+    # Return metrics
+    return jsonify({
+        "user_id": user_id,
+        "metrics": {
+            "input_tokens": metrics.get('input_tokens', 0),
+            "output_tokens": metrics.get('output_tokens', 0),
+            "total_tokens": metrics.get('total_tokens', 0),
+            "request_count": metrics.get('request_count', 0)
+        }
+    })
+
+@app.route('/api/process-metrics', methods=['POST'])
+def process_metrics():
+    """
+    Process metrics for all users
+    """
+    # Get user ID from request
+    user_id = user_auth.get_user_id_from_request()
+    
+    if not user_id:
+        return jsonify({
+            "error": "Unauthorized",
+            "message": "You must be logged in to process metrics"
+        }), 401
+    
+    # Process metrics
+    metrics_processor = MetricsProcessor()
+    results = metrics_processor.process_all_metrics()
+    
+    # Return results
+    return jsonify({
+        "success": True,
+        "results": results
+    })
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8765))

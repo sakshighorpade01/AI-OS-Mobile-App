@@ -21,6 +21,23 @@ import supabase_client
 
 load_dotenv()
 
+# Ensure required directories exist
+def ensure_directories():
+    """Ensure required directories exist"""
+    directories = [
+        "data/sessions",
+        "data/memory",
+        "uploads"
+    ]
+    for directory in directories:
+        if not os.path.exists(directory):
+            os.makedirs(directory, exist_ok=True)
+            print(f"Created directory: {directory}")
+        else:
+            print(f"Directory exists: {directory}")
+
+# Call at startup
+ensure_directories()
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -128,6 +145,7 @@ class IsolatedAssistant:
                                 'total_tokens': metrics.get('total_tokens', 0),
                                 'request_count': 1
                             }
+                            logger.info(f"Updating metrics for user {user_id}: {tokens_metrics}")
                             supabase_client.update_user_metrics(user_id, tokens_metrics)
                         except Exception as e:
                             logger.error(f"Error updating metrics for user {user_id}: {e}")
@@ -170,7 +188,7 @@ class ConnectionManager:
                 self.terminate_session(sid)
                 
             # Get user ID from request if authenticated
-            user_id = user_auth.get_user_id_from_request()
+            user_id = user_auth.get_user_id_for_session(sid)
             
             # Check usage limits if user is authenticated
             if user_id:
@@ -267,6 +285,35 @@ def on_disconnect():
     logger.info(f"Client disconnected: {sid}")
     connection_manager.remove_session(sid)
 
+@socketio.on("authenticate")
+def on_authenticate(data):
+    sid = request.sid
+    token = data.get('token')
+    logger.info(f"Authentication request from {sid}")
+    
+    if token:
+        user = supabase_client.get_user_by_token(token)
+        if user:
+            user_id = user.get('id')
+            logger.info(f"User authenticated: {user_id}")
+            
+            # Associate this socket session with the user
+            user_auth.associate_session_with_user(sid, user_id)
+            
+            # Update the existing session if it exists
+            session = connection_manager.get_session(sid)
+            if session:
+                session['user_id'] = user_id
+                logger.info(f"Updated existing session with user ID: {user_id}")
+                
+            emit("auth_response", {"status": "authenticated", "user_id": user_id})
+        else:
+            logger.warning(f"Invalid token provided by {sid}")
+            emit("auth_response", {"status": "invalid_token"})
+    else:
+        logger.warning(f"Missing token in authentication request from {sid}")
+        emit("auth_response", {"status": "missing_token"})
+
 def process_files(files):
     """Process files and categorize them for Agno's multimodal capabilities"""
     images = []
@@ -311,155 +358,138 @@ def process_files(files):
             logger.error(f"Path normalization error for {file_path}: {str(e)}")
             continue
         
-        try:
-            # Categorize files based on their MIME type
-            if file_type.startswith('image/'):
-                try:
-                    img = Image(filepath=file_path)
-                    images.append(img)
-                    logger.info(f"Added image: {file_path}")
-                except Exception as img_err:
-                    logger.error(f"Error creating Image object: {str(img_err)}")
-                    # Try loading content as fallback
-                    try:
-                        with open(file_path, 'rb') as f:
-                            content = f.read()
-                        img = Image(content=content)
-                        images.append(img)
-                        logger.info(f"Added image using content: {file_path}")
-                    except Exception as content_err:
-                        logger.error(f"Error loading image content: {str(content_err)}")
-            elif file_type.startswith('audio/'):
-                try:
-                    aud = Audio(filepath=file_path)
-                    audio.append(aud)
-                    logger.info(f"Added audio: {file_path}")
-                except Exception as aud_err:
-                    logger.error(f"Error creating Audio object: {str(aud_err)}")
-            elif file_type.startswith('video/'):
-                try:
-                    vid = Video(filepath=file_path)
-                    videos.append(vid)
-                    logger.info(f"Added video: {file_path}")
-                except Exception as vid_err:
-                    logger.error(f"Error creating Video object: {str(vid_err)}")
-            elif file_type.startswith('text/') or file_type == 'application/json':
-                # For text files, read the content if it wasn't provided
-                try:
-                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        content = f.read()
-                    text_content.append(f"--- File: {file_name} ---\n{content}")
-                    logger.info(f"Read text content from file: {file_path}")
-                except Exception as e:
-                    logger.error(f"Error reading text file {file_path}: {e}")
-            else:
-                # For other non-media files (like PDF, DOCX), try to extract text if possible
-                try:
-                    if file_type == 'application/pdf':
-                        # Just note that a PDF was attached - we'll handle it based on file path
-                        text_content.append(f"--- PDF File: {file_name} --- (Attached at path: {file_path})")
-                        logger.info(f"Added PDF reference: {file_path}")
-                        # Optionally add as image for visual processing by advanced models
-                        try:
-                            img = Image(filepath=file_path)
-                            images.append(img)
-                            logger.info(f"Also added PDF as image for visual processing: {file_path}")
-                        except Exception as pdf_img_err:
-                            logger.error(f"Error adding PDF as image: {str(pdf_img_err)}")
-                    else:
-                        logger.info(f"File attached but content not processed: {file_path}")
-                        text_content.append(f"--- File: {file_name} (attached at path: {file_path}) ---")
-                except Exception as e:
-                    logger.error(f"Error processing non-text file {file_path}: {str(e)}")
-                    logger.error(traceback.format_exc())
-        except Exception as e:
-            logger.error(f"Error processing file {file_path}: {str(e)}")
-            logger.error(traceback.format_exc())
+        # Categorize files based on MIME type or extension
+        if file_type.startswith('image/') or file_name.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
+            images.append(Image(filepath=file_path))
+            logger.info(f"Added image: {file_path}")
+        elif file_type.startswith('audio/') or file_name.lower().endswith(('.mp3', '.wav', '.ogg', '.m4a')):
+            audio.append(Audio(filepath=file_path))
+            logger.info(f"Added audio: {file_path}")
+        elif file_type.startswith('video/') or file_name.lower().endswith(('.mp4', '.mov', '.avi', '.webm')):
+            videos.append(Video(filepath=file_path))
+            logger.info(f"Added video: {file_path}")
+        else:
+            # For text and other files, read and add to message
+            try:
+                with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                    file_content = f.read()
+                    text_content.append(f"--- File: {file_name} ---\n{file_content}")
+                    logger.info(f"Added text content from file: {file_path}")
+            except Exception as e:
+                logger.error(f"Error reading file {file_path}: {str(e)}")
+                text_content.append(f"--- File: {file_name} ---\nUnable to read file content: {str(e)}")
     
-    # Log summary of processed files
-    if images:
-        logger.info(f"Processed {len(images)} images")
-    if audio:
-        logger.info(f"Processed {len(audio)} audio files")
-    if videos:
-        logger.info(f"Processed {len(videos)} video files")
-    if text_content:
-        logger.info(f"Processed {len(text_content)} text files")
-    
-    combined_text = "\n\n".join(text_content) if text_content else None
-    return combined_text, images, audio, videos
+    return images, audio, videos, text_content
 
 @socketio.on("send_message")
 def on_send_message(data):
     sid = request.sid
-    try:
-        data = json.loads(data)
-        message = data.get("message", "")
-        context = data.get("context", "")
-        message_type = data.get("type", "")
-        files = data.get("files", [])
-        is_deepsearch = data.get("is_deepsearch", False)
-        is_browse_ai = data.get("is_browse_ai", False)
+    message_id = str(uuid.uuid4())
 
-
-        if message_type == "terminate_session" or message_type == "new_chat":
-            connection_manager.terminate_session(sid)
-            emit("status", {"message": "Session terminated"}, room=sid)
+    # Parse data - may be JSON string or already an object
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except json.JSONDecodeError:
+            logger.error("Failed to parse JSON message")
+            emit("response", {
+                "content": "Error: Failed to parse message",
+                "error": True,
+                "done": True,
+                "id": message_id
+            })
             return
 
+    # Extract auth token if present
+    auth_token = data.get('auth_token')
+    
+    # If auth token is provided, authenticate the user
+    if auth_token:
+        user = supabase_client.get_user_by_token(auth_token)
+        if user:
+            user_id = user.get('id')
+            logger.info(f"User authenticated via message token: {user_id}")
+            
+            # Associate this socket session with the user
+            user_auth.associate_session_with_user(sid, user_id)
+            
+            # Update the existing session if it exists
+            session = connection_manager.get_session(sid)
+            if session:
+                session['user_id'] = user_id
+    
+    # Get user_id from the session if available
+    user_id = user_auth.get_user_id_for_session(sid)
+    if user_id:
+        logger.info(f"Processing message for authenticated user: {user_id}")
+    else:
+        logger.info("Processing message for anonymous session")
+
+    # Continue with the existing message handling...
+    message = data.get('message', '')
+    context = data.get('context', '')
+    files = data.get('files', [])
+    config = data.get('config', {})
+    is_deepsearch = data.get('is_deepsearch', False)
+
+    # Process any files attached to the message
+    images, audio, videos, text_content = process_files(files)
+    
+    # Add text content from files to the message
+    if text_content:
+        if message:
+            message += "\n\n"
+        message += "\n\n".join(text_content)
+        
+    # Set message_id for the assistant's response tracking
+    message_id = data.get('id') or message_id
+    
+    session = connection_manager.get_session(sid)
+    
+    # Create a new session if one doesn't exist or if this is a special message
+    if not session:
+        connection_manager.create_session(sid, config, is_deepsearch=is_deepsearch)
         session = connection_manager.get_session(sid)
-        if not session:
-            config = data.get("config", {})
-            agent = connection_manager.create_session(sid, config, is_deepsearch=is_deepsearch, is_browse_ai=is_browse_ai)
-        else:
-            agent = session["agent"]
+    
+    if not session:
+        logger.error("Failed to create session")
+        emit("response", {
+            "content": "Error: Failed to create session",
+            "error": True,
+            "done": True,
+            "id": message_id
+        })
+        return
+    
+    # Set message_id to track streaming responses
+    connection_manager.isolated_assistants[sid].message_id = message_id
+    
+    # Get agent from the session
+    agent = session["agent"]
+    
+    # Run the agent in a separate thread to avoid blocking
+    isolated_assistant = connection_manager.isolated_assistants[sid]
+    isolated_assistant.run_safely(agent, message, context, images, audio, videos)
 
-        message_id = str(uuid.uuid4())
-        isolated_assistant = connection_manager.isolated_assistants.get(sid)
+def process_metrics_task():
+    """Process metrics for all users periodically"""
+    while True:
+        try:
+            metrics_processor = MetricsProcessor()
+            results = metrics_processor.process_all_metrics()
+            logger.info(f"Periodic metrics processing results: {results}")
+        except Exception as e:
+            logger.error(f"Error in periodic metrics processing: {e}")
+        eventlet.sleep(300)  # Process every 5 minutes
 
-        if not isolated_assistant:
-            emit("error", {"message": "Session error. Starting new chat...", "reset": True})
-            connection_manager.terminate_session(sid)
-            return
-        
-        isolated_assistant.message_id = message_id 
-
-        # Process files for multimodal input
-        file_content, images, audio, videos = process_files(files)
-        
-        # Combine file content with user message if available
-        combined_message = message
-        if file_content:
-            combined_message += f"\n\nContent from attached files:\n{file_content}"
-
-        # Run the agent with multimodal inputs
-        isolated_assistant.run_safely(
-            agent, 
-            combined_message, 
-            context, 
-            images=images if images else None,
-            audio=audio if audio else None,
-            videos=videos if videos else None
-        )
-
-    except Exception as e:
-        logger.error(f"Error in message handler: {e}\n{traceback.format_exc()}")
-        emit("error", {"message": "AI service error. Starting new chat...", "reset": True}, room=sid)
-        connection_manager.terminate_session(sid)
+# Start the background task for metrics processing
+eventlet.spawn(process_metrics_task)
 
 @app.route('/healthz', methods=['GET'])
 def health_check():
     """
-    A simple health check endpoint.
-    Returns "OK" with a 200 status code if the application is up and running.
+    Simple health check endpoint for container health monitoring
     """
-    # For a basic health check, just returning 200 is often enough.
-    # You could add more sophisticated checks here if needed, e.g.:
-    # - Check database connectivity
-    # - Check status of critical external services
-    # If any of those fail, you could return a 503 Service Unavailable.
-    # But start simple.
-    logger.debug("Health check endpoint was hit.") # Optional: for seeing it in logs
     return "OK", 200
 
 @app.route('/api/usage', methods=['GET'])
@@ -522,12 +552,5 @@ def process_metrics():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8765))
-    # The debug=True for socketio.run is for Flask's development server.
-    # Gunicorn, which you use in Docker, has its own way of handling debug/reloading.
-    # For Render, Gunicorn will be run, and DEBUG should be False in your env.
-    app_debug_mode = os.environ.get("DEBUG", "False").lower() == "true"
-    logger.info(f"Starting server on host 0.0.0.0 port {port}, Flask debug mode: {app_debug_mode}")
-    
-    # When running locally with `python app.py`, this is used.
-    # On Render, Gunicorn from your Dockerfile's CMD is used.
-    socketio.run(app, host="0.0.0.0", port=port, debug=app_debug_mode, use_reloader=app_debug_mode)
+    logger.info(f"Starting server on port {port}")
+    socketio.run(app, debug=True, host='0.0.0.0', port=port)

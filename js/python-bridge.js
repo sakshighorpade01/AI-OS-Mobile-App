@@ -1,6 +1,7 @@
 const { ipcMain } = require('electron');
 const io = require('socket.io-client');
 const config = require('./config');
+const authService = require('./auth-service');
 
 class PythonBridge {
   constructor(mainWindow) {
@@ -78,12 +79,26 @@ class PythonBridge {
         reject(new Error('Socket.IO connection timeout'));
       }, config.backend.connectionTimeout);
       
-      this.socket.on('connect', () => {
+      this.socket.on('connect', async () => {
         clearTimeout(connectionTimeout);
         console.log(`Connected to Socket.IO server at ${this.serverUrl}`);
         this.initialized = true;
         this.reconnectAttempts = 0;
         this.mainWindow.webContents.send('socket-connection-status', { connected: true });
+        
+        // Send authentication information if user is logged in
+        try {
+          const token = await authService.getCurrentSession();
+          if (token) {
+            console.log('Authenticating socket connection with token');
+            this.socket.emit('authenticate', { token: token });
+          } else {
+            console.log('No authentication token available');
+          }
+        } catch (error) {
+          console.error('Error getting authentication token:', error);
+        }
+        
         resolve();
       });
       
@@ -124,6 +139,12 @@ class PythonBridge {
     // Don't log status messages to console, just forward to renderer
     this.socket.on('status', (data) => {
       this.mainWindow.webContents.send('socket-status', data);
+    });
+    
+    // Handle authentication response
+    this.socket.on('auth_response', (data) => {
+      console.log('Authentication response:', data);
+      this.mainWindow.webContents.send('auth-status', data);
     });
 
     // Handle disconnection
@@ -174,7 +195,7 @@ class PythonBridge {
     }
   }
 
-  sendMessage(message) {
+  async sendMessage(message) {
     if (!this.socket || !this.socket.connected) {
       console.error('Socket not connected');
       this.mainWindow.webContents.send('socket-error', {
@@ -182,8 +203,25 @@ class PythonBridge {
       });
       return;
     }
+    
     try {
-      this.socket.emit('send_message', JSON.stringify(message));
+      // Add authentication token to the message if available
+      const token = await authService.getCurrentSession();
+      if (token) {
+        if (typeof message === 'object') {
+          message.auth_token = token;
+        } else if (typeof message === 'string') {
+          try {
+            const messageObj = JSON.parse(message);
+            messageObj.auth_token = token;
+            message = JSON.stringify(messageObj);
+          } catch (e) {
+            // Not JSON, just send as is
+          }
+        }
+      }
+      
+      this.socket.emit('send_message', typeof message === 'string' ? message : JSON.stringify(message));
     } catch (error) {
       console.error('Error sending message:', error);
       this.mainWindow.webContents.send('socket-error', {

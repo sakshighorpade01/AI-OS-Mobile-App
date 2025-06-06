@@ -169,6 +169,25 @@ class AuthService {
     isAuthenticated() {
         return !!this.user;
     }
+    
+    // Get current JWT token
+    async getCurrentSession() {
+        try {
+            // Get the current session
+            const { data, error } = await this.supabase.auth.getSession();
+            
+            if (error) {
+                console.error('Error getting session:', error);
+                return null;
+            }
+            
+            // Return the access token if available
+            return data?.session?.access_token || null;
+        } catch (error) {
+            console.error('Error getting session token:', error);
+            return null;
+        }
+    }
 }
 
 // Create singleton instance

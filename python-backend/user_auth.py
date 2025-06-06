@@ -2,6 +2,9 @@ import os
 from typing import Dict, Any, Optional
 from flask import request
 import supabase_client
+import logging
+
+logger = logging.getLogger(__name__)
 
 class UserAuth:
     """
@@ -11,6 +14,7 @@ class UserAuth:
     def __init__(self):
         """Initialize the user authentication manager"""
         self.user_sessions = {}  # Map of session_id to user_id
+        logger.info("UserAuth initialized")
     
     def authenticate_request(self) -> Optional[Dict[str, Any]]:
         """
@@ -23,14 +27,21 @@ class UserAuth:
         auth_header = request.headers.get('Authorization', '')
         
         if not auth_header or not auth_header.startswith('Bearer '):
+            logger.debug("No valid Authorization header found")
             return None
             
         # Extract token
         token = auth_header.split(' ')[1]
+        logger.debug(f"Extracted token from Authorization header: {token[:10]}...")
         
         # Validate token with Supabase
         user = supabase_client.get_user_by_token(token)
         
+        if user:
+            logger.info(f"User authenticated: {user.get('id')}")
+        else:
+            logger.warning("Invalid token provided")
+            
         return user
     
     def get_user_id_from_request(self) -> Optional[str]:
@@ -56,6 +67,8 @@ class UserAuth:
             user_id: User ID to associate with the session
         """
         self.user_sessions[session_id] = user_id
+        logger.info(f"Associated session {session_id} with user {user_id}")
+        logger.debug(f"Current sessions: {self.user_sessions}")
     
     def get_user_id_for_session(self, session_id: str) -> Optional[str]:
         """
@@ -67,7 +80,12 @@ class UserAuth:
         Returns:
             User ID if session is associated with a user, None otherwise
         """
-        return self.user_sessions.get(session_id)
+        user_id = self.user_sessions.get(session_id)
+        if user_id:
+            logger.debug(f"Found user {user_id} for session {session_id}")
+        else:
+            logger.debug(f"No user found for session {session_id}")
+        return user_id
     
     def remove_session(self, session_id: str):
         """
@@ -77,7 +95,11 @@ class UserAuth:
             session_id: Session ID to remove
         """
         if session_id in self.user_sessions:
+            user_id = self.user_sessions[session_id]
             del self.user_sessions[session_id]
+            logger.info(f"Removed session {session_id} for user {user_id}")
+        else:
+            logger.debug(f"Attempted to remove non-existent session: {session_id}")
 
 # Create a singleton instance
 user_auth = UserAuth() 

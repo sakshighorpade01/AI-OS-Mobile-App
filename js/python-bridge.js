@@ -20,25 +20,36 @@ class PythonBridge {
   async start() {
     console.log(`Connecting to Docker container at ${this.serverUrl}...`);
     // Initialize auth service in the main process
-    await authService.init();
-    
-    // Add a listener for auth state changes to re-authenticate the socket
-    authService.onAuthChange(async (user) => {
-      if (user && this.socket && this.socket.connected) {
-        console.log('Auth state changed, attempting to authenticate socket...');
-        try {
-          const token = await authService.getCurrentSession();
-          if (token) {
-            console.log('Sending authentication token to backend.');
-            this.socket.emit('authenticate', { token: token });
-          } else {
-            console.log('Auth state changed, but no token found.');
-          }
-        } catch (error) {
-          console.error('Error getting auth token on auth state change:', error);
-        }
+    try {
+      await authService.init();
+      console.log('Auth service initialized');
+      
+      // Check if we have a user already logged in
+      const user = authService.getCurrentUser();
+      if (user) {
+        console.log('User is already logged in:', user.email);
       }
-    });
+      
+      // Add a listener for auth state changes to re-authenticate the socket
+      authService.onAuthChange(async (user) => {
+        if (user && this.socket && this.socket.connected) {
+          console.log('Auth state changed, attempting to authenticate socket...');
+          try {
+            const token = await authService.getCurrentSession();
+            if (token) {
+              console.log('Sending authentication token to backend.');
+              this.socket.emit('authenticate', { token: token });
+            } else {
+              console.log('Auth state changed, but no token found.');
+            }
+          } catch (error) {
+            console.error('Error getting auth token on auth state change:', error);
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Failed to initialize auth service:', error);
+    }
 
     this.setupIpcHandlers();
     await this.connectWebSocket();
@@ -112,7 +123,10 @@ class PythonBridge {
           const token = await authService.getCurrentSession();
           if (token) {
             console.log('Authenticating socket connection with token');
-            this.socket.emit('authenticate', { token: token });
+            // Add a small delay to ensure the server is ready to receive the auth message
+            setTimeout(() => {
+              this.socket.emit('authenticate', { token: token });
+            }, 500);
           } else {
             console.log('No authentication token available on initial connect.');
           }

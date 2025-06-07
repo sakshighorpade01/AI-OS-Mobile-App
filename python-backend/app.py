@@ -17,6 +17,7 @@ from pathlib import Path
 import werkzeug.utils
 from user_auth import user_auth
 import supabase_client
+from datetime import datetime
 
 load_dotenv()
 
@@ -125,6 +126,13 @@ class ConnectionManager:
                 
             user_id = user_auth.get_user_id_for_session(sid)
             user_email = user_auth.get_user_email_for_session(sid)
+            
+            # Log detailed information about the user
+            if user_id:
+                logger.info(f"Creating session for authenticated user - ID: {user_id}, Email: {user_email}")
+            else:
+                logger.info(f"Creating session for anonymous user")
+            
             agent_config = {
                 "calculator": config.get("calculator", False),
                 "web_crawler": config.get("web_crawler", False),
@@ -142,7 +150,14 @@ class ConnectionManager:
             else:
                 agent = get_llm_os(**agent_config)
 
-            self.sessions[sid] = {"agent": agent, "user_id": user_id}
+            # Store more information in the session
+            self.sessions[sid] = {
+                "agent": agent, 
+                "user_id": user_id,
+                "user_email": user_email,
+                "created_at": datetime.now().isoformat()
+            }
+            
             self.isolated_assistants[sid] = IsolatedAssistant(sid)
             logger.info(f"Created new session {sid} for user {user_email or 'Anonymous'}")
             return agent
@@ -175,20 +190,68 @@ class ConnectionManager:
             # Short delay to ensure the file is written to disk by agno
             eventlet.sleep(2)
 
+            if not hasattr(agent, 'session_id') or not agent.session_id:
+                logger.warning(f"Agent has no session_id, cannot process metrics for user {user_id}")
+                return
+
+            if not hasattr(agent, 'storage') or not hasattr(agent.storage, 'dir_path'):
+                logger.warning(f"Agent has no storage.dir_path, cannot process metrics for user {user_id}")
+                return
+
             session_file_path = f"{agent.storage.dir_path}/{agent.session_id}.json"
             logger.info(f"Processing metrics for user {user_id} from session file: {session_file_path}")
 
             if not os.path.exists(session_file_path):
                 logger.warning(f"Session file not found, cannot process metrics: {session_file_path}")
+                # Try to list files in the directory to see what's available
+                try:
+                    dir_path = agent.storage.dir_path
+                    files = os.listdir(dir_path)
+                    logger.info(f"Files in {dir_path}: {files}")
+                except Exception as e:
+                    logger.error(f"Error listing directory: {e}")
                 return
 
             with open(session_file_path, 'r') as f:
                 session_data = json.load(f)
             
-            metrics = session_data.get("session_data", {}).get("session_metrics", {})
-            if not metrics:
-                logger.info(f"No session_metrics found in {session_file_path}")
-                return
+            # Log the structure of the session data for debugging
+            logger.debug(f"Session data keys: {list(session_data.keys())}")
+            
+            metrics = {}
+            if 'session_data' in session_data and 'session_metrics' in session_data['session_data']:
+                metrics = session_data['session_data']['session_metrics']
+                logger.debug(f"Found metrics in session_data.session_metrics: {metrics}")
+            elif 'metrics' in session_data:
+                metrics = session_data['metrics']
+                logger.debug(f"Found metrics directly in session data: {metrics}")
+            else:
+                # Try to extract metrics from the memory.runs if available
+                if 'memory' in session_data and 'runs' in session_data['memory'] and session_data['memory']['runs']:
+                    runs = session_data['memory']['runs']
+                    logger.debug(f"Found {len(runs)} runs in memory")
+                    
+                    # Sum metrics across all runs
+                    input_tokens = 0
+                    output_tokens = 0
+                    for run in runs:
+                        if 'response' in run and 'metrics' in run['response']:
+                            run_metrics = run['response']['metrics']
+                            if 'input_tokens' in run_metrics:
+                                input_tokens += sum(run_metrics['input_tokens'])
+                            if 'output_tokens' in run_metrics:
+                                output_tokens += sum(run_metrics['output_tokens'])
+                
+                    metrics = {
+                        'input_tokens': input_tokens,
+                        'output_tokens': output_tokens,
+                        'total_tokens': input_tokens + output_tokens,
+                        'run_count': len(runs)
+                    }
+                    logger.debug(f"Extracted metrics from runs: {metrics}")
+                else:
+                    logger.info(f"No metrics found in {session_file_path}")
+                    return
 
             # Agno's session_metrics are already cumulative for the session.
             # We will pass these session totals to Supabase to be added to the user's overall total.
@@ -204,7 +267,11 @@ class ConnectionManager:
                 }
                 
                 logger.info(f"Updating Supabase for user {user_id} with session metrics: {usage_data}")
-                supabase_client.update_user_metrics(user_id, usage_data)
+                success = supabase_client.update_user_metrics(user_id, usage_data)
+                if success:
+                    logger.info(f"Successfully updated metrics for user {user_id}")
+                else:
+                    logger.error(f"Failed to update metrics for user {user_id}")
             else:
                 logger.info(f"No new tokens in session {agent.session_id} to report.")
 
@@ -234,9 +301,14 @@ def on_authenticate(data):
     token = data.get('token')
     if token:
         user = supabase_client.get_user_by_token(token)
-        if user and user.id:
+        if user and hasattr(user, 'id'):
             user_id = str(user.id)
-            user_email = user.email
+            user_email = getattr(user, 'email', 'unknown@email.com')
+            
+            # Log detailed information about the user object for debugging
+            logger.info(f"User authenticated - ID: {user_id}, Email: {user_email}")
+            logger.debug(f"User object attributes: {dir(user)}")
+            
             user_auth.associate_session_with_user(sid, user_id, user_email)
             emit("auth_response", {"status": "authenticated", "user_id": user_id})
             logger.info(f"User {user_email} authenticated for session {sid}")

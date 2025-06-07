@@ -3,6 +3,7 @@ from typing import Dict, Any, Optional
 import supabase
 from dotenv import load_dotenv
 import logging
+import traceback
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -31,13 +32,19 @@ def get_user_by_token(jwt_token: str) -> Optional[Dict[str, Any]]:
         # Get user data from token
         response = supabase_client.auth.get_user(jwt_token)
         user = response.user
+        
         if user:
             logger.info(f"Token validated successfully for user: {user.id}")
+            # Log the full user object for debugging
+            logger.debug(f"User object: {user}")
+            logger.debug(f"User email: {getattr(user, 'email', 'No email attribute')}")
+            logger.debug(f"User ID: {getattr(user, 'id', 'No id attribute')}")
         else:
             logger.warning("Token validation failed - no user found")
         return user
     except Exception as e:
         logger.error(f"Error validating token: {e}")
+        logger.error(f"Token validation traceback: {traceback.format_exc()}")
         return None
 
 def get_user_usage_metrics(user_id: str) -> Dict[str, Any]:

@@ -38,7 +38,7 @@ class UserAuth:
         user = supabase_client.get_user_by_token(token)
         
         if user:
-            logger.info(f"User authenticated: {user.get('id')}")
+            logger.info(f"User authenticated: {user.id}")
         else:
             logger.warning("Invalid token provided")
             

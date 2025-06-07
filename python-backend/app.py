@@ -91,30 +91,28 @@ class IsolatedAssistant:
                             "id": self.message_id,
                         }, room=self.sid)
 
-                # --- Direct Metrics Update ---
-                # After the run is complete, update metrics directly
+                # --- Direct & Correct Metrics Update ---
                 user_id = user_auth.get_user_id_for_session(self.sid)
                 if user_id and agent.memory.runs:
                     try:
-                        # Get metrics from the last completed run
                         latest_run = agent.memory.runs[-1]
                         metrics = latest_run.response.metrics
                         
-                        input_tokens = metrics.get('input_tokens', [0])[-1]
-                        output_tokens = metrics.get('output_tokens', [0])[-1]
+                        # Sum all tokens used in this particular run for accuracy
+                        total_input_tokens = sum(metrics.get('input_tokens', []))
+                        total_output_tokens = sum(metrics.get('output_tokens', []))
 
-                        if input_tokens > 0 or output_tokens > 0:
+                        if total_input_tokens > 0 or total_output_tokens > 0:
                             usage_data = {
-                                'input_tokens': input_tokens,
-                                'output_tokens': output_tokens,
-                                'total_tokens': input_tokens + output_tokens,
-                                'request_count': 1
+                                'input_tokens': total_input_tokens,
+                                'output_tokens': total_output_tokens,
+                                'total_tokens': total_input_tokens + total_output_tokens,
+                                'request_count': 1 
                             }
                             logger.info(f"Updating metrics for user {user_id}: {usage_data}")
                             supabase_client.update_user_metrics(user_id, usage_data)
                         else:
-                            logger.info(f"No new tokens to report for user {user_id}.")
-
+                            logger.info(f"No new tokens to report for run.")
                     except Exception as e:
                         logger.error(f"Error processing metrics for user {user_id}: {e}\n{traceback.format_exc()}")
                 

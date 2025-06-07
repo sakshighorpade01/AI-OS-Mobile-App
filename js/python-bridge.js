@@ -19,6 +19,8 @@ class PythonBridge {
 
   async start() {
     console.log(`Connecting to Docker container at ${this.serverUrl}...`);
+    // Initialize auth service in the main process
+    await authService.init();
     this.setupIpcHandlers();
     await this.connectWebSocket();
   }

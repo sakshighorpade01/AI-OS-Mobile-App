@@ -91,31 +91,6 @@ class IsolatedAssistant:
                             "id": self.message_id,
                         }, room=self.sid)
 
-                # --- Direct & Correct Metrics Update ---
-                user_id = user_auth.get_user_id_for_session(self.sid)
-                if user_id and agent.memory.runs:
-                    try:
-                        latest_run = agent.memory.runs[-1]
-                        metrics = latest_run.response.metrics
-                        
-                        # Sum all tokens used in this particular run for accuracy
-                        total_input_tokens = sum(metrics.get('input_tokens', []))
-                        total_output_tokens = sum(metrics.get('output_tokens', []))
-
-                        if total_input_tokens > 0 or total_output_tokens > 0:
-                            usage_data = {
-                                'input_tokens': total_input_tokens,
-                                'output_tokens': total_output_tokens,
-                                'total_tokens': total_input_tokens + total_output_tokens,
-                                'request_count': 1 
-                            }
-                            logger.info(f"Updating metrics for user {user_id}: {usage_data}")
-                            supabase_client.update_user_metrics(user_id, usage_data)
-                        else:
-                            logger.info(f"No new tokens to report for run.")
-                    except Exception as e:
-                        logger.error(f"Error processing metrics for user {user_id}: {e}\n{traceback.format_exc()}")
-                
                 # Signal completion of the stream
                 socketio.emit("response", {
                     "content": "",
@@ -149,6 +124,7 @@ class ConnectionManager:
                 self.terminate_session(sid)
                 
             user_id = user_auth.get_user_id_for_session(sid)
+            user_email = user_auth.get_user_email_for_session(sid)
             agent_config = {
                 "calculator": config.get("calculator", False),
                 "web_crawler": config.get("web_crawler", False),
@@ -168,18 +144,72 @@ class ConnectionManager:
 
             self.sessions[sid] = {"agent": agent, "user_id": user_id}
             self.isolated_assistants[sid] = IsolatedAssistant(sid)
-            logger.info(f"Created new session {sid} for user {user_id}")
+            logger.info(f"Created new session {sid} for user {user_email or 'Anonymous'}")
             return agent
 
     def terminate_session(self, sid):
         with self.lock:
             if sid in self.sessions:
+                session_info = self.sessions.get(sid, {})
+                agent = session_info.get("agent")
+                user_id = session_info.get("user_id")
+
+                if user_id and agent:
+                    # Spawn a new greenlet to handle metrics processing
+                    # to avoid blocking the termination process.
+                    eventlet.spawn(self.process_and_update_metrics, agent, user_id)
+
                 if sid in self.isolated_assistants:
                     self.isolated_assistants[sid].terminate()
                     del self.isolated_assistants[sid]
+                
                 user_auth.remove_session(sid)
                 del self.sessions[sid]
                 logger.info(f"Terminated session {sid}")
+
+    def process_and_update_metrics(self, agent, user_id):
+        """
+        Reads the final session file and updates metrics in Supabase.
+        """
+        try:
+            # Short delay to ensure the file is written to disk by agno
+            eventlet.sleep(2)
+
+            session_file_path = f"{agent.storage.dir_path}/{agent.session_id}.json"
+            logger.info(f"Processing metrics for user {user_id} from session file: {session_file_path}")
+
+            if not os.path.exists(session_file_path):
+                logger.warning(f"Session file not found, cannot process metrics: {session_file_path}")
+                return
+
+            with open(session_file_path, 'r') as f:
+                session_data = json.load(f)
+            
+            metrics = session_data.get("session_data", {}).get("session_metrics", {})
+            if not metrics:
+                logger.info(f"No session_metrics found in {session_file_path}")
+                return
+
+            # Agno's session_metrics are already cumulative for the session.
+            # We will pass these session totals to Supabase to be added to the user's overall total.
+            input_tokens = metrics.get('input_tokens', 0)
+            output_tokens = metrics.get('output_tokens', 0)
+            
+            if input_tokens > 0 or output_tokens > 0:
+                usage_data = {
+                    'input_tokens': input_tokens,
+                    'output_tokens': output_tokens,
+                    'total_tokens': input_tokens + output_tokens,
+                    'request_count': metrics.get('run_count', 1)
+                }
+                
+                logger.info(f"Updating Supabase for user {user_id} with session metrics: {usage_data}")
+                supabase_client.update_user_metrics(user_id, usage_data)
+            else:
+                logger.info(f"No new tokens in session {agent.session_id} to report.")
+
+        except Exception as e:
+            logger.error(f"Error processing metrics from file for user {user_id}: {e}\n{traceback.format_exc()}")
 
     def get_session(self, sid):
         return self.sessions.get(sid)
@@ -206,9 +236,10 @@ def on_authenticate(data):
         user = supabase_client.get_user_by_token(token)
         if user and user.id:
             user_id = str(user.id)
-            user_auth.associate_session_with_user(sid, user_id)
+            user_email = user.email
+            user_auth.associate_session_with_user(sid, user_id, user_email)
             emit("auth_response", {"status": "authenticated", "user_id": user_id})
-            logger.info(f"User {user_id} authenticated for session {sid}")
+            logger.info(f"User {user_email} authenticated for session {sid}")
         else:
             emit("auth_response", {"status": "invalid_token"})
             logger.warning(f"Invalid token for session {sid}")
@@ -332,16 +363,17 @@ def get_user_usage():
     Get usage statistics for the authenticated user
     """
     # Get user ID from request
-    user_id = user_auth.get_user_id_from_request()
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return jsonify({"error": "Unauthorized"}), 401
+    token = auth_header.split(' ')[1]
+    user = supabase_client.get_user_by_token(token)
     
-    if not user_id:
-        return jsonify({
-            "error": "Unauthorized",
-            "message": "You must be logged in to view usage statistics"
-        }), 401
+    if not user:
+        return jsonify({"error": "Unauthorized"}), 401
     
     # Get usage metrics from Supabase
-    metrics = supabase_client.get_user_usage_metrics(user_id)
+    metrics = supabase_client.get_user_usage_metrics(user.id)
     
     if not metrics:
         return jsonify({
@@ -351,37 +383,13 @@ def get_user_usage():
     
     # Return metrics
     return jsonify({
-        "user_id": user_id,
+        "user_id": user.id,
         "metrics": {
             "input_tokens": metrics.get('input_tokens', 0),
             "output_tokens": metrics.get('output_tokens', 0),
             "total_tokens": metrics.get('total_tokens', 0),
             "request_count": metrics.get('request_count', 0)
         }
-    })
-
-@app.route('/api/process-metrics', methods=['POST'])
-def process_metrics():
-    """
-    Process metrics for all users
-    """
-    # Get user ID from request
-    user_id = user_auth.get_user_id_from_request()
-    
-    if not user_id:
-        return jsonify({
-            "error": "Unauthorized",
-            "message": "You must be logged in to process metrics"
-        }), 401
-    
-    # Process metrics
-    metrics_processor = MetricsProcessor()
-    results = metrics_processor.process_all_metrics()
-    
-    # Return results
-    return jsonify({
-        "success": True,
-        "results": results
     })
 
 if __name__ == "__main__":

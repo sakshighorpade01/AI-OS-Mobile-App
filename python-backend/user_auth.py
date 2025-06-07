@@ -13,7 +13,7 @@ class UserAuth:
     
     def __init__(self):
         """Initialize the user authentication manager"""
-        self.user_sessions = {}  # Map of session_id to user_id
+        self.user_sessions = {}  # Map of session_id to {'user_id': str, 'user_email': str}
         logger.info("UserAuth initialized")
     
     def authenticate_request(self) -> Optional[Dict[str, Any]]:
@@ -58,16 +58,12 @@ class UserAuth:
             
         return None
     
-    def associate_session_with_user(self, session_id: str, user_id: str):
+    def associate_session_with_user(self, session_id: str, user_id: str, user_email: str):
         """
-        Associate a session with a user
-        
-        Args:
-            session_id: Session ID to associate
-            user_id: User ID to associate with the session
+        Associate a session with a user and their email.
         """
-        self.user_sessions[session_id] = user_id
-        logger.info(f"Associated session {session_id} with user {user_id}")
+        self.user_sessions[session_id] = {'user_id': user_id, 'user_email': user_email}
+        logger.info(f"Associated session {session_id} with user {user_id} ({user_email})")
         logger.debug(f"Current sessions: {self.user_sessions}")
     
     def get_user_id_for_session(self, session_id: str) -> Optional[str]:
@@ -80,12 +76,25 @@ class UserAuth:
         Returns:
             User ID if session is associated with a user, None otherwise
         """
-        user_id = self.user_sessions.get(session_id)
-        if user_id:
-            logger.debug(f"Found user {user_id} for session {session_id}")
-        else:
-            logger.debug(f"No user found for session {session_id}")
-        return user_id
+        session_info = self.user_sessions.get(session_id)
+        if session_info:
+            return session_info.get('user_id')
+        return None
+
+    def get_user_email_for_session(self, session_id: str) -> Optional[str]:
+        """
+        Get user email for a session
+
+        Args:
+            session_id: Session ID to get user for
+
+        Returns:
+            User email if session is associated with a user, None otherwise
+        """
+        session_info = self.user_sessions.get(session_id)
+        if session_info:
+            return session_info.get('user_email')
+        return None
     
     def remove_session(self, session_id: str):
         """
@@ -95,7 +104,7 @@ class UserAuth:
             session_id: Session ID to remove
         """
         if session_id in self.user_sessions:
-            user_id = self.user_sessions[session_id]
+            user_id = self.user_sessions[session_id].get('user_id')
             del self.user_sessions[session_id]
             logger.info(f"Removed session {session_id} for user {user_id}")
         else:

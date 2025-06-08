@@ -140,9 +140,10 @@ class AIOS {
                     
                     // Update name display if available
                     if (this.elements.userName) {
-                        // Check for name in user_metadata
-                        const name = user.user_metadata?.name || 'User';
+                        // Check for name in user_metadata, then from user object directly
+                        const name = user.user_metadata?.name || user.name || 'User';
                         console.log('Setting user name from metadata:', name);
+                        console.log('Full user metadata on auth change:', JSON.stringify(user.user_metadata));
                         this.elements.userName.textContent = name;
                     }
                     
@@ -205,8 +206,10 @@ class AIOS {
                 
                 // Update name if available
                 if (this.elements.userName) {
-                    const name = user.user_metadata?.name || 'User';
+                    // First try to get name from user_metadata, then from the user object directly
+                    const name = user.user_metadata?.name || user.name || 'User';
                     console.log('Loading user name from metadata:', name);
+                    console.log('Full user metadata:', user.user_metadata);
                     this.elements.userName.textContent = name;
                     this.userData.account.name = name;
                 }
@@ -287,13 +290,28 @@ class AIOS {
             return;
         }
         
-        const name = this.elements.signupName.value;
+        // Get values from form elements
+        const name = this.elements.signupName ? this.elements.signupName.value : '';
         const email = this.elements.signupEmail.value;
         const password = this.elements.signupPassword.value;
         const confirmPassword = this.elements.confirmPassword.value;
         
+        console.log('Form elements:', {
+            nameElement: this.elements.signupName,
+            emailElement: this.elements.signupEmail,
+            passwordElement: this.elements.signupPassword,
+            confirmPasswordElement: this.elements.confirmPassword
+        });
+        
+        console.log('Form values:', {
+            name: name,
+            email: email,
+            password: password ? '[REDACTED]' : undefined,
+            confirmPassword: confirmPassword ? '[REDACTED]' : undefined
+        });
+        
         if (!name || !email || !password || !confirmPassword) {
-            this.elements.signupError.textContent = 'Please fill out all fields';
+            this.elements.signupError.textContent = 'All fields are required';
             return;
         }
         
@@ -303,8 +321,21 @@ class AIOS {
         }
         
         try {
-            console.log('Signing up with name:', name);
-            const result = await this.authService.signUp(email, password, name);
+            // Store name in a local variable to ensure it's not lost
+            const userName = name.trim();
+            console.log('Signing up with name:', userName);
+            console.log('Name input element value:', this.elements.signupName.value);
+            console.log('Name input element:', this.elements.signupName);
+            
+            // Log the exact parameters being passed to signUp
+            console.log('Parameters being passed to authService.signUp:', {
+                email: email,
+                password: password ? '[REDACTED]' : undefined,
+                userName: userName
+            });
+            
+            // Pass the name explicitly as a string
+            const result = await this.authService.signUp(email, password, userName);
             if (result.success) {
                 this.elements.signupForm.reset();
                 this.elements.signupError.textContent = '';
@@ -460,14 +491,17 @@ class AIOS {
         if (isAuthenticated) {
             const user = this.authService.getCurrentUser();
             console.log('Authenticated user:', user);
+            console.log('User metadata:', user.user_metadata);
             
             if (this.elements.userEmail) {
                 this.elements.userEmail.textContent = user.email;
             }
             
             if (this.elements.userName) {
-                const name = user.user_metadata?.name || 'User';
+                // First try to get name from user_metadata, then from the user object directly
+                const name = user.user_metadata?.name || user.name || 'User';
                 console.log('Displaying user name:', name);
+                console.log('Full user metadata object:', JSON.stringify(user.user_metadata));
                 this.elements.userName.textContent = name;
             }
         }

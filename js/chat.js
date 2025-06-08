@@ -284,23 +284,42 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
 }
 
 /**
- * Handles sending a message to the server.  Reads context files if needed.
+ * Handles sending a message to the server. Reads context files if needed.
  */
 async function handleSendMessage() {
     const floatingInput = document.getElementById('floating-input');
     const message = floatingInput.value.trim();
     const sendMessageBtn = document.getElementById('send-message');
 
-    if (!message) {
-        return; // Don't send empty messages
+    if (!message && fileAttachmentHandler.getAttachedFiles().length === 0) {
+        return; // Don't send empty messages without files
     }
 
     floatingInput.disabled = true;
     sendMessageBtn.disabled = true;
 
+    // --- NEW: Authentication Check ---
+    if (!window.electron || !window.electron.auth) {
+        showNotification('Authentication service not available.', 'error');
+        floatingInput.disabled = false;
+        sendMessageBtn.disabled = false;
+        return;
+    }
+
+    const session = await window.electron.auth.getSession();
+    if (!session || !session.access_token) {
+        showNotification('You must be logged in to send a message.', 'error');
+        floatingInput.disabled = false;
+        sendMessageBtn.disabled = false;
+        return;
+    }
+    // --- END: Authentication Check ---
+
     if (!connectionStatus) {
         showNotification('Not connected to server. Please wait for connection...', 'error');
         ipcRenderer.send('restart-python-bridge');
+        floatingInput.disabled = false;
+        sendMessageBtn.disabled = false;
         return;
     }
 
@@ -321,7 +340,8 @@ async function handleSendMessage() {
         message: message,
         id: Date.now().toString(),
         files: attachedFiles,
-        is_deepsearch: chatConfig.deepsearch
+        is_deepsearch: chatConfig.deepsearch,
+        accessToken: session.access_token // <-- SECURE TOKEN ADDED HERE
     };
 
     if (!sessionActive) {

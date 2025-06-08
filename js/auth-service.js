@@ -63,47 +63,81 @@ class AuthService {
         });
     }
 
-    // Sign up with email, password and name
+    // Sign up with email, password, and name
     async signUp(email, password, name) {
+        console.log('Auth service received signup parameters:', {
+            email: email,
+            password: password ? '[REDACTED]' : undefined,
+            name: name,
+            nameType: typeof name
+        });
+        
+        console.log('Signup call stack:', new Error().stack);
+        
+        const processedName = typeof name === 'string' ? name.trim() : '';
+        console.log('Processed name:', processedName);
+        
         try {
-            // First sign up the user
             const { data, error } = await this.supabase.auth.signUp({
-                email,
-                password,
+                email: email,
+                password: password,
                 options: {
                     data: {
-                        name: name
+                        name: processedName
                     }
                 }
             });
             
-            if (error) throw error;
+            if (error) {
+                console.error('Signup error:', error);
+                return { success: false, error: error.message };
+            }
             
-            // Check if we need to update the profile in the database
+            console.log('Signup response:', data);
+            console.log('User metadata after signup:', data.user?.user_metadata);
+            
             if (data.user) {
+                if (!data.user.user_metadata?.name && processedName) {
+                    console.log('Name not found in user_metadata, updating it manually');
+                    try {
+                        const { data: updateData, error: updateError } = await this.supabase.auth.updateUser({
+                            data: { name: processedName }
+                        });
+                        
+                        if (updateError) {
+                            console.error('Error updating user metadata:', updateError);
+                        } else {
+                            console.log('User metadata updated successfully:', updateData.user.user_metadata);
+                            data.user.user_metadata = updateData.user.user_metadata;
+                        }
+                    } catch (updateError) {
+                        console.error('Failed to update user metadata:', updateError);
+                    }
+                }
+                
                 try {
-                    // Insert or update the user's name in the profiles table
                     const { error: profileError } = await this.supabase
                         .from('profiles')
-                        .upsert({ 
+                        .upsert({
                             id: data.user.id,
                             email: email,
-                            name: name
-                        }, { 
-                            onConflict: 'id' 
+                            name: processedName,
+                            updated_at: new Date().toISOString()
                         });
                         
                     if (profileError) {
                         console.error('Error updating profile:', profileError);
+                    } else {
+                        console.log('Profile updated successfully');
                     }
-                } catch (profileUpdateError) {
-                    console.error('Failed to update profile:', profileUpdateError);
+                } catch (profileError) {
+                    console.error('Failed to update profile:', profileError);
                 }
             }
             
             return { success: true, data };
         } catch (error) {
-            console.error('Sign up error:', error);
+            console.error('Signup error:', error);
             return { success: false, error: error.message };
         }
     }
@@ -112,32 +146,43 @@ class AuthService {
     async signIn(email, password) {
         try {
             const { data, error } = await this.supabase.auth.signInWithPassword({
-                email,
-                password
+                email: email,
+                password: password
             });
             
             if (error) throw error;
             
-            // If sign-in successful, fetch the user's profile to get the name
+            console.log('Sign in response:', data);
+            console.log('User metadata after signin:', data.user?.user_metadata);
+            
             if (data.user) {
-                try {
-                    const { data: profileData, error: profileError } = await this.supabase
-                        .from('profiles')
-                        .select('name')
-                        .eq('id', data.user.id)
-                        .single();
-                        
-                    if (profileError) {
-                        console.error('Error fetching profile:', profileError);
-                    } else if (profileData && profileData.name) {
-                        // Update the user object with the name from profiles
-                        data.user.user_metadata = data.user.user_metadata || {};
-                        data.user.user_metadata.name = profileData.name;
-                        this.user = data.user;
-                        this._notifyListeners();
+                if (data.user.user_metadata?.name) {
+                    console.log('Name found in user_metadata:', data.user.user_metadata.name);
+                    this.user = data.user;
+                    this._notifyListeners();
+                } else {
+                    try {
+                        console.log('Name not found in user_metadata, fetching from profiles table');
+                        const { data: profileData, error: profileError } = await this.supabase
+                            .from('profiles')
+                            .select('name')
+                            .eq('id', data.user.id)
+                            .single();
+                            
+                        if (profileError) {
+                            console.error('Error fetching profile:', profileError);
+                        } else if (profileData && profileData.name) {
+                            console.log('Name found in profiles table:', profileData.name);
+                            data.user.user_metadata = data.user.user_metadata || {};
+                            data.user.user_metadata.name = profileData.name;
+                            this.user = data.user;
+                            this._notifyListeners();
+                        } else {
+                            console.log('Name not found in profiles table either');
+                        }
+                    } catch (profileFetchError) {
+                        console.error('Failed to fetch profile:', profileFetchError);
                     }
-                } catch (profileFetchError) {
-                    console.error('Failed to fetch profile:', profileFetchError);
                 }
             }
             
@@ -169,22 +214,19 @@ class AuthService {
     isAuthenticated() {
         return !!this.user;
     }
-    
-    // Get current JWT token
-    async getCurrentSession() {
+
+    // --- ADDED THIS METHOD ---
+    // Get the full session object, including the access token
+    async getSession() {
         try {
-            // Get the current session
             const { data, error } = await this.supabase.auth.getSession();
-            
             if (error) {
-                console.error('Error getting session:', error);
+                console.error('Error getting session:', error.message);
                 return null;
             }
-            
-            // Return the access token if available
-            return data?.session?.access_token || null;
+            return data.session;
         } catch (error) {
-            console.error('Error getting session token:', error);
+            console.error('Failed to get session:', error.message);
             return null;
         }
     }
@@ -193,4 +235,4 @@ class AuthService {
 // Create singleton instance
 const authService = new AuthService();
 
-module.exports = authService; 
+module.exports = authService;

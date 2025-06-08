@@ -52,7 +52,7 @@ class IsolatedAssistant:
         """Runs agent in isolated thread, handles crashes, and logs usage."""
 
         # MODIFIED: This internal function now also handles metric logging
-        def _run_agent(self, agent, message, user, context, images, audio, videos):
+        def _run_agent(agent, message, user, context, images, audio, videos):
             try:
                 if context:
                     complete_message = f"Previous conversation context:\n{context}\n\nCurrent message: {message}"

@@ -52,7 +52,7 @@ class IsolatedAssistant:
         """Runs agent in isolated thread, handles crashes, and logs usage."""
 
         # MODIFIED: This internal function now also handles metric logging
-        def _run_agent(agent, message, user, context, images, audio, videos):
+        def _run_agent(self, agent, message, user, context, images, audio, videos):
             try:
                 if context:
                     complete_message = f"Previous conversation context:\n{context}\n\nCurrent message: {message}"
@@ -96,8 +96,8 @@ class IsolatedAssistant:
                         last_run_metrics = agent.memory.runs[-1].response.metrics
                         
                         # Sum up tokens used in this specific interaction
-                        input_tokens_used = sum(last_run_metrics.input_tokens)
-                        output_tokens_used = sum(last_run_metrics.output_tokens)
+                        input_tokens_used = sum(last_run_metrics['input_tokens'])
+                        output_tokens_used = sum(last_run_metrics['output_tokens'])
 
                         if input_tokens_used > 0 or output_tokens_used > 0:
                             logger.info(f"Logging usage for user {user.id}: {input_tokens_used} in, {output_tokens_used} out.")
@@ -111,6 +111,8 @@ class IsolatedAssistant:
                         else:
                             logger.info(f"No token usage to log for user {user.id}.")
 
+                    except KeyError as ke:
+                        logger.error(f"Metric key not found: {ke}. Available keys: {last_run_metrics.keys()}")
                     except Exception as metric_error:
                         logger.error(f"Failed to log usage metrics for user {user.id}: {metric_error}")
                         logger.error(traceback.format_exc())

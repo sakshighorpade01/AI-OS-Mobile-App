@@ -98,16 +98,26 @@ class IsolatedAssistant:
                         # Sum up tokens used in this specific interaction
                         input_tokens_used = sum(last_run_metrics['input_tokens'])
                         output_tokens_used = sum(last_run_metrics['output_tokens'])
+                        total_tokens_used = input_tokens_used + output_tokens_used
 
-                        if input_tokens_used > 0 or output_tokens_used > 0:
+                        if total_tokens_used > 0:
                             logger.info(f"Logging usage for user {user.id}: {input_tokens_used} in, {output_tokens_used} out.")
                             
-                            # Call the Supabase RPC function to atomically update metrics
-                            supabase_client.rpc('update_usage_metrics', {
-                                'p_user_id': str(user.id),
-                                'p_input_tokens_increment': input_tokens_used,
-                                'p_output_tokens_increment': output_tokens_used
-                            }).execute()
+                            # --- START OF MODIFIED CODE BLOCK ---
+                            # Insert a new record into the request_logs table for this specific transaction
+                            try:
+                                supabase_client.from_('request_logs').insert({
+                                    'user_id': str(user.id),
+                                    'input_tokens': input_tokens_used,
+                                    'output_tokens': output_tokens_used
+                                    # 'total_tokens' is a generated column in the DB, so we don't need to send it.
+                                }).execute()
+                                logger.info(f"Successfully logged {total_tokens_used} tokens for user {user.id}.")
+                            except Exception as db_error:
+                                logger.error(f"DATABASE LOGGING FAILED for user {user.id}: {db_error}")
+                                # Even if logging fails, don't crash the main flow.
+                                pass
+                            # --- END OF MODIFIED CODE BLOCK ---
                         else:
                             logger.info(f"No token usage to log for user {user.id}.")
 
@@ -205,9 +215,7 @@ def on_disconnect():
     logger.info(f"Client disconnected: {sid}")
     connection_manager.remove_session(sid)
 
-# This function remains unchanged
 def process_files(files):
-    # ... (your existing process_files logic)
     images = []
     audio = []
     videos = []

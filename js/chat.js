@@ -506,7 +506,8 @@ function handleTasksToggle() {
 /**
  * Terminates the current chat session.
  */
-function terminateSession() {
+// --- MODIFIED FUNCTION ---
+async function terminateSession() { // Make the function async
     sessionActive = false;
     ongoingStreams = {};
     chatConfig.deepsearch = false; // Reset DeepSearch state
@@ -514,8 +515,19 @@ function terminateSession() {
         fileAttachmentHandler.clearAttachedFiles();
     }
 
-    // Send termination request via IPC
-    ipcRenderer.send('terminate-session');
+    // --- NEW: Authenticated Termination Request ---
+    // Get the session to prove the user is authorized to terminate it.
+    const session = await window.electron.auth.getSession();
+    if (!session || !session.access_token) {
+        // If user is logged out, no need to tell the server.
+        console.log("User is not logged in, terminating session locally.");
+        return;
+    }
+
+    // Send termination request with the token via IPC
+    ipcRenderer.send('terminate-session', {
+        accessToken: session.access_token
+    });
 }
 
 /**

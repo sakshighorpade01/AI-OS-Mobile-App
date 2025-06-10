@@ -28,11 +28,14 @@ class PythonBridge {
       this.sendMessage(data);
     });
 
-    // Handle session termination requests
-    ipcMain.on('terminate-session', () => {
+    // --- MODIFIED IPC HANDLER ---
+    // Handle session termination requests, now with authentication data
+    ipcMain.on('terminate-session', (event, data) => {
       this.sendMessage({
         type: 'terminate_session',
-        message: 'terminate'
+        message: 'terminate',
+        // Pass the accessToken from the data object received from chat.js
+        accessToken: data ? data.accessToken : null 
       });
     });
 

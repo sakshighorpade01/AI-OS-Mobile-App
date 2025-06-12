@@ -12,6 +12,7 @@ from agno.agent import Agent
 from agno.memory import AgentMemory
 from agno.memory.classifier import MemoryClassifier
 from agno.memory.summarizer import MemorySummarizer
+from agno.memory.manager import MemoryManager
 from agno.models.google import Gemini
 from agno.models.groq import Groq
 from agno.memory.db.sqlite import SqliteMemoryDb
@@ -58,30 +59,34 @@ def get_llm_os(
 
     # Configure memory
     if use_memory:
-        # --- START OF MODIFIED LOGIC ---
-        # 1. Define the model to be used for all memory operations
+        # --- START OF FULLY CORRECTED LOGIC ---
+        # 1. Define the single model instance for all memory operations
         memory_model = Gemini(id="gemini-2.0-flash")
+        
+        # 2. Define the database instance
+        db_connection = SqliteMemoryDb(
+            table_name="ai_os_agent_memory",
+            db_file="storage/tmp/aios_memory.db",
+        )
 
-        # 2. Explicitly instantiate the memory components with the desired model
+        # 3. Explicitly instantiate ALL memory components with the desired model
         classifier = MemoryClassifier(model=memory_model)
         summarizer = MemorySummarizer(model=memory_model)
-        # Note: MemoryManager is also lazy-loaded inside AgentMemory, but it's better
-        # to be explicit if you use it directly. For now, classifier/summarizer are key.
+        # 4. This is the new, critical part: Instantiate the MemoryManager
+        manager = MemoryManager(model=memory_model, db=db_connection)
 
-        # 3. Inject these pre-configured components into AgentMemory
+        # 5. Inject all pre-configured components into AgentMemory
         memory = AgentMemory(
             classifier=classifier,
             summarizer=summarizer,
-            db=SqliteMemoryDb(
-                table_name="ai_os_agent_memory",
-                db_file="storage/tmp/aios_memory.db",
-            ),
+            manager=manager, # <-- INJECT THE MANAGER
+            db=db_connection,
             create_user_memories=True,
             update_user_memories_after_run=True,
             create_session_summary=True,
             update_session_summary_after_run=True,
         )
-        # --- END OF MODIFIED LOGIC ---
+        # --- END OF FULLY CORRECTED LOGIC ---
 
         extra_instructions.append(
             "You have access to long-term memory. Use the `search_knowledge_base` tool to search your memory for relevant information."
@@ -93,6 +98,7 @@ def get_llm_os(
             create_session_summary=False,
             update_session_summary_after_run=False,
         )
+
 
     if calculator:
         calc_tool = CalculatorTools(

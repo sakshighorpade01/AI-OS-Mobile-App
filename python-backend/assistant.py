@@ -15,7 +15,6 @@ from agno.memory.summarizer import MemorySummarizer
 from agno.memory.manager import MemoryManager
 from agno.models.google import Gemini
 from agno.memory.db.sqlite import SqliteMemoryDb
-from agno.storage.postgres import PostgresStorage
 from agno.storage.json import JsonStorage
 from typing import List, Optional
 from automation_tools import AutomationTools
@@ -41,59 +40,6 @@ class CustomJsonFileAgentStorage(JsonStorage):
                             m.pop("parts", None)
         
         return super().serialize(data)
-
-class PostgresSessionStorage(Storage):
-    def __init__(self, table_name: str = "ai_os_sessions"):
-        self.connection_string = os.getenv("DATABASE_URL")
-        if not self.connection_string:
-            raise ValueError("DATABASE_URL environment variable not set.")
-        self.table_name = table_name
-        self.user_id = None
-
-    def set_user_id(self, user_id: str):
-        self.user_id = user_id
-
-    def _get_conn(self):
-        return psycopg2.connect(self.connection_string)
-
-    def write(self, data: dict) -> None:
-        session_id = data.get("session_id")
-        if not session_id or not self.user_id:
-            return
-
-        title = "New Conversation"
-        try:
-            first_user_message = next((run['message']['content'] for run in data.get('memory', {}).get('runs', []) if run.get('message', {}).get('role') == 'user'), None)
-            if first_user_message:
-                title = ' '.join(first_user_message.split()[:5]) + '...'
-        except Exception:
-            pass
-
-        with self._get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    f"""
-                    INSERT INTO {self.table_name} (id, user_id, title, session_data, updated_at)
-                    VALUES (%s, %s, %s, %s, NOW())
-                    ON CONFLICT (id) DO UPDATE SET
-                        session_data = EXCLUDED.session_data,
-                        title = EXCLUDED.title,
-                        updated_at = NOW();
-                    """,
-                    (session_id, self.user_id, title, json.dumps(data)),
-                )
-
-    def read(self, session_id: str) -> Optional[dict]:
-        with self._get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(f"SELECT session_data FROM {self.table_name} WHERE id = %s;", (session_id,))
-                result = cur.fetchone()
-                return result[0] if result else None
-
-    def delete(self, session_id: str) -> None:
-        with self._get_conn() as conn:
-            with conn.cursor() as cur:
-                cur.execute(f"DELETE FROM {self.table_name} WHERE id = %s;", (session_id,))
     
 def get_llm_os(
     user_id: Optional[str] = None,
@@ -145,11 +91,6 @@ def get_llm_os(
             create_session_summary=False,
             update_session_summary_after_run=False,
         )
-
-    session_storage = PostgresStorage(
-        table_name="ai_os_sessions",
-        db_url=os.getenv("DATABASE_URL")
-    )
 
 
     if calculator:
@@ -350,7 +291,7 @@ def get_llm_os(
         ] + extra_instructions,
         
         # Add long-term memory to the LLM OS backed by JSON file storage
-        storage=session_storage,
+        storage=JsonStorage(dir_path="storage/tmp/aios_agent_sessions.json"),
         memory=memory,
         
         # Add selected tools to the LLM OS

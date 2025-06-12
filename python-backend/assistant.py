@@ -41,6 +41,67 @@ class CustomJsonFileAgentStorage(JsonStorage):
                             m.pop("parts", None)
         
         return super().serialize(data)
+
+class PostgresSessionStorage(Storage):
+    def __init__(self, table_name: str = "ai_os_sessions"):
+        self.connection_string = os.getenv("DATABASE_URL")
+        if not self.connection_string:
+            raise ValueError("DATABASE_URL environment variable not set.")
+        self.table_name = table_name
+        self.user_id = None # Will be set by app.py after agent creation
+
+    def set_user_id(self, user_id: str):
+        """Sets the user ID for the current session."""
+        self.user_id = user_id
+
+    def _get_conn(self):
+        """Establishes a database connection."""
+        return psycopg2.connect(self.connection_string)
+
+    def write(self, data: dict) -> None:
+        """Writes the session data to the database."""
+        session_id = data.get("session_id")
+        if not session_id or not self.user_id:
+            # Do not write if we don't know who the session belongs to
+            return
+
+        # Generate a simple title from the first user message for the history view
+        title = "New Conversation"
+        try:
+            first_user_message = next((run['message']['content'] for run in data.get('memory', {}).get('runs', []) if run.get('message', {}).get('role') == 'user'), None)
+            if first_user_message:
+                title = ' '.join(first_user_message.split()[:5]) + '...'
+        except Exception:
+            pass # Ignore errors in title generation, default title will be used
+
+        with self._get_conn() as conn:
+            with conn.cursor() as cur:
+                # Use an "upsert" operation to either insert a new session or update an existing one
+                cur.execute(
+                    f"""
+                    INSERT INTO {self.table_name} (id, user_id, title, session_data, updated_at)
+                    VALUES (%s, %s, %s, %s, NOW())
+                    ON CONFLICT (id) DO UPDATE SET
+                        session_data = EXCLUDED.session_data,
+                        title = EXCLUDED.title,
+                        updated_at = NOW();
+                    """,
+                    (session_id, self.user_id, title, json.dumps(data)),
+                )
+
+    def read(self, session_id: str) -> Optional[dict]:
+        """Reads a session's data from the database."""
+        with self._get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT session_data FROM {self.table_name} WHERE id = %s;", (session_id,))
+                result = cur.fetchone()
+                return result[0] if result else None
+
+    def delete(self, session_id: str) -> None:
+        """Deletes a session from the database."""
+        with self._get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"DELETE FROM {self.table_name} WHERE id = %s;", (session_id,))
     
 def get_llm_os(
     calculator: bool = False,
@@ -64,11 +125,10 @@ def get_llm_os(
         memory_model = Gemini(id="gemini-2.0-flash")
         
         # 2. Define the database instance
-        db_connection = SqliteMemoryDb(
-            table_name="ai_os_agent_memory",
-            db_file="storage/tmp/aios_memory.db",
+        db_connection = PgVectorDb(
+            collection="ai_os_agent_memory", # This corresponds to your table name
+            db_url=os.getenv("DATABASE_URL")
         )
-
         # 3. Explicitly instantiate ALL memory components with the desired model
         classifier = MemoryClassifier(model=memory_model)
         summarizer = MemorySummarizer(model=memory_model)
@@ -297,7 +357,7 @@ def get_llm_os(
         ] + extra_instructions,
         
         # Add long-term memory to the LLM OS backed by JSON file storage
-        storage=CustomJsonFileAgentStorage(dir_path="storage/tmp/aios_agent_sessions_json"),
+        storage=PostgresSessionStorage(table_name="ai_os_sessions"),
         memory=memory,
         
         # Add selected tools to the LLM OS

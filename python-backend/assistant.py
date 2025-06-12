@@ -14,7 +14,8 @@ from agno.memory.classifier import MemoryClassifier
 from agno.memory.summarizer import MemorySummarizer
 from agno.memory.manager import MemoryManager
 from agno.models.google import Gemini
-from agno.memory.db.postgres import PostgresMemoryDb
+from agno.memory.db.sqlite import SqliteMemoryDb
+from agno.storage.postgres import PostgresStorage
 from agno.storage.json import JsonStorage
 from typing import List, Optional
 from automation_tools import AutomationTools
@@ -95,6 +96,7 @@ class PostgresSessionStorage(Storage):
                 cur.execute(f"DELETE FROM {self.table_name} WHERE id = %s;", (session_id,))
     
 def get_llm_os(
+    user_id: Optional[str] = None,
     calculator: bool = False,
     web_crawler: bool = False,
     ddg_search: bool = False,
@@ -111,34 +113,28 @@ def get_llm_os(
 
     # Configure memory
     if use_memory:
-        # --- START OF FULLY CORRECTED LOGIC ---
-        # 1. Define the single model instance for all memory operations
         memory_model = Gemini(id="gemini-2.0-flash")
         
-        # 2. Define the database instance
-        db_connection = PostgresMemoryDb(
+        # Use SqliteMemoryDb for local, file-based memory storage.
+        db_connection = SqliteMemoryDb(
             table_name="ai_os_agent_memory",
-            db_url=os.getenv("DATABASE_URL")
+            db_file="storage/tmp/aios_memory.db",
         )
-        # 3. Explicitly instantiate ALL memory components with the desired model
+
         classifier = MemoryClassifier(model=memory_model)
         summarizer = MemorySummarizer(model=memory_model)
-        # 4. This is the new, critical part: Instantiate the MemoryManager
         manager = MemoryManager(model=memory_model, db=db_connection)
 
-        # 5. Inject all pre-configured components into AgentMemory
         memory = AgentMemory(
             classifier=classifier,
             summarizer=summarizer,
-            manager=manager, # <-- INJECT THE MANAGER
+            manager=manager,
             db=db_connection,
             create_user_memories=True,
             update_user_memories_after_run=True,
             create_session_summary=True,
             update_session_summary_after_run=True,
         )
-        # --- END OF FULLY CORRECTED LOGIC ---
-
         extra_instructions.append(
             "You have access to long-term memory. Use the `search_knowledge_base` tool to search your memory for relevant information."
         )
@@ -149,6 +145,11 @@ def get_llm_os(
             create_session_summary=False,
             update_session_summary_after_run=False,
         )
+
+    session_storage = PostgresStorage(
+        table_name="ai_os_sessions",
+        db_url=os.getenv("DATABASE_URL")
+    )
 
 
     if calculator:
@@ -295,6 +296,7 @@ def get_llm_os(
 
     # Create the main AI_OS agent
     llm_os = Agent(
+        user_id=user_id,
         name="AI_OS",
         model=Gemini(id="gemini-2.0-flash"),
         description=dedent("""\
@@ -348,7 +350,7 @@ def get_llm_os(
         ] + extra_instructions,
         
         # Add long-term memory to the LLM OS backed by JSON file storage
-        storage=PostgresSessionStorage(table_name="ai_os_sessions"),
+        storage=session_storage,
         memory=memory,
         
         # Add selected tools to the LLM OS

@@ -14,8 +14,7 @@ from agno.memory.classifier import MemoryClassifier
 from agno.memory.summarizer import MemorySummarizer
 from agno.memory.manager import MemoryManager
 from agno.models.google import Gemini
-from agno.models.groq import Groq
-from agno.memory.db.sqlite import SqliteMemoryDb
+from agno.memory.db.postgres import PgVectorDb
 from agno.storage.json import JsonStorage
 from typing import List, Optional
 from automation_tools import AutomationTools

@@ -58,9 +58,20 @@ def get_llm_os(
 
     # Configure memory
     if use_memory:
+        # --- START OF MODIFIED LOGIC ---
+        # 1. Define the model to be used for all memory operations
+        memory_model = Gemini(id="gemini-2.0-flash")
+
+        # 2. Explicitly instantiate the memory components with the desired model
+        classifier = MemoryClassifier(model=memory_model)
+        summarizer = MemorySummarizer(model=memory_model)
+        # Note: MemoryManager is also lazy-loaded inside AgentMemory, but it's better
+        # to be explicit if you use it directly. For now, classifier/summarizer are key.
+
+        # 3. Inject these pre-configured components into AgentMemory
         memory = AgentMemory(
-            classifier=MemoryClassifier(model=Gemini(id="gemini-2.0-flash")),
-            summarizer=MemorySummarizer(model=Gemini(id="gemini-2.0-flash")),
+            classifier=classifier,
+            summarizer=summarizer,
             db=SqliteMemoryDb(
                 table_name="ai_os_agent_memory",
                 db_file="storage/tmp/aios_memory.db",
@@ -70,6 +81,8 @@ def get_llm_os(
             create_session_summary=True,
             update_session_summary_after_run=True,
         )
+        # --- END OF MODIFIED LOGIC ---
+
         extra_instructions.append(
             "You have access to long-term memory. Use the `search_knowledge_base` tool to search your memory for relevant information."
         )

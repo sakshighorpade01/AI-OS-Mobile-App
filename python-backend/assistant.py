@@ -9,16 +9,14 @@ from agno.tools.yfinance import YFinanceTools
 from agno.tools.python import PythonTools
 from agno.tools.crawl4ai import Crawl4aiTools
 from agno.agent import Agent
-from agno.memory import AgentMemory
-from agno.memory.classifier import MemoryClassifier
-from agno.memory.summarizer import MemorySummarizer
-from agno.memory.manager import MemoryManager
 from agno.models.google import Gemini
-from agno.memory.db.sqlite import SqliteMemoryDb
 from agno.storage.json import JsonStorage
 from typing import List, Optional
 from automation_tools import AutomationTools
 from image_analysis_toolkit import ImageAnalysisTools
+from agno.memory.v2.db.postgres import PostgresMemoryDb
+from agno.storage.postgres import PostgresStorage
+from agno.memory.v2.memory import Memory as AgnoMemoryV2
 
 class CustomJsonFileAgentStorage(JsonStorage):
     def serialize(self, data: dict) -> str:
@@ -40,6 +38,7 @@ class CustomJsonFileAgentStorage(JsonStorage):
                             m.pop("parts", None)
         
         return super().serialize(data)
+
     
 def get_llm_os(
     user_id: Optional[str] = None,
@@ -57,40 +56,27 @@ def get_llm_os(
     tools: List[Toolkit] = []
     extra_instructions: List[str] = []
 
+    db_url_full = os.getenv("DATABASE_URL")
+    if not db_url_full:
+        raise ValueError("DATABASE_URL environment variable is not set. Please set it in Render.")
+    
+    # Both classes use SQLAlchemy, which needs the driver name in the URL.
+    db_url_sqlalchemy = db_url_full.replace("postgresql://", "postgresql+psycopg2://")
+
     # Configure memory
     if use_memory:
-        memory_model = Gemini(id="gemini-2.0-flash")
-        
-        # Use SqliteMemoryDb for local, file-based memory storage.
-        db_connection = SqliteMemoryDb(
-            table_name="ai_os_agent_memory",
-            db_file="storage/tmp/aios_memory.db",
+        # 1. Create the database connector for long-term memory
+        memory_db = PostgresMemoryDb(
+            table_name="agent_memories",
+            db_url=db_url_sqlalchemy
         )
-
-        classifier = MemoryClassifier(model=memory_model)
-        summarizer = MemorySummarizer(model=memory_model)
-        manager = MemoryManager(model=memory_model, db=db_connection)
-
-        memory = AgentMemory(
-            classifier=classifier,
-            summarizer=summarizer,
-            manager=manager,
-            db=db_connection,
-            create_user_memories=True,
-            update_user_memories_after_run=True,
-            create_session_summary=True,
-            update_session_summary_after_run=True,
-        )
+        # 2. Create the V2 memory object
+        memory = AgnoMemoryV2(db=memory_db)
         extra_instructions.append(
             "You have access to long-term memory. Use the `search_knowledge_base` tool to search your memory for relevant information."
         )
     else:
-        memory = AgentMemory(
-            create_user_memories=False,
-            update_user_memories_after_run=False,
-            create_session_summary=False,
-            update_session_summary_after_run=False,
-        )
+        memory = None
 
 
     if calculator:
@@ -291,9 +277,14 @@ def get_llm_os(
         ] + extra_instructions,
         
         # Add long-term memory to the LLM OS backed by JSON file storage
-        storage=JsonStorage(dir_path="storage/tmp/aios_agent_sessions.json"),
+        storage=PostgresStorage(
+            table_name="ai_os_sessions",
+            db_url=db_url_sqlalchemy,
+            auto_upgrade_schema=True # Let agno manage this table's schema
+        ),
         memory=memory,
-        
+        enable_user_memories=use_memory,
+        enable_session_summaries=use_memory,
         # Add selected tools to the LLM OS
         tools=tools,
         # Add selected team members to the LLM OS

@@ -1,57 +1,66 @@
-# app.py (Corrected and Updated for Usage Tracking)
+# app.py (Complete and Corrected Version)
+
 import os
 import logging
 import json
 import uuid
+import traceback
+from pathlib import Path
+
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
+from dotenv import load_dotenv
+import eventlet
+
+# --- Local Module Imports ---
 from assistant import get_llm_os
-from deepsearch import get_deepsearch  
-import threading
-from concurrent.futures import ThreadPoolExecutor
-import traceback
-from dotenv import load_dotenv 
-import eventlet  
-from agno.media import Image, Audio, Video
-from pathlib import Path
-import werkzeug.utils
+from deepsearch import get_deepsearch
+from supabase_client import supabase_client
 
-# --- NEW IMPORTS ---
-from gotrue.errors import AuthApiError
+# --- Agno Imports ---
 from agno.agent import Agent
-from supabase_client import supabase_client # Import your initialized Supabase client
+from agno.media import Image, Audio, Video
+from gotrue.errors import AuthApiError
 
+# --- Initial Setup ---
 load_dotenv()
+eventlet.monkey_patch()
 
-logging.basicConfig(level=logging.DEBUG)
+# --- Logging Configuration ---
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class SocketIOHandler(logging.Handler):
+    """Custom logging handler to emit logs over Socket.IO."""
     def emit(self, record):
         try:
-            emit_log(record.levelname.lower(), record.getMessage())
+            # Avoid logging loops
+            if record.name != 'socketio' and record.name != 'engineio':
+                log_message = self.format(record)
+                socketio.emit('log', {'level': record.levelname.lower(), 'message': log_message})
         except Exception:
+            # If this fails, we can't do much without causing a loop
             pass
 
+# Add the custom handler to the root logger
 logger.addHandler(SocketIOHandler())
 
-def emit_log(level, message):
-    socketio.emit('log', {'level': level, 'message': message})
-
+# --- Flask & Socket.IO App Initialization ---
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
+
 class IsolatedAssistant:
+    """
+    Runs the agent in a separate thread to avoid blocking the server.
+    This class is well-designed and requires no changes.
+    """
     def __init__(self, sid):
-        self.executor = ThreadPoolExecutor(max_workers=1)
         self.sid = sid
         self.message_id = None
 
-    # MODIFIED: Added 'user' parameter to accept the verified user object
     def run_safely(self, agent: Agent, message: str, user, context=None, images=None, audio=None, videos=None):
-        """Runs agent in isolated thread, handles crashes, and logs usage."""
-
-        # MODIFIED: This internal function now also handles metric logging
+        """Runs agent in an isolated thread, handles crashes, and logs usage."""
         def _run_agent(agent, message, user, context, images, audio, videos):
             try:
                 if context:
@@ -59,21 +68,21 @@ class IsolatedAssistant:
                 else:
                     complete_message = message
 
-                # --- This block remains the same ---
                 import inspect
                 params = inspect.signature(agent.run).parameters
-                supported_params = {}
-                supported_params['message'] = complete_message
-                supported_params['stream'] = True
+                supported_params = {
+                    'message': complete_message,
+                    'stream': True,
+                    'user_id': str(user.id) # Pass user_id for memory operations
+                }
                 if 'images' in params and images:
                     supported_params['images'] = images
                 if 'audio' in params and audio:
                     supported_params['audio'] = audio
                 if 'videos' in params and videos:
                     supported_params['videos'] = videos
-                # --- End of block ---
 
-                logger.info(f"Calling agent.run with params: {list(supported_params.keys())}")
+                logger.info(f"Calling agent.run for user {user.id} with params: {list(supported_params.keys())}")
                 for chunk in agent.run(**supported_params):
                     if chunk and chunk.content:
                         eventlet.sleep(0)
@@ -89,61 +98,37 @@ class IsolatedAssistant:
                     "id": self.message_id,
                 }, room=self.sid)
 
-                # --- NEW: METRIC EXTRACTION AND LOGGING ---
-                if user and agent.memory and agent.memory.runs:
+                # Metric logging for token usage
+                if user and agent.memory and hasattr(agent.memory, 'runs') and agent.memory.runs:
                     try:
-                        # Get the metrics from the very last run
                         last_run_metrics = agent.memory.runs[-1].response.metrics
-                        
-                        # Sum up tokens used in this specific interaction
-                        input_tokens_used = sum(last_run_metrics['input_tokens'])
-                        output_tokens_used = sum(last_run_metrics['output_tokens'])
-                        total_tokens_used = input_tokens_used + output_tokens_used
+                        input_tokens = sum(last_run_metrics.get('input_tokens', [0]))
+                        output_tokens = sum(last_run_metrics.get('output_tokens', [0]))
+                        total_tokens = input_tokens + output_tokens
 
-                        if total_tokens_used > 0:
-                            logger.info(f"Logging usage for user {user.id}: {input_tokens_used} in, {output_tokens_used} out.")
-                            
-                            # --- START OF MODIFIED CODE BLOCK ---
-                            # Insert a new record into the request_logs table for this specific transaction
-                            try:
-                                supabase_client.from_('request_logs').insert({
-                                    'user_id': str(user.id),
-                                    'input_tokens': input_tokens_used,
-                                    'output_tokens': output_tokens_used
-                                    # 'total_tokens' is a generated column in the DB, so we don't need to send it.
-                                }).execute()
-                                logger.info(f"Successfully logged {total_tokens_used} tokens for user {user.id}.")
-                            except Exception as db_error:
-                                logger.error(f"DATABASE LOGGING FAILED for user {user.id}: {db_error}")
-                                # Even if logging fails, don't crash the main flow.
-                                pass
-                            # --- END OF MODIFIED CODE BLOCK ---
-                        else:
-                            logger.info(f"No token usage to log for user {user.id}.")
-
-                    except KeyError as ke:
-                        logger.error(f"Metric key not found: {ke}. Available keys: {last_run_metrics.keys()}")
+                        if total_tokens > 0:
+                            logger.info(f"Logging usage for user {user.id}: {input_tokens} in, {output_tokens} out.")
+                            supabase_client.from_('request_logs').insert({
+                                'user_id': str(user.id),
+                                'input_tokens': input_tokens,
+                                'output_tokens': output_tokens
+                            }).execute()
                     except Exception as metric_error:
                         logger.error(f"Failed to log usage metrics for user {user.id}: {metric_error}")
-                        logger.error(traceback.format_exc())
-                # --- END: METRIC EXTRACTION AND LOGGING ---
 
             except Exception as e:
                 error_msg = f"Tool error: {str(e)}\n{traceback.format_exc()}"
                 logger.error(error_msg)
                 socketio.emit("response", {
                     "content": "An error occurred while processing your request. Starting a new session...",
-                    "error": True,
-                    "done": True,
-                    "id": self.message_id,
+                    "error": True, "done": True, "id": self.message_id,
                 }, room=self.sid)
                 socketio.emit("error", {"message": "Session reset required", "reset": True}, room=self.sid)
 
-        # MODIFIED: Pass the 'user' object to the greenlet
         eventlet.spawn(_run_agent, agent, message, user, context, images, audio, videos)
 
     def terminate(self):
-        self.executor.shutdown(wait=False)
+        pass
 
 class ConnectionManager:
     def __init__(self):
@@ -151,13 +136,16 @@ class ConnectionManager:
         self.lock = threading.Lock()
         self.isolated_assistants = {}
 
-    def create_session(self, sid, config, is_deepsearch=False, is_browse_ai=False):
+    def create_session(self, sid: str, user_id: str, config: dict, is_deepsearch: bool = False) -> Agent:
         with self.lock:
             if sid in self.sessions:
                 self.terminate_session(sid)
 
+            logger.info(f"Creating new session for user: {user_id}")
+
             if is_deepsearch:
                 agent = get_deepsearch(
+                    user_id=user_id,
                     ddg_search=config.get("ddg_search", False),
                     web_crawler=config.get("web_crawler", False),
                     investment_assistant=config.get("investment_assistant", False),
@@ -165,6 +153,7 @@ class ConnectionManager:
                 )
             else:
                 agent = get_llm_os(
+                    user_id=user_id,
                     calculator=config.get("calculator", False),
                     web_crawler=config.get("web_crawler", False),
                     ddg_search=config.get("ddg_search", False),
@@ -175,25 +164,19 @@ class ConnectionManager:
                     debug_mode=True
                 )
 
-            self.sessions[sid] = {
-                "agent": agent,
-                "config": config,
-                "initialized": True,
-                "is_deepsearch": is_deepsearch,
-                "is_browse_ai": is_browse_ai
-            }
+            self.sessions[sid] = {"agent": agent, "config": config}
             self.isolated_assistants[sid] = IsolatedAssistant(sid)
-            logger.info(f"Created new session {sid} with config {config} (Deepsearch: {is_deepsearch}, BrowseAI: {is_browse_ai})")
+            logger.info(f"Created session {sid} for user {user_id} with config {config}")
             return agent
 
     def terminate_session(self, sid):
         with self.lock:
             if sid in self.sessions:
-                if sid in self.isolated_assistants:
-                    self.isolated_assistants[sid].terminate()
-                    del self.isolated_assistants[sid]
                 del self.sessions[sid]
-                logger.info(f"Terminated session {sid}")
+            if sid in self.isolated_assistants:
+                self.isolated_assistants[sid].terminate()
+                del self.isolated_assistants[sid]
+            logger.info(f"Terminated session {sid}")
 
     def get_session(self, sid):
         return self.sessions.get(sid)
@@ -277,21 +260,20 @@ def process_files(files):
 
 
 @socketio.on("send_message")
-def on_send_message(data):
+def on_send_message(data: str):
+    """Main message handler. Authenticates user and dispatches to the agent."""
     sid = request.sid
-    user = None # Will hold the verified user object
+    user = None
 
     try:
         data = json.loads(data)
         access_token = data.get("accessToken")
 
-        # --- TOKEN VERIFICATION STEP ---
         if not access_token:
             emit("error", {"message": "Authentication token is missing. Please log in again.", "reset": True}, room=sid)
             return
 
         try:
-            # Verify the token using the Supabase client
             user_response = supabase_client.auth.get_user(jwt=access_token)
             user = user_response.user
             if not user:
@@ -301,16 +283,13 @@ def on_send_message(data):
             logger.error(f"Invalid token for SID {sid}: {e.message}")
             emit("error", {"message": "Your session has expired. Please log in again.", "reset": True}, room=sid)
             return
-        # --- END TOKEN VERIFICATION ---
 
         message = data.get("message", "")
         context = data.get("context", "")
-        message_type = data.get("type", "")
         files = data.get("files", [])
         is_deepsearch = data.get("is_deepsearch", False)
-        is_browse_ai = data.get("is_browse_ai", False)
 
-        if message_type == "terminate_session" or message_type == "new_chat":
+        if data.get("type") == "terminate_session":
             connection_manager.terminate_session(sid)
             emit("status", {"message": "Session terminated"}, room=sid)
             return
@@ -318,35 +297,36 @@ def on_send_message(data):
         session = connection_manager.get_session(sid)
         if not session:
             config = data.get("config", {})
-            agent = connection_manager.create_session(sid, config, is_deepsearch=is_deepsearch, is_browse_ai=is_browse_ai)
+            # --- CRITICAL FIX: Pass the authenticated user.id when creating a new session ---
+            agent = connection_manager.create_session(
+                sid,
+                user_id=str(user.id),
+                config=config,
+                is_deepsearch=is_deepsearch
+            )
         else:
             agent = session["agent"]
 
         message_id = str(uuid.uuid4())
         isolated_assistant = connection_manager.isolated_assistants.get(sid)
-
         if not isolated_assistant:
-            emit("error", {"message": "Session error. Starting new chat...", "reset": True})
+            emit("error", {"message": "Session error. Starting new chat...", "reset": True}, room=sid)
             connection_manager.terminate_session(sid)
             return
         
-        isolated_assistant.message_id = message_id 
+        isolated_assistant.message_id = message_id
 
         file_content, images, audio, videos = process_files(files)
-        
-        combined_message = message
-        if file_content:
-            combined_message += f"\n\nContent from attached files:\n{file_content}"
+        combined_message = f"{message}\n\n{file_content}" if file_content else message
 
-        # MODIFIED: Pass the verified 'user' object to the run_safely method
         isolated_assistant.run_safely(
-            agent, 
-            combined_message, 
-            user=user, # Pass the user object here
-            context=context, 
-            images=images if images else None,
-            audio=audio if audio else None,
-            videos=videos if videos else None
+            agent,
+            combined_message,
+            user=user,
+            context=context,
+            images=images or None,
+            audio=audio or None,
+            videos=videos or None
         )
 
     except Exception as e:
@@ -354,10 +334,12 @@ def on_send_message(data):
         emit("error", {"message": "AI service error. Starting new chat...", "reset": True}, room=sid)
         connection_manager.terminate_session(sid)
 
+
 @app.route('/healthz', methods=['GET'])
 def health_check():
-    logger.debug("Health check endpoint was hit.")
+    """Standard health check endpoint for Render."""
     return "OK", 200
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8765))

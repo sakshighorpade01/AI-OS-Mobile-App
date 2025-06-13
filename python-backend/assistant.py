@@ -10,34 +10,12 @@ from agno.tools.python import PythonTools
 from agno.tools.crawl4ai import Crawl4aiTools
 from agno.agent import Agent
 from agno.models.google import Gemini
-from agno.storage.json import JsonStorage
 from typing import List, Optional
 from automation_tools import AutomationTools
 from image_analysis_toolkit import ImageAnalysisTools
 from agno.memory.v2.db.postgres import PostgresMemoryDb
 from agno.storage.postgres import PostgresStorage
 from agno.memory.v2.memory import Memory as AgnoMemoryV2
-
-class CustomJsonFileAgentStorage(JsonStorage):
-    def serialize(self, data: dict) -> str:
-        # Clean up Gemini's parts before serialization
-        if data.get("agent_data", {}).get("model", {}).get("provider") == "Google":
-            if "memory" in data:
-                # Clean up runs' response messages
-                if "runs" in data["memory"]:
-                    for run in data["memory"]["runs"]:
-                        if "response" in run and "messages" in run["response"]:
-                            for m in run["response"]["messages"]:
-                                if isinstance(m, dict):
-                                    m.pop("parts", None)
-                
-                # Clean up top-level memory messages
-                if "messages" in data["memory"]:
-                    for m in data["memory"]["messages"]:
-                        if isinstance(m, dict):
-                            m.pop("parts", None)
-        
-        return super().serialize(data)
 
     
 def get_llm_os(

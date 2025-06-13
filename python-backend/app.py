@@ -99,22 +99,26 @@ class IsolatedAssistant:
                 }, room=self.sid)
 
                 # Metric logging for token usage
-                if user and agent.memory and hasattr(agent.memory, 'runs') and agent.memory.runs:
-                    try:
-                        last_run_metrics = agent.memory.runs[-1].response.metrics
-                        input_tokens = sum(last_run_metrics.get('input_tokens', [0]))
-                        output_tokens = sum(last_run_metrics.get('output_tokens', [0]))
-                        total_tokens = input_tokens + output_tokens
+                # In the IsolatedAssistant.run_safely method:
+                # --- METRIC LOGGING DISABLED ---
+                # The following block is for the V1 memory system and is not compatible with V2.
+                # It can be re-implemented later by parsing metrics from the final RunResponse object.
+                # if user and agent.memory and hasattr(agent.memory, 'runs') and agent.memory.runs:
+                #     try:
+                #         last_run_metrics = agent.memory.runs[-1].response.metrics
+                #         input_tokens = sum(last_run_metrics.get('input_tokens', [0]))
+                #         output_tokens = sum(last_run_metrics.get('output_tokens', [0]))
+                #         total_tokens = input_tokens + output_tokens
 
-                        if total_tokens > 0:
-                            logger.info(f"Logging usage for user {user.id}: {input_tokens} in, {output_tokens} out.")
-                            supabase_client.from_('request_logs').insert({
-                                'user_id': str(user.id),
-                                'input_tokens': input_tokens,
-                                'output_tokens': output_tokens
-                            }).execute()
-                    except Exception as metric_error:
-                        logger.error(f"Failed to log usage metrics for user {user.id}: {metric_error}")
+                #         if total_tokens > 0:
+                #             logger.info(f"Logging usage for user {user.id}: {input_tokens} in, {output_tokens} out.")
+                #             supabase_client.from_('request_logs').insert({
+                #                 'user_id': str(user.id),
+                #                 'input_tokens': input_tokens,
+                #                 'output_tokens': output_tokens
+                #             }).execute()
+                #     except Exception as metric_error:
+                #         logger.error(f"Failed to log usage metrics for user {user.id}: {metric_error}")
 
             except Exception as e:
                 error_msg = f"Tool error: {str(e)}\n{traceback.format_exc()}"

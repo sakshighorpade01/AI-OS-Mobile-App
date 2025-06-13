@@ -44,10 +44,11 @@ def get_llm_os(
 
     # Configure memory
     if use_memory:
-        # 1. Create the database connector for long-term memory
+    # 1. Create the database connector for long-term memory
         memory_db = PostgresMemoryDb(
             table_name="agent_memories",
-            db_url=db_url_sqlalchemy
+            db_url=db_url_sqlalchemy,
+            schema="public"  # <-- CRITICAL FIX: Tell agno to use the public schema
         )
         # 2. Create the V2 memory object
         memory = AgnoMemoryV2(db=memory_db)

@@ -51,15 +51,16 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 
 class IsolatedAssistant:
-    """
-    Runs the agent in a separate thread to avoid blocking the server.
-    """
     def __init__(self, sid):
+        self.executor = ThreadPoolExecutor(max_workers=1)
         self.sid = sid
         self.message_id = None
 
+    # MODIFIED: Added 'user' parameter to accept the verified user object
     def run_safely(self, agent: Agent, message: str, user, context=None, images=None, audio=None, videos=None):
-        """Runs agent in an isolated thread, handles crashes, and logs usage."""
+        """Runs agent in isolated thread, handles crashes, and logs usage."""
+
+        # MODIFIED: This internal function now also handles metric logging
         def _run_agent(agent, message, user, context, images, audio, videos):
             try:
                 if context:
@@ -67,23 +68,21 @@ class IsolatedAssistant:
                 else:
                     complete_message = message
 
+                # --- This block remains the same ---
                 import inspect
                 params = inspect.signature(agent.run).parameters
-                supported_params = {
-                    'message': complete_message,
-                    'stream': True,
-                    'user_id': str(user.id)
-                }
+                supported_params = {}
+                supported_params['message'] = complete_message
+                supported_params['stream'] = True
                 if 'images' in params and images:
                     supported_params['images'] = images
                 if 'audio' in params and audio:
                     supported_params['audio'] = audio
                 if 'videos' in params and videos:
                     supported_params['videos'] = videos
+                # --- End of block ---
 
-                logger.info(f"Calling agent.run for user {user.id} with params: {list(supported_params.keys())}")
-                
-                # Stream the response to the user
+                logger.info(f"Calling agent.run with params: {list(supported_params.keys())}")
                 for chunk in agent.run(**supported_params):
                     if chunk and chunk.content:
                         eventlet.sleep(0)
@@ -99,38 +98,61 @@ class IsolatedAssistant:
                     "id": self.message_id,
                 }, room=self.sid)
 
-                # --- CRITICAL FIX: Re-implement token logging for V2 ---
-                # After the run is complete, get metrics from the agent's last response.
-                if user and agent.last_run and agent.last_run.response:
+                # --- NEW: METRIC EXTRACTION AND LOGGING ---
+                if user and agent.memory and agent.memory.runs:
                     try:
-                        metrics = agent.last_run.response.metrics
-                        # Use .get() for safety, summing lists of tokens
-                        input_tokens = sum(metrics.get('input_tokens', [0]))
-                        output_tokens = sum(metrics.get('output_tokens', [0]))
+                        # Get the metrics from the very last run
+                        last_run_metrics = agent.memory.runs[-1].response.metrics
                         
-                        if input_tokens > 0 or output_tokens > 0:
-                            logger.info(f"Logging token usage for user {user.id}: {input_tokens} in, {output_tokens} out.")
-                            supabase_client.from_('request_logs').insert({
-                                'user_id': str(user.id),
-                                'input_tokens': input_tokens,
-                                'output_tokens': output_tokens
-                            }).execute()
+                        # Sum up tokens used in this specific interaction
+                        input_tokens_used = sum(last_run_metrics['input_tokens'])
+                        output_tokens_used = sum(last_run_metrics['output_tokens'])
+                        total_tokens_used = input_tokens_used + output_tokens_used
+
+                        if total_tokens_used > 0:
+                            logger.info(f"Logging usage for user {user.id}: {input_tokens_used} in, {output_tokens_used} out.")
+                            
+                            # --- START OF MODIFIED CODE BLOCK ---
+                            # Insert a new record into the request_logs table for this specific transaction
+                            try:
+                                supabase_client.from_('request_logs').insert({
+                                    'user_id': str(user.id),
+                                    'input_tokens': input_tokens_used,
+                                    'output_tokens': output_tokens_used
+                                    # 'total_tokens' is a generated column in the DB, so we don't need to send it.
+                                }).execute()
+                                logger.info(f"Successfully logged {total_tokens_used} tokens for user {user.id}.")
+                            except Exception as db_error:
+                                logger.error(f"DATABASE LOGGING FAILED for user {user.id}: {db_error}")
+                                # Even if logging fails, don't crash the main flow.
+                                pass
+                            # --- END OF MODIFIED CODE BLOCK ---
+                        else:
+                            logger.info(f"No token usage to log for user {user.id}.")
+
+                    except KeyError as ke:
+                        logger.error(f"Metric key not found: {ke}. Available keys: {last_run_metrics.keys()}")
                     except Exception as metric_error:
                         logger.error(f"Failed to log usage metrics for user {user.id}: {metric_error}")
+                        logger.error(traceback.format_exc())
+                # --- END: METRIC EXTRACTION AND LOGGING ---
 
             except Exception as e:
                 error_msg = f"Tool error: {str(e)}\n{traceback.format_exc()}"
                 logger.error(error_msg)
                 socketio.emit("response", {
                     "content": "An error occurred while processing your request. Starting a new session...",
-                    "error": True, "done": True, "id": self.message_id,
+                    "error": True,
+                    "done": True,
+                    "id": self.message_id,
                 }, room=self.sid)
                 socketio.emit("error", {"message": "Session reset required", "reset": True}, room=self.sid)
 
+        # MODIFIED: Pass the 'user' object to the greenlet
         eventlet.spawn(_run_agent, agent, message, user, context, images, audio, videos)
 
     def terminate(self):
-        pass
+        self.executor.shutdown(wait=False)
 
 class ConnectionManager:
     def __init__(self):

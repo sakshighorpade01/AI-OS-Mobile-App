@@ -50,7 +50,6 @@ app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 
-# --- CRITICAL RE-IMPLEMENTATION of IsolatedAssistant ---
 class IsolatedAssistant:
     """
     Runs the agent in a background thread and streams results back via a queue.
@@ -64,9 +63,7 @@ class IsolatedAssistant:
         """Yields results from the agent as they are produced in the background thread."""
         q = Queue()
 
-        # This function runs in the background thread
         def _producer():
-            final_run_response = None
             try:
                 if context:
                     complete_message = f"Previous conversation context:\n{context}\n\nCurrent message: {message}"
@@ -86,31 +83,25 @@ class IsolatedAssistant:
 
                 logger.info(f"Calling agent.run in background for user {user.id}")
                 
-                # The agent.run() method is a generator. We iterate through it.
                 for chunk in agent.run(**supported_params):
                     q.put(chunk)
                 
-                # After the run, the agent's internal state is updated.
-                # We can now access the full session data from storage.
-                # This is the most reliable way to get the final state.
                 final_run_response = agent.storage.read(session_id=agent.session_id, user_id=str(user.id))
                 q.put(final_run_response)
 
             except Exception as e:
-                q.put(e) # Put the exception on the queue to be handled by the consumer
+                q.put(e)
             finally:
-                q.put(None) # Signal that the process is finished
+                q.put(None)
 
-        # Start the background thread
         self.executor.submit(_producer)
 
-        # This part runs in the main thread, consuming from the queue
         while True:
             item = q.get()
             if item is None:
-                break # End of stream
+                break
             if isinstance(item, Exception):
-                raise item # Re-raise the exception in the main thread
+                raise item
             yield item
 
     def terminate(self):
@@ -172,9 +163,64 @@ def on_disconnect():
 
 
 def process_files(files):
-    """This function is correct and requires no changes."""
-    # ... (your existing file processing logic) ...
-    return None, [], [], [] # Placeholder
+    images = []
+    audio = []
+    videos = []
+    text_content = []
+    
+    logger.info(f"Processing {len(files)} files")
+    
+    for file_data in files:
+        file_path = file_data.get('path')
+        file_type = file_data.get('type', '')
+        file_name = file_data.get('name', 'unnamed_file')
+        is_text = file_data.get('isText', False)
+        file_content = file_data.get('content')
+        
+        logger.info(f"Processing file: {file_name}, type: {file_type}, path: {file_path}, isText: {is_text}")
+        
+        if not file_path and not (is_text and file_content):
+            logger.warning(f"Skipping file without path or content: {file_name}")
+            continue
+            
+        if is_text and file_content:
+            text_content.append(f"--- File: {file_name} ---\n{file_content}")
+            logger.info(f"Using provided text content for file: {file_name}")
+            continue
+            
+        try:
+            path_obj = Path(file_path)
+            file_path = str(path_obj.absolute().resolve())
+            logger.info(f"Normalized path: {file_path}")
+            
+            if not path_obj.exists():
+                logger.warning(f"File does not exist at path: {file_path}")
+                continue
+        except Exception as e:
+            logger.error(f"Path normalization error for {file_path}: {str(e)}")
+            continue
+        
+        try:
+            if file_type.startswith('image/'):
+                images.append(Image(filepath=file_path))
+            elif file_type.startswith('audio/'):
+                audio.append(Audio(filepath=file_path))
+            elif file_type.startswith('video/'):
+                videos.append(Video(filepath=file_path))
+            elif file_type.startswith('text/') or file_type == 'application/json':
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                    text_content.append(f"--- File: {file_name} ---\n{content}")
+                except Exception as e:
+                    logger.error(f"Error reading text file {file_path}: {e}")
+            else:
+                text_content.append(f"--- File: {file_name} (attached at path: {file_path}) ---")
+        except Exception as e:
+            logger.error(f"Error processing file {file_path}: {str(e)}")
+    
+    combined_text = "\n\n".join(text_content) if text_content else None
+    return combined_text, images, audio, videos
 
 
 @socketio.on("send_message")
@@ -182,6 +228,7 @@ def on_send_message(data: str):
     """Main message handler. Authenticates user and dispatches to the agent."""
     sid = request.sid
     user = None
+    message_id = str(uuid.uuid4())
     final_session_state = None
 
     try:
@@ -219,7 +266,6 @@ def on_send_message(data: str):
         else:
             agent = session["agent"]
 
-        message_id = str(uuid.uuid4())
         isolated_assistant = connection_manager.isolated_assistants.get(sid)
         if not isolated_assistant:
             emit("error", {"message": "Session error. Starting new chat...", "reset": True}, room=sid)
@@ -228,30 +274,36 @@ def on_send_message(data: str):
         file_content, images, audio, videos = process_files(files)
         combined_message = f"{message}\n\n{file_content}" if file_content else message
 
-        # --- MODIFIED Main Loop ---
         for result in isolated_assistant.run_safely(agent, combined_message, user, context, images, audio, videos):
-            if hasattr(result, 'content'): # This is a streaming chunk (RunResponse)
+            if hasattr(result, 'content'):
                 if result.content:
                     socketio.emit("response", {"content": result.content, "streaming": True, "id": message_id}, room=sid)
-            else: # This is the final session object from storage
+            else:
                 final_session_state = result
 
         socketio.emit("response", {"content": "", "done": True, "id": message_id}, room=sid)
 
-        # --- Re-implement token logging correctly ---
-        if user and final_session_state and final_session_state.memory and final_session_state.memory.runs:
+        # --- CRITICAL FIX: Use dictionary access for the deserialized session state ---
+        if user and final_session_state:
             try:
-                metrics = final_session_state.memory.runs[-1].response.metrics
-                input_tokens = sum(metrics.get('input_tokens', [0]))
-                output_tokens = sum(metrics.get('output_tokens', [0]))
+                # Use .get() to safely access nested dictionary keys
+                memory_dict = final_session_state.memory if hasattr(final_session_state, 'memory') else {}
+                runs_list = memory_dict.get('runs', [])
                 
-                if input_tokens > 0 or output_tokens > 0:
-                    logger.info(f"Logging token usage for user {user.id}: {input_tokens} in, {output_tokens} out.")
-                    supabase_client.from_('request_logs').insert({
-                        'user_id': str(user.id),
-                        'input_tokens': input_tokens,
-                        'output_tokens': output_tokens
-                    }).execute()
+                if runs_list:
+                    last_run = runs_list[-1]
+                    metrics = last_run.get('response', {}).get('metrics', {})
+                    
+                    input_tokens = sum(metrics.get('input_tokens', [0]))
+                    output_tokens = sum(metrics.get('output_tokens', [0]))
+                    
+                    if input_tokens > 0 or output_tokens > 0:
+                        logger.info(f"Logging token usage for user {user.id}: {input_tokens} in, {output_tokens} out.")
+                        supabase_client.from_('request_logs').insert({
+                            'user_id': str(user.id),
+                            'input_tokens': input_tokens,
+                            'output_tokens': output_tokens
+                        }).execute()
             except Exception as metric_error:
                 logger.error(f"Failed to log usage metrics for user {user.id}: {metric_error}")
 

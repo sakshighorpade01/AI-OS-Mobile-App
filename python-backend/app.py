@@ -286,8 +286,8 @@ def on_send_message(data: str):
         # --- CRITICAL FIX: Use dictionary access for the deserialized session state ---
         if user and final_session_state:
             try:
-                # Use .get() to safely access nested dictionary keys
-                memory_dict = final_session_state.memory if hasattr(final_session_state, 'memory') else {}
+                # CORRECTED LINE: Use .get() on the dictionary, not attribute access.
+                memory_dict = final_session_state.get('memory', {})
                 runs_list = memory_dict.get('runs', [])
                 
                 if runs_list:

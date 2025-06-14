@@ -283,29 +283,38 @@ def on_send_message(data: str):
 
         socketio.emit("response", {"content": "", "done": True, "id": message_id}, room=sid)
 
-        # --- CRITICAL FIX: Use dictionary access for the deserialized session state ---
+        # --- CRITICAL FIX: Use attribute access for the AgentSession object ---
         if user and final_session_state:
             try:
-                # CORRECTED LINE: Use .get() on the dictionary, not attribute access.
-                memory_dict = final_session_state.get('memory', {})
-                runs_list = memory_dict.get('runs', [])
+                # final_session_state is an AgentSession object. Safely access its attributes.
+                memory_obj = getattr(final_session_state, 'memory', None)
                 
-                if runs_list:
-                    last_run = runs_list[-1]
-                    metrics = last_run.get('response', {}).get('metrics', {})
+                if memory_obj:
+                    runs_list = getattr(memory_obj, 'runs', [])
                     
-                    input_tokens = sum(metrics.get('input_tokens', [0]))
-                    output_tokens = sum(metrics.get('output_tokens', [0]))
-                    
-                    if input_tokens > 0 or output_tokens > 0:
-                        logger.info(f"Logging token usage for user {user.id}: {input_tokens} in, {output_tokens} out.")
-                        supabase_client.from_('request_logs').insert({
-                            'user_id': str(user.id),
-                            'input_tokens': input_tokens,
-                            'output_tokens': output_tokens
-                        }).execute()
+                    if runs_list:
+                        last_run = runs_list[-1]
+                        response_obj = getattr(last_run, 'response', None)
+                        
+                        if response_obj:
+                            metrics_obj = getattr(response_obj, 'metrics', None)
+                            
+                            if metrics_obj:
+                                # The metrics values are lists, so we sum them.
+                                input_tokens = sum(getattr(metrics_obj, 'input_tokens', [0]))
+                                output_tokens = sum(getattr(metrics_obj, 'output_tokens', [0]))
+                                
+                                if input_tokens > 0 or output_tokens > 0:
+                                    logger.info(f"Logging token usage for user {user.id}: {input_tokens} in, {output_tokens} out.")
+                                    supabase_client.from_('request_logs').insert({
+                                        'user_id': str(user.id),
+                                        'input_tokens': input_tokens,
+                                        'output_tokens': output_tokens
+                                    }).execute()
             except Exception as metric_error:
-                logger.error(f"Failed to log usage metrics for user {user.id}: {metric_error}")
+                # Log the full traceback to understand the exact point of failure
+                error_trace = traceback.format_exc()
+                logger.error(f"Failed to log usage metrics for user {user.id}: {metric_error}\n{error_trace}")
 
     except Exception as e:
         error_msg = f"Tool error: {str(e)}\n{traceback.format_exc()}"

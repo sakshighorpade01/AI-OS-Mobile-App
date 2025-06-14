@@ -283,36 +283,39 @@ def on_send_message(data: str):
 
         socketio.emit("response", {"content": "", "done": True, "id": message_id}, room=sid)
 
-        # --- CRITICAL FIX: Use attribute access for the AgentSession object ---
+        # --- CRITICAL FIX: Correctly navigate the hybrid object/dictionary structure ---
         if user and final_session_state:
             try:
-                # final_session_state is an AgentSession object. Safely access its attributes.
-                memory_obj = getattr(final_session_state, 'memory', None)
+                # 1. `final_session_state` is an AgentSession object. Access its `memory` attribute.
+                memory_dict = getattr(final_session_state, 'memory', None)
                 
-                if memory_obj:
-                    runs_list = getattr(memory_obj, 'runs', [])
+                if memory_dict and isinstance(memory_dict, dict):
+                    # 2. `memory_dict['runs']` is a dictionary mapping session_id to a list of runs.
+                    runs_by_session = memory_dict.get('runs', {})
+                    # 3. Get the list of runs for the CURRENT session_id.
+                    current_session_runs = runs_by_session.get(agent.session_id, [])
                     
-                    if runs_list:
-                        last_run = runs_list[-1]
-                        response_obj = getattr(last_run, 'response', None)
+                    if current_session_runs:
+                        # 4. The last item in the list is the dictionary of the last run.
+                        last_run_dict = current_session_runs[-1]
+                        response_dict = last_run_dict.get('response', {})
+                        metrics_dict = response_dict.get('metrics', {})
                         
-                        if response_obj:
-                            metrics_obj = getattr(response_obj, 'metrics', None)
-                            
-                            if metrics_obj:
-                                # The metrics values are lists, so we sum them.
-                                input_tokens = sum(getattr(metrics_obj, 'input_tokens', [0]))
-                                output_tokens = sum(getattr(metrics_obj, 'output_tokens', [0]))
-                                
-                                if input_tokens > 0 or output_tokens > 0:
-                                    logger.info(f"Logging token usage for user {user.id}: {input_tokens} in, {output_tokens} out.")
-                                    supabase_client.from_('request_logs').insert({
-                                        'user_id': str(user.id),
-                                        'input_tokens': input_tokens,
-                                        'output_tokens': output_tokens
-                                    }).execute()
+                        # 5. Extract token counts from the metrics dictionary.
+                        input_tokens = sum(metrics_dict.get('input_tokens', [0]))
+                        output_tokens = sum(metrics_dict.get('output_tokens', [0]))
+                        
+                        if input_tokens > 0 or output_tokens > 0:
+                            logger.info(f"Logging token usage for user {user.id}: {input_tokens} in, {output_tokens} out.")
+                            supabase_client.from_('request_logs').insert({
+                                'user_id': str(user.id),
+                                'input_tokens': input_tokens,
+                                'output_tokens': output_tokens
+                            }).execute()
+                            logger.info(f"Successfully logged tokens for user {user.id}.")
+                        else:
+                            logger.info("No token usage to log for this run.")
             except Exception as metric_error:
-                # Log the full traceback to understand the exact point of failure
                 error_trace = traceback.format_exc()
                 logger.error(f"Failed to log usage metrics for user {user.id}: {metric_error}\n{error_trace}")
 

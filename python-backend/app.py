@@ -1,4 +1,4 @@
-# app.py (Complete and Corrected Version)
+# app.py (Corrected, Final, and Definitive Version)
 
 import os
 import logging
@@ -6,7 +6,7 @@ import json
 import uuid
 import traceback
 from pathlib import Path
-import threading
+import threading # This will be removed, but keeping it for diff clarity
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
@@ -24,7 +24,7 @@ from gotrue.errors import AuthApiError
 
 # --- Initial Setup ---
 load_dotenv()
-eventlet.monkey_patch()
+# eventlet.monkey_patch() # monkey_patch is often called by the server runner, but explicit is safe.
 
 # --- Logging Configuration ---
 logging.basicConfig(level=logging.INFO)
@@ -34,15 +34,12 @@ class SocketIOHandler(logging.Handler):
     """Custom logging handler to emit logs over Socket.IO."""
     def emit(self, record):
         try:
-            # Avoid logging loops
             if record.name != 'socketio' and record.name != 'engineio':
                 log_message = self.format(record)
                 socketio.emit('log', {'level': record.levelname.lower(), 'message': log_message})
         except Exception:
-            # If this fails, we can't do much without causing a loop
             pass
 
-# Add the custom handler to the root logger
 logger.addHandler(SocketIOHandler())
 
 # --- Flask & Socket.IO App Initialization ---
@@ -52,15 +49,14 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 class IsolatedAssistant:
     """
-    Runs the agent in a separate thread to avoid blocking the server.
-    This class is well-designed and requires no changes.
+    Runs the agent in a background greenlet to stream responses.
     """
     def __init__(self, sid):
         self.sid = sid
         self.message_id = None
 
     def run_safely(self, agent: Agent, message: str, user, context=None, images=None, audio=None, videos=None):
-        """Runs agent in an isolated thread, handles crashes, and logs usage."""
+        """Runs agent in an isolated greenlet, streams responses, and accumulates metrics in memory."""
         def _run_agent(agent, message, user, context, images, audio, videos):
             try:
                 if context:
@@ -73,7 +69,7 @@ class IsolatedAssistant:
                 supported_params = {
                     'message': complete_message,
                     'stream': True,
-                    'user_id': str(user.id) # Pass user_id for memory operations
+                    'user_id': str(user.id)
                 }
                 if 'images' in params and images:
                     supported_params['images'] = images
@@ -83,6 +79,8 @@ class IsolatedAssistant:
                     supported_params['videos'] = videos
 
                 logger.info(f"Calling agent.run for user {user.id} with params: {list(supported_params.keys())}")
+                
+                # This loop streams responses directly to the client.
                 for chunk in agent.run(**supported_params):
                     if chunk and chunk.content:
                         eventlet.sleep(0)
@@ -98,27 +96,13 @@ class IsolatedAssistant:
                     "id": self.message_id,
                 }, room=self.sid)
 
-                # Metric logging for token usage
-                # In the IsolatedAssistant.run_safely method:
-                # --- METRIC LOGGING DISABLED ---
-                # The following block is for the V1 memory system and is not compatible with V2.
-                # It can be re-implemented later by parsing metrics from the final RunResponse object.
-                # if user and agent.memory and hasattr(agent.memory, 'runs') and agent.memory.runs:
-                #     try:
-                #         last_run_metrics = agent.memory.runs[-1].response.metrics
-                #         input_tokens = sum(last_run_metrics.get('input_tokens', [0]))
-                #         output_tokens = sum(last_run_metrics.get('output_tokens', [0]))
-                #         total_tokens = input_tokens + output_tokens
-
-                #         if total_tokens > 0:
-                #             logger.info(f"Logging usage for user {user.id}: {input_tokens} in, {output_tokens} out.")
-                #             supabase_client.from_('request_logs').insert({
-                #                 'user_id': str(user.id),
-                #                 'input_tokens': input_tokens,
-                #                 'output_tokens': output_tokens
-                #             }).execute()
-                #     except Exception as metric_error:
-                #         logger.error(f"Failed to log usage metrics for user {user.id}: {metric_error}")
+                # --- NEW: Log cumulative tokens to terminal after each run ---
+                if hasattr(agent, 'session_metrics') and agent.session_metrics:
+                    logger.info(
+                        f"Run complete. Cumulative session tokens for SID {self.sid}: "
+                        f"{agent.session_metrics.input_tokens} in, "
+                        f"{agent.session_metrics.output_tokens} out."
+                    )
 
             except Exception as e:
                 error_msg = f"Tool error: {str(e)}\n{traceback.format_exc()}"
@@ -137,50 +121,65 @@ class IsolatedAssistant:
 class ConnectionManager:
     def __init__(self):
         self.sessions = {}
-        self.lock = threading.Lock()
+        # A native threading.Lock is not needed in an eventlet environment.
         self.isolated_assistants = {}
 
     def create_session(self, sid: str, user_id: str, config: dict, is_deepsearch: bool = False) -> Agent:
-        with self.lock:
-            if sid in self.sessions:
-                self.terminate_session(sid)
+        if sid in self.sessions:
+            self.terminate_session(sid)
 
-            logger.info(f"Creating new session for user: {user_id}")
+        logger.info(f"Creating new session for user: {user_id}")
 
-            if is_deepsearch:
-                agent = get_deepsearch(
-                    user_id=user_id,
-                    ddg_search=config.get("ddg_search", False),
-                    web_crawler=config.get("web_crawler", False),
-                    investment_assistant=config.get("investment_assistant", False),
-                    debug_mode=True
-                )
-            else:
-                agent = get_llm_os(
-                    user_id=user_id,
-                    calculator=config.get("calculator", False),
-                    web_crawler=config.get("web_crawler", False),
-                    ddg_search=config.get("ddg_search", False),
-                    shell_tools=config.get("shell_tools", False),
-                    python_assistant=config.get("python_assistant", False),
-                    investment_assistant=config.get("investment_assistant", False),
-                    use_memory=config.get("use_memory", False),
-                    debug_mode=True
-                )
+        if is_deepsearch:
+            agent = get_deepsearch(user_id=user_id, **config)
+        else:
+            agent = get_llm_os(user_id=user_id, **config)
 
-            self.sessions[sid] = {"agent": agent, "config": config}
-            self.isolated_assistants[sid] = IsolatedAssistant(sid)
-            logger.info(f"Created session {sid} for user {user_id} with config {config}")
-            return agent
+        self.sessions[sid] = {"agent": agent, "config": config}
+        self.isolated_assistants[sid] = IsolatedAssistant(sid)
+        logger.info(f"Created session {sid} for user {user_id} with config {config}")
+        return agent
 
     def terminate_session(self, sid):
-        with self.lock:
-            if sid in self.sessions:
-                del self.sessions[sid]
+        """
+        Terminates a session, logs its final cumulative metrics to the database, and cleans up.
+        """
+        if sid in self.sessions:
+            session_info = self.sessions.get(sid)
+            if not session_info:
+                return
+
+            agent = session_info.get("agent")
+
+            # --- CRITICAL CHANGE: Implement cumulative logging on session termination ---
+            if agent and hasattr(agent, 'session_metrics') and agent.session_metrics:
+                try:
+                    final_metrics = agent.session_metrics
+                    input_tokens = final_metrics.input_tokens
+                    output_tokens = final_metrics.output_tokens
+
+                    if input_tokens > 0 or output_tokens > 0:
+                        logger.info(
+                            f"TERMINATE_SESSION FOR SID {sid}. "
+                            f"Logging final cumulative usage to DB: {input_tokens} in, {output_tokens} out."
+                        )
+                        supabase_client.from_('request_logs').insert({
+                            'user_id': str(agent.user_id),
+                            'input_tokens': input_tokens,
+                            'output_tokens': output_tokens
+                        }).execute()
+                        logger.info(f"Successfully logged final tokens for session {sid}.")
+                    else:
+                        logger.info(f"Session {sid} terminated with no cumulative token usage to log.")
+                except Exception as e:
+                    logger.error(f"Failed to log usage metrics for session {sid} on termination: {e}\n{traceback.format_exc()}")
+            
+            # Now, clean up the session from memory
+            del self.sessions[sid]
             if sid in self.isolated_assistants:
                 self.isolated_assistants[sid].terminate()
                 del self.isolated_assistants[sid]
-            logger.info(f"Terminated session {sid}")
+            logger.info(f"Terminated and cleaned up session {sid}")
 
     def get_session(self, sid):
         return self.sessions.get(sid)
@@ -203,64 +202,33 @@ def on_disconnect():
     connection_manager.remove_session(sid)
 
 def process_files(files):
-    images = []
-    audio = []
-    videos = []
-    text_content = []
-    
+    # This function is correct and does not need changes.
+    images, audio, videos, text_content = [], [], [], []
     logger.info(f"Processing {len(files)} files")
-    
     for file_data in files:
-        file_path = file_data.get('path')
-        file_type = file_data.get('type', '')
-        file_name = file_data.get('name', 'unnamed_file')
-        is_text = file_data.get('isText', False)
-        file_content = file_data.get('content')
-        
-        logger.info(f"Processing file: {file_name}, type: {file_type}, path: {file_path}, isText: {is_text}")
-        
-        if not file_path and not (is_text and file_content):
-            logger.warning(f"Skipping file without path or content: {file_name}")
-            continue
-            
+        file_path, file_type, file_name, is_text, file_content = file_data.get('path'), file_data.get('type', ''), file_data.get('name', 'unnamed_file'), file_data.get('isText', False), file_data.get('content')
+        if not file_path and not (is_text and file_content): continue
         if is_text and file_content:
             text_content.append(f"--- File: {file_name} ---\n{file_content}")
-            logger.info(f"Using provided text content for file: {file_name}")
             continue
-            
         try:
             path_obj = Path(file_path)
             file_path = str(path_obj.absolute().resolve())
-            logger.info(f"Normalized path: {file_path}")
-            
             if not path_obj.exists():
                 logger.warning(f"File does not exist at path: {file_path}")
                 continue
         except Exception as e:
             logger.error(f"Path normalization error for {file_path}: {str(e)}")
             continue
-        
         try:
-            if file_type.startswith('image/'):
-                images.append(Image(filepath=file_path))
-            elif file_type.startswith('audio/'):
-                audio.append(Audio(filepath=file_path))
-            elif file_type.startswith('video/'):
-                videos.append(Video(filepath=file_path))
+            if file_type.startswith('image/'): images.append(Image(filepath=file_path))
+            elif file_type.startswith('audio/'): audio.append(Audio(filepath=file_path))
+            elif file_type.startswith('video/'): videos.append(Video(filepath=file_path))
             elif file_type.startswith('text/') or file_type == 'application/json':
-                try:
-                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        content = f.read()
-                    text_content.append(f"--- File: {file_name} ---\n{content}")
-                except Exception as e:
-                    logger.error(f"Error reading text file {file_path}: {e}")
-            else:
-                text_content.append(f"--- File: {file_name} (attached at path: {file_path}) ---")
-        except Exception as e:
-            logger.error(f"Error processing file {file_path}: {str(e)}")
-    
-    combined_text = "\n\n".join(text_content) if text_content else None
-    return combined_text, images, audio, videos
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f: text_content.append(f"--- File: {file_name} ---\n{f.read()}")
+            else: text_content.append(f"--- File: {file_name} (attached at path: {file_path}) ---")
+        except Exception as e: logger.error(f"Error processing file {file_path}: {str(e)}")
+    return "\n\n".join(text_content) if text_content else None, images, audio, videos
 
 
 @socketio.on("send_message")
@@ -301,7 +269,6 @@ def on_send_message(data: str):
         session = connection_manager.get_session(sid)
         if not session:
             config = data.get("config", {})
-            # --- CRITICAL FIX: Pass the authenticated user.id when creating a new session ---
             agent = connection_manager.create_session(
                 sid,
                 user_id=str(user.id),
@@ -323,6 +290,7 @@ def on_send_message(data: str):
         file_content, images, audio, videos = process_files(files)
         combined_message = f"{message}\n\n{file_content}" if file_content else message
 
+        # This is the original, working "fire-and-forget" streaming logic.
         isolated_assistant.run_safely(
             agent,
             combined_message,

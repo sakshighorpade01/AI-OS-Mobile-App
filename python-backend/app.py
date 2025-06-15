@@ -6,14 +6,14 @@ import json
 import uuid
 import traceback
 from pathlib import Path
-import threading
-from concurrent.futures import ThreadPoolExecutor
-from queue import Queue
+
+# --- CRITICAL CHANGE: Use eventlet for concurrency ---
+import eventlet
+from eventlet.queue import Queue
 
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
-import eventlet
 
 # --- Local Module Imports ---
 from assistant import get_llm_os
@@ -52,24 +52,20 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 class IsolatedAssistant:
     """
-    Runs the agent in a background thread and streams results back via a queue.
-    This architecture is designed to be robust and avoid race conditions.
+    Runs the agent in a background greenlet and streams results back via an eventlet queue.
+    This architecture is compatible with the flask-socketio eventlet server.
     """
     def __init__(self, sid):
         self.sid = sid
-        self.executor = ThreadPoolExecutor(max_workers=1)
+        self.queue = Queue()
 
     def run_safely(self, agent: Agent, message: str, user, context=None, images=None, audio=None, videos=None):
-        """
-        Yields streaming results from the agent. Does NOT yield a final state object.
-        """
-        q = Queue()
-
+        """Spawns the agent execution in a background greenlet."""
+        
         def _producer():
             """
-            This function runs in a background thread.
-            Its only job is to stream agent responses to the queue.
-            The `agent` object's state is mutated directly by the `agent.run` method.
+            This function runs in a background greenlet.
+            It streams agent responses to the eventlet-safe queue.
             """
             try:
                 if context:
@@ -88,62 +84,58 @@ class IsolatedAssistant:
                 if 'audio' in params and audio: supported_params['audio'] = audio
                 if 'videos' in params and videos: supported_params['videos'] = videos
 
-                logger.info(f"Calling agent.run in background for user {user.id}")
+                logger.info(f"Calling agent.run in background greenlet for user {user.id}")
                 
-                # The agent.run() method will mutate the agent object in this thread.
-                # It will stream response chunks, which we put on the queue.
                 for chunk in agent.run(**supported_params):
-                    q.put(chunk)
+                    self.queue.put(chunk)
 
             except Exception as e:
-                q.put(e)
+                self.queue.put(e)
             finally:
                 # Signal that the producer is done.
-                q.put(None)
+                self.queue.put(None)
 
-        self.executor.submit(_producer)
+        # Use eventlet.spawn to run the producer in a non-blocking way
+        eventlet.spawn(_producer)
 
-        # This is the consumer loop, running in the main thread.
+    def get_results(self):
+        """A generator that yields results from the queue."""
         while True:
-            item = q.get()
+            item = self.queue.get()
             if item is None:
                 break
             if isinstance(item, Exception):
                 raise item
             yield item
 
-    def terminate(self):
-        self.executor.shutdown(wait=False, cancel_futures=True)
-
 
 class ConnectionManager:
     """Manages active agent sessions. This class is now correct."""
     def __init__(self):
         self.sessions = {}
-        self.lock = threading.Lock()
+        # No longer need a threading.Lock with eventlet's cooperative multitasking
         self.isolated_assistants = {}
 
     def create_session(self, sid: str, user_id: str, config: dict, is_deepsearch: bool = False) -> Agent:
-        with self.lock:
-            if sid in self.sessions:
-                self.terminate_session(sid)
+        if sid in self.sessions:
+            self.terminate_session(sid)
 
-            logger.info(f"Creating new session for user: {user_id}")
-            if is_deepsearch:
-                agent = get_deepsearch(user_id=user_id, **config)
-            else:
-                agent = get_llm_os(user_id=user_id, **config)
+        logger.info(f"Creating new session for user: {user_id}")
+        if is_deepsearch:
+            agent = get_deepsearch(user_id=user_id, **config)
+        else:
+            agent = get_llm_os(user_id=user_id, **config)
 
-            self.sessions[sid] = {"agent": agent, "config": config}
-            self.isolated_assistants[sid] = IsolatedAssistant(sid)
-            logger.info(f"Created session {sid} for user {user_id} with config {config}")
-            return agent
+        self.sessions[sid] = {"agent": agent, "config": config}
+        self.isolated_assistants[sid] = IsolatedAssistant(sid)
+        logger.info(f"Created session {sid} for user {user_id} with config {config}")
+        return agent
 
     def terminate_session(self, sid):
         if sid in self.sessions:
             del self.sessions[sid]
         if sid in self.isolated_assistants:
-            self.isolated_assistants[sid].terminate()
+            # No terminate/shutdown method needed for eventlet.spawn
             del self.isolated_assistants[sid]
         logger.info(f"Terminated session {sid}")
 
@@ -250,36 +242,30 @@ def on_send_message(data: str):
         file_content, images, audio, videos = process_files(files)
         combined_message = f"{message}\n\n{file_content}" if file_content else message
 
-        # Consume the streaming generator from run_safely
-        for result in isolated_assistant.run_safely(agent, combined_message, user, context, images, audio, videos):
-            # This is a streaming chunk of the response.
+        # --- CRITICAL CHANGE: Use eventlet-native pattern ---
+        # 1. Spawn the agent run. This is non-blocking.
+        isolated_assistant.run_safely(agent, combined_message, user, context, images, audio, videos)
+
+        # 2. Consume the results from the queue and emit them.
+        for result in isolated_assistant.get_results():
             if isinstance(result, RunResponse) and result.content:
                 socketio.emit("response", {"content": result.content, "streaming": True, "id": message_id}, room=sid)
 
-        # Signal to the client that the text stream is finished.
+        # 3. After the loop, the agent run is complete.
         socketio.emit("response", {"content": "", "done": True, "id": message_id}, room=sid)
 
-        # --- ALL DATABASE I/O IS NOW HANDLED HERE, IN THE MAIN THREAD ---
-        # The `agent` object in the connection_manager has been updated by the background thread.
-        # We can now safely access its final state.
-        
-        # 1. Save the final session state to the database using the agent's own storage handler.
-        # This will create the table if it doesn't exist.
+        # 4. Perform database operations. The agent object is guaranteed to be in its final state.
         try:
             logger.info(f"Writing final session {agent.session_id} to storage.")
-            # write_to_storage is a built-in method that calls storage.upsert() correctly.
             agent.write_to_storage(user_id=str(user.id), session_id=agent.session_id)
             logger.info("Session write successful.")
         except Exception as e:
             logger.error(f"DATABASE SESSION SAVE FAILED for user {user.id}: {e}\n{traceback.format_exc()}")
-            return # Stop if we can't save the session
+            return
 
-        # 2. Log the token usage from the agent's final run_response object.
         if hasattr(agent, 'run_response') and agent.run_response:
             try:
                 metrics_dict = agent.run_response.metrics or {}
-                
-                # The metrics are already aggregated in the final RunResponse
                 input_tokens = sum(metrics_dict.get('input_tokens', [0]))
                 output_tokens = sum(metrics_dict.get('output_tokens', [0]))
                 

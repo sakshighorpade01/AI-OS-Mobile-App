@@ -9,7 +9,6 @@ from pathlib import Path
 
 # --- CRITICAL CHANGE: Use eventlet for concurrency ---
 import eventlet
-from eventlet.queue import Queue
 
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
@@ -52,68 +51,51 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 class IsolatedAssistant:
     """
-    Runs the agent in a background greenlet and streams results back via an eventlet queue.
-    This architecture is compatible with the flask-socketio eventlet server.
+    Encapsulates the agent execution logic to be run in a background greenlet.
     """
     def __init__(self, sid):
         self.sid = sid
-        self.queue = Queue()
+        self.message_id = None
 
-    def run_safely(self, agent: Agent, message: str, user, context=None, images=None, audio=None, videos=None):
-        """Spawns the agent execution in a background greenlet."""
-        
-        def _producer():
-            """
-            This function runs in a background greenlet.
-            It streams agent responses to the eventlet-safe queue.
-            """
-            try:
-                if context:
-                    complete_message = f"Previous conversation context:\n{context}\n\nCurrent message: {message}"
-                else:
-                    complete_message = message
+    def run_in_greenlet(self, agent: Agent, message: str, user, context=None, images=None, audio=None, videos=None):
+        """
+        This function is the target for eventlet.spawn.
+        It runs the agent and streams responses directly via socketio.emit.
+        """
+        try:
+            if context:
+                complete_message = f"Previous conversation context:\n{context}\n\nCurrent message: {message}"
+            else:
+                complete_message = message
 
-                import inspect
-                params = inspect.signature(agent.run).parameters
-                supported_params = {
-                    'message': complete_message,
-                    'stream': True,
-                    'user_id': str(user.id)
-                }
-                if 'images' in params and images: supported_params['images'] = images
-                if 'audio' in params and audio: supported_params['audio'] = audio
-                if 'videos' in params and videos: supported_params['videos'] = videos
+            import inspect
+            params = inspect.signature(agent.run).parameters
+            supported_params = {
+                'message': complete_message,
+                'stream': True,
+                'user_id': str(user.id)
+            }
+            if 'images' in params and images: supported_params['images'] = images
+            if 'audio' in params and audio: supported_params['audio'] = audio
+            if 'videos' in params and videos: supported_params['videos'] = videos
 
-                logger.info(f"Calling agent.run in background greenlet for user {user.id}")
-                
-                for chunk in agent.run(**supported_params):
-                    self.queue.put(chunk)
+            logger.info(f"Calling agent.run in background greenlet for user {user.id}")
+            
+            # The agent.run() method will mutate the agent object and stream response chunks.
+            for chunk in agent.run(**supported_params):
+                if isinstance(chunk, RunResponse) and chunk.content:
+                    # This emit call is now safe because we are in a greenlet managed by eventlet.
+                    socketio.emit("response", {"content": chunk.content, "streaming": True, "id": self.message_id}, room=self.sid)
 
-            except Exception as e:
-                self.queue.put(e)
-            finally:
-                # Signal that the producer is done.
-                self.queue.put(None)
-
-        # Use eventlet.spawn to run the producer in a non-blocking way
-        eventlet.spawn(_producer)
-
-    def get_results(self):
-        """A generator that yields results from the queue."""
-        while True:
-            item = self.queue.get()
-            if item is None:
-                break
-            if isinstance(item, Exception):
-                raise item
-            yield item
+        except Exception as e:
+            logger.error(f"Error in background greenlet: {e}\n{traceback.format_exc()}")
+            socketio.emit("response", {"content": "An error occurred in the agent.", "error": True, "done": True, "id": self.message_id}, room=self.sid)
 
 
 class ConnectionManager:
     """Manages active agent sessions. This class is now correct."""
     def __init__(self):
         self.sessions = {}
-        # No longer need a threading.Lock with eventlet's cooperative multitasking
         self.isolated_assistants = {}
 
     def create_session(self, sid: str, user_id: str, config: dict, is_deepsearch: bool = False) -> Agent:
@@ -135,7 +117,6 @@ class ConnectionManager:
         if sid in self.sessions:
             del self.sessions[sid]
         if sid in self.isolated_assistants:
-            # No terminate/shutdown method needed for eventlet.spawn
             del self.isolated_assistants[sid]
         logger.info(f"Terminated session {sid}")
 
@@ -239,19 +220,23 @@ def on_send_message(data: str):
             emit("error", {"message": "Session error. Starting new chat...", "reset": True}, room=sid)
             return
         
+        isolated_assistant.message_id = message_id
+        
         file_content, images, audio, videos = process_files(files)
         combined_message = f"{message}\n\n{file_content}" if file_content else message
 
-        # --- CRITICAL CHANGE: Use eventlet-native pattern ---
-        # 1. Spawn the agent run. This is non-blocking.
-        isolated_assistant.run_safely(agent, combined_message, user, context, images, audio, videos)
+        # --- CRITICAL CHANGE: Use eventlet.spawn and greenlet.wait() ---
+        # 1. Spawn the agent run. This is non-blocking and starts the streaming.
+        greenlet = eventlet.spawn(
+            isolated_assistant.run_in_greenlet,
+            agent, combined_message, user, context, images, audio, videos
+        )
 
-        # 2. Consume the results from the queue and emit them.
-        for result in isolated_assistant.get_results():
-            if isinstance(result, RunResponse) and result.content:
-                socketio.emit("response", {"content": result.content, "streaming": True, "id": message_id}, room=sid)
+        # 2. Wait for the greenlet to finish. This pauses the handler cooperatively,
+        #    allowing the emits inside the greenlet to be processed.
+        greenlet.wait()
 
-        # 3. After the loop, the agent run is complete.
+        # 3. After the wait, the agent run is complete. Signal to the client.
         socketio.emit("response", {"content": "", "done": True, "id": message_id}, room=sid)
 
         # 4. Perform database operations. The agent object is guaranteed to be in its final state.

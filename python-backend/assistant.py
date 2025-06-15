@@ -1,6 +1,7 @@
 import os 
 import json
 from pathlib import Path
+import logging
 from textwrap import dedent
 from agno.tools import Toolkit
 from agno.tools.shell import ShellTools
@@ -32,6 +33,7 @@ class AIOS_Agent(Agent):
         which was causing a race condition. The saving will now be triggered
         manually by the ConnectionManager upon session termination.
         """
+        # This call will now work because 'logger' is defined in this file's scope.
         logger.debug("Automatic session save skipped by AIOS_Agent override.")
         pass
 
@@ -41,6 +43,7 @@ class AIOS_Agent(Agent):
         This will be called only when the session is terminated.
         It calls the original, working write_to_storage method from the parent class.
         """
+        # This call will also now work.
         logger.info("Executing final, explicit session save to storage.")
         return super().write_to_storage(*args, **kwargs)
     

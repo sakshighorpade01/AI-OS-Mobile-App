@@ -7,7 +7,7 @@ import uuid
 import traceback
 from pathlib import Path
 
-# --- CRITICAL CHANGE: Use eventlet for concurrency ---
+# --- Use eventlet for concurrency ---
 import eventlet
 
 from flask import Flask, request, jsonify
@@ -51,7 +51,8 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 class IsolatedAssistant:
     """
-    Encapsulates the agent execution logic to be run in a background greenlet.
+    This class now simply encapsulates the agent execution logic to be run
+    in a background greenlet, restoring the original streaming behavior.
     """
     def __init__(self, sid):
         self.sid = sid
@@ -81,11 +82,14 @@ class IsolatedAssistant:
 
             logger.info(f"Calling agent.run in background greenlet for user {user.id}")
             
-            # The agent.run() method will mutate the agent object and stream response chunks.
+            # The agent.run() method will stream response chunks.
             for chunk in agent.run(**supported_params):
                 if isinstance(chunk, RunResponse) and chunk.content:
-                    # This emit call is now safe because we are in a greenlet managed by eventlet.
+                    # This emit call is safe because we are in a greenlet managed by eventlet.
                     socketio.emit("response", {"content": chunk.content, "streaming": True, "id": self.message_id}, room=self.sid)
+            
+            # After the stream is done, send the final "done" signal.
+            socketio.emit("response", {"content": "", "done": True, "id": self.message_id}, room=self.sid)
 
         except Exception as e:
             logger.error(f"Error in background greenlet: {e}\n{traceback.format_exc()}")
@@ -93,7 +97,7 @@ class IsolatedAssistant:
 
 
 class ConnectionManager:
-    """Manages active agent sessions. This class is now correct."""
+    """Manages active agent sessions and handles persistence on termination."""
     def __init__(self):
         self.sessions = {}
         self.isolated_assistants = {}
@@ -114,16 +118,45 @@ class ConnectionManager:
         return agent
 
     def terminate_session(self, sid):
+        """
+        Terminates a session, logs its final metrics, and cleans up.
+        This is the single point of truth for session finalization.
+        """
         if sid in self.sessions:
+            session_info = self.sessions[sid]
+            agent = session_info.get("agent")
+
+            if agent and hasattr(agent, 'session_metrics') and agent.session_metrics:
+                try:
+                    # Extract final cumulative metrics from the agent object
+                    final_metrics = agent.session_metrics
+                    input_tokens = final_metrics.input_tokens
+                    output_tokens = final_metrics.output_tokens
+
+                    if input_tokens > 0 or output_tokens > 0:
+                        logger.info(f"Session {sid} terminated. Logging cumulative usage: {input_tokens} in, {output_tokens} out.")
+                        supabase_client.from_('request_logs').insert({
+                            'user_id': str(agent.user_id),
+                            'input_tokens': input_tokens,
+                            'output_tokens': output_tokens
+                        }).execute()
+                        logger.info(f"Successfully logged cumulative tokens for session {sid}.")
+                    else:
+                        logger.info(f"Session {sid} terminated with no token usage to log.")
+                except Exception as e:
+                    logger.error(f"Failed to log usage metrics for session {sid}: {e}\n{traceback.format_exc()}")
+
+            # Now, clean up the session from memory
             del self.sessions[sid]
-        if sid in self.isolated_assistants:
-            del self.isolated_assistants[sid]
-        logger.info(f"Terminated session {sid}")
+            if sid in self.isolated_assistants:
+                del self.isolated_assistants[sid]
+            logger.info(f"Terminated and cleaned up session {sid}")
 
     def get_session(self, sid):
         return self.sessions.get(sid)
 
     def remove_session(self, sid):
+        # This is called on disconnect, which triggers the logging and cleanup.
         self.terminate_session(sid)
 
 connection_manager = ConnectionManager()
@@ -140,6 +173,7 @@ def on_connect():
 def on_disconnect():
     sid = request.sid
     logger.info(f"Client disconnected: {sid}")
+    # This will now trigger the logging logic in terminate_session
     connection_manager.remove_session(sid)
 
 
@@ -204,6 +238,7 @@ def on_send_message(data: str):
         is_deepsearch = data.get("is_deepsearch", False)
 
         if data.get("type") == "terminate_session":
+            # This now correctly triggers the logging logic.
             connection_manager.terminate_session(sid)
             emit("status", {"message": "Session terminated"}, room=sid)
             return
@@ -225,49 +260,13 @@ def on_send_message(data: str):
         file_content, images, audio, videos = process_files(files)
         combined_message = f"{message}\n\n{file_content}" if file_content else message
 
-        # --- CRITICAL CHANGE: Use eventlet.spawn and greenlet.wait() ---
-        # 1. Spawn the agent run. This is non-blocking and starts the streaming.
-        greenlet = eventlet.spawn(
+        # --- This is now a non-blocking, "fire-and-forget" call ---
+        # It starts the background greenlet which will handle streaming.
+        # This function will now complete immediately, allowing the server to be responsive.
+        eventlet.spawn(
             isolated_assistant.run_in_greenlet,
             agent, combined_message, user, context, images, audio, videos
         )
-
-        # 2. Wait for the greenlet to finish. This pauses the handler cooperatively,
-        #    allowing the emits inside the greenlet to be processed.
-        greenlet.wait()
-
-        # 3. After the wait, the agent run is complete. Signal to the client.
-        socketio.emit("response", {"content": "", "done": True, "id": message_id}, room=sid)
-
-        # 4. Perform database operations. The agent object is guaranteed to be in its final state.
-        try:
-            logger.info(f"Writing final session {agent.session_id} to storage.")
-            agent.write_to_storage(user_id=str(user.id), session_id=agent.session_id)
-            logger.info("Session write successful.")
-        except Exception as e:
-            logger.error(f"DATABASE SESSION SAVE FAILED for user {user.id}: {e}\n{traceback.format_exc()}")
-            return
-
-        if hasattr(agent, 'run_response') and agent.run_response:
-            try:
-                metrics_dict = agent.run_response.metrics or {}
-                input_tokens = sum(metrics_dict.get('input_tokens', [0]))
-                output_tokens = sum(metrics_dict.get('output_tokens', [0]))
-                
-                if input_tokens > 0 or output_tokens > 0:
-                    logger.info(f"Logging token usage for user {user.id}: {input_tokens} in, {output_tokens} out.")
-                    supabase_client.from_('request_logs').insert({
-                        'user_id': str(user.id),
-                        'input_tokens': input_tokens,
-                        'output_tokens': output_tokens
-                    }).execute()
-                    logger.info(f"Successfully logged tokens for user {user.id}.")
-                else:
-                    logger.info("No token usage to log for this run (metrics were empty).")
-            except Exception as metric_error:
-                logger.error(f"Failed to log usage metrics for user {user.id}: {metric_error}\n{traceback.format_exc()}")
-        else:
-            logger.warning("Agent object did not have a 'run_response' attribute to log metrics from.")
 
     except Exception as e:
         error_msg = f"Tool error: {str(e)}\n{traceback.format_exc()}"

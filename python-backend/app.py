@@ -1,4 +1,4 @@
-# app.py (Corrected, Final, and Complete Version)
+# app.py (Corrected, Final, and Definitive Version)
 
 import os
 import logging
@@ -7,8 +7,9 @@ import uuid
 import traceback
 from pathlib import Path
 
-# --- Use eventlet for concurrency ---
+# --- Use eventlet for concurrency, including its Queue ---
 import eventlet
+from eventlet.queue import Queue
 
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
@@ -49,65 +50,10 @@ app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 
-class IsolatedAssistant:
-    """
-    This class runs the agent in a background greenlet, restoring the original,
-    working streaming behavior. It also handles the in-run accumulation of metrics.
-    """
-    def __init__(self, sid):
-        self.sid = sid
-        self.message_id = None
-
-    def run_in_greenlet(self, agent: Agent, message: str, user, context=None, images=None, audio=None, videos=None):
-        """
-        This function is the target for eventlet.spawn. It runs the agent,
-        streams responses, and lets the agent object accumulate metrics.
-        """
-        try:
-            if context:
-                complete_message = f"Previous conversation context:\n{context}\n\nCurrent message: {message}"
-            else:
-                complete_message = message
-
-            import inspect
-            params = inspect.signature(agent.run).parameters
-            supported_params = {
-                'message': complete_message,
-                'stream': True,
-                'user_id': str(user.id)
-            }
-            if 'images' in params and images: supported_params['images'] = images
-            if 'audio' in params and audio: supported_params['audio'] = audio
-            if 'videos' in params and videos: supported_params['videos'] = videos
-
-            logger.info(f"Calling agent.run in background greenlet for user {user.id}")
-            
-            # The agent.run() method will stream response chunks and update its own state.
-            for chunk in agent.run(**supported_params):
-                if isinstance(chunk, RunResponse) and chunk.content:
-                    socketio.emit("response", {"content": chunk.content, "streaming": True, "id": self.message_id}, room=self.sid)
-            
-            # After the stream is done, send the final "done" signal.
-            socketio.emit("response", {"content": "", "done": True, "id": self.message_id}, room=self.sid)
-
-            # Log the *cumulative* session tokens after this run
-            if hasattr(agent, 'session_metrics') and agent.session_metrics:
-                logger.info(
-                    f"Run complete. Cumulative session tokens for SID {self.sid}: "
-                    f"{agent.session_metrics.input_tokens} in, "
-                    f"{agent.session_metrics.output_tokens} out."
-                )
-
-        except Exception as e:
-            logger.error(f"Error in background greenlet: {e}\n{traceback.format_exc()}")
-            socketio.emit("response", {"content": "An error occurred in the agent.", "error": True, "done": True, "id": self.message_id}, room=self.sid)
-
-
 class ConnectionManager:
     """Manages active agent sessions and handles persistence on termination."""
     def __init__(self):
         self.sessions = {}
-        self.isolated_assistants = {}
 
     def create_session(self, sid: str, user_id: str, config: dict, is_deepsearch: bool = False) -> Agent:
         if sid in self.sessions:
@@ -120,7 +66,6 @@ class ConnectionManager:
             agent = get_llm_os(user_id=user_id, **config)
 
         self.sessions[sid] = {"agent": agent, "config": config}
-        self.isolated_assistants[sid] = IsolatedAssistant(sid)
         logger.info(f"Created session {sid} for user {user_id} with config {config}")
         return agent
 
@@ -157,10 +102,7 @@ class ConnectionManager:
                 except Exception as e:
                     logger.error(f"Failed to log usage metrics for session {sid} on termination: {e}\n{traceback.format_exc()}")
 
-            # Now, clean up the session from memory
             del self.sessions[sid]
-            if sid in self.isolated_assistants:
-                del self.isolated_assistants[sid]
             logger.info(f"Terminated and cleaned up session {sid}")
 
     def get_session(self, sid):
@@ -170,6 +112,47 @@ class ConnectionManager:
         self.terminate_session(sid)
 
 connection_manager = ConnectionManager()
+
+def agent_producer(queue, agent, message, user, context, images, audio, videos):
+    """
+    This function runs in a background greenlet.
+    It runs the agent and puts all results (chunks) onto the eventlet-safe queue.
+    It does NOT call socketio.emit.
+    """
+    try:
+        if context:
+            complete_message = f"Previous conversation context:\n{context}\n\nCurrent message: {message}"
+        else:
+            complete_message = message
+
+        import inspect
+        params = inspect.signature(agent.run).parameters
+        supported_params = {
+            'message': complete_message,
+            'stream': True,
+            'user_id': str(user.id)
+        }
+        if 'images' in params and images: supported_params['images'] = images
+        if 'audio' in params and audio: supported_params['audio'] = audio
+        if 'videos' in params and videos: supported_params['videos'] = videos
+
+        logger.info(f"Calling agent.run in background greenlet for user {user.id}")
+        
+        for chunk in agent.run(**supported_params):
+            queue.put(chunk)
+
+        if hasattr(agent, 'session_metrics') and agent.session_metrics:
+            logger.info(
+                f"Run complete. Cumulative session tokens: "
+                f"{agent.session_metrics.input_tokens} in, "
+                f"{agent.session_metrics.output_tokens} out."
+            )
+
+    except Exception as e:
+        queue.put(e)
+    finally:
+        # Signal that the producer is done by putting None on the queue.
+        queue.put(None)
 
 
 @socketio.on("connect")
@@ -218,7 +201,7 @@ def process_files(files):
 
 @socketio.on("send_message")
 def on_send_message(data: str):
-    """Main message handler. Authenticates user and dispatches to the agent."""
+    """Main message handler. Uses the robust producer/consumer pattern with eventlet.Queue."""
     sid = request.sid
     user = None
     message_id = str(uuid.uuid4())
@@ -257,22 +240,37 @@ def on_send_message(data: str):
             agent = connection_manager.create_session(sid, str(user.id), config, is_deepsearch)
         else:
             agent = session_info["agent"]
-
-        isolated_assistant = connection_manager.isolated_assistants.get(sid)
-        if not isolated_assistant:
-            emit("error", {"message": "Session error. Starting new chat...", "reset": True}, room=sid)
-            return
-        
-        isolated_assistant.message_id = message_id
         
         file_content, images, audio, videos = process_files(files)
         combined_message = f"{message}\n\n{file_content}" if file_content else message
 
-        # This is now a non-blocking, "fire-and-forget" call that restores streaming.
-        eventlet.spawn(
-            isolated_assistant.run_in_greenlet,
-            agent, combined_message, user, context, images, audio, videos
-        )
+        # --- The Robust Eventlet Queue Pattern ---
+        # 1. Create a queue that is safe for eventlet greenlets.
+        q = Queue()
+
+        # 2. Spawn the producer greenlet. It will start running the agent and putting results on the queue.
+        eventlet.spawn(agent_producer, q, agent, combined_message, user, context, images, audio, videos)
+
+        # 3. Consume results from the queue in the main handler.
+        #    This loop is non-blocking in the eventlet world.
+        while True:
+            chunk = q.get()
+            if chunk is None: # The producer is finished.
+                break
+            
+            if isinstance(chunk, Exception):
+                raise chunk
+
+            if isinstance(chunk, RunResponse) and chunk.content:
+                # Because this emit is in the original request handler, it has the correct
+                # context and will be sent to the correct client.
+                socketio.emit("response", {"content": chunk.content, "streaming": True, "id": message_id}, room=sid)
+
+        # 4. After the loop, the stream is done. Send the final signal.
+        socketio.emit("response", {"content": "", "done": True, "id": message_id}, room=sid)
+        
+        # The session is still active. The final logging will happen only when the client
+        # sends a 'terminate_session' message or disconnects.
 
     except Exception as e:
         error_msg = f"Tool error: {str(e)}\n{traceback.format_exc()}"

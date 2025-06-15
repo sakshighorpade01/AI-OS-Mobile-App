@@ -283,25 +283,23 @@ def on_send_message(data: str):
 
         socketio.emit("response", {"content": "", "done": True, "id": message_id}, room=sid)
 
-        # --- CRITICAL FIX: Correctly navigate the hybrid object/dictionary structure ---
+        # --- CRITICAL FIX: Correctly navigate the data structure ---
         if user and final_session_state:
             try:
-                # 1. `final_session_state` is an AgentSession object. Access its `memory` attribute.
+                # 1. Access the `memory` attribute (which is a dict) from the session object.
                 memory_dict = getattr(final_session_state, 'memory', None)
                 
                 if memory_dict and isinstance(memory_dict, dict):
-                    # 2. `memory_dict['runs']` is a dictionary mapping session_id to a list of runs.
-                    runs_by_session = memory_dict.get('runs', {})
-                    # 3. Get the list of runs for the CURRENT session_id.
-                    current_session_runs = runs_by_session.get(agent.session_id, [])
+                    # 2. Get the `runs` list from the memory dictionary.
+                    runs_list = memory_dict.get('runs', [])
                     
-                    if current_session_runs:
-                        # 4. The last item in the list is the dictionary of the last run.
-                        last_run_dict = current_session_runs[-1]
+                    if runs_list:
+                        # 3. The last item in the list is the dictionary of the last run.
+                        last_run_dict = runs_list[-1]
                         response_dict = last_run_dict.get('response', {})
                         metrics_dict = response_dict.get('metrics', {})
                         
-                        # 5. Extract token counts from the metrics dictionary.
+                        # 4. Extract token counts from the metrics dictionary.
                         input_tokens = sum(metrics_dict.get('input_tokens', [0]))
                         output_tokens = sum(metrics_dict.get('output_tokens', [0]))
                         

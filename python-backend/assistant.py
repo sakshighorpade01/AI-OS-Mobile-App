@@ -260,6 +260,7 @@ def get_llm_os(
         storage=PostgresStorage(
             table_name="ai_os_sessions",
             db_url=db_url_sqlalchemy,
+            schema="public",
             auto_upgrade_schema=True # Let agno manage this table's schema
         ),
         memory=memory,

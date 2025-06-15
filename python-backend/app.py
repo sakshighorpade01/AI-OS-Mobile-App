@@ -9,7 +9,6 @@ from pathlib import Path
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
-import time # <-- Import time for diagnostic sleep, can be removed later
 
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
@@ -23,7 +22,7 @@ from supabase_client import supabase_client
 
 # --- Agno Imports ---
 from agno.agent import Agent
-from agno.storage.session.agent import AgentSession # Import AgentSession
+from agno.run.response import RunResponse
 from agno.media import Image, Audio, Video
 from gotrue.errors import AuthApiError
 
@@ -62,15 +61,15 @@ class IsolatedAssistant:
 
     def run_safely(self, agent: Agent, message: str, user, context=None, images=None, audio=None, videos=None):
         """
-        Yields streaming results from the agent. The final item yielded is the complete AgentSession object.
+        Yields streaming results from the agent. Does NOT yield a final state object.
         """
         q = Queue()
 
         def _producer():
             """
             This function runs in a background thread.
-            It streams agent responses and then puts the final, complete session object on the queue.
-            It does NOT perform any database operations.
+            Its only job is to stream agent responses to the queue.
+            The `agent` object's state is mutated directly by the `agent.run` method.
             """
             try:
                 if context:
@@ -91,16 +90,10 @@ class IsolatedAssistant:
 
                 logger.info(f"Calling agent.run in background for user {user.id}")
                 
-                # Stream the response chunks to the queue
+                # The agent.run() method will mutate the agent object in this thread.
+                # It will stream response chunks, which we put on the queue.
                 for chunk in agent.run(**supported_params):
                     q.put(chunk)
-                
-                # --- CRITICAL CHANGE ---
-                # After the run is complete, the `agent` object in this thread has the most up-to-date state.
-                # Get the final session state directly from the agent's memory. DO NOT read from the database here.
-                logger.info("Agent run complete. Getting final session state from memory.")
-                final_session_object = agent.get_agent_session(session_id=agent.session_id, user_id=str(user.id))
-                q.put(final_session_object)
 
             except Exception as e:
                 q.put(e)
@@ -213,8 +206,7 @@ def on_send_message(data: str):
     sid = request.sid
     user = None
     message_id = str(uuid.uuid4())
-    final_session_state = None
-
+    
     try:
         data = json.loads(data)
         access_token = data.get("accessToken")
@@ -243,12 +235,12 @@ def on_send_message(data: str):
             emit("status", {"message": "Session terminated"}, room=sid)
             return
 
-        session = connection_manager.get_session(sid)
-        if not session:
+        session_info = connection_manager.get_session(sid)
+        if not session_info:
             config = data.get("config", {})
             agent = connection_manager.create_session(sid, str(user.id), config, is_deepsearch)
         else:
-            agent = session["agent"]
+            agent = session_info["agent"]
 
         isolated_assistant = connection_manager.isolated_assistants.get(sid)
         if not isolated_assistant:
@@ -258,56 +250,53 @@ def on_send_message(data: str):
         file_content, images, audio, videos = process_files(files)
         combined_message = f"{message}\n\n{file_content}" if file_content else message
 
-        # Consume the generator from run_safely
+        # Consume the streaming generator from run_safely
         for result in isolated_assistant.run_safely(agent, combined_message, user, context, images, audio, videos):
-            if isinstance(result, AgentSession):
-                # This is the final, complete session object.
-                final_session_state = result
-                break  # Exit the loop, we are done streaming.
-            
             # This is a streaming chunk of the response.
-            if hasattr(result, 'content') and result.content:
+            if isinstance(result, RunResponse) and result.content:
                 socketio.emit("response", {"content": result.content, "streaming": True, "id": message_id}, room=sid)
 
         # Signal to the client that the text stream is finished.
         socketio.emit("response", {"content": "", "done": True, "id": message_id}, room=sid)
 
         # --- ALL DATABASE I/O IS NOW HANDLED HERE, IN THE MAIN THREAD ---
-        if user and final_session_state:
-            # 1. Save the final session state to the database.
-            try:
-                logger.info(f"Upserting final session {final_session_state.session_id} to database.")
-                agent.storage.upsert(session=final_session_state)
-                logger.info("Session upsert successful.")
-            except Exception as e:
-                logger.error(f"DATABASE SESSION SAVE FAILED for user {user.id}: {e}\n{traceback.format_exc()}")
-                # If this fails, we probably can't log tokens either, so we can stop.
-                return
+        # The `agent` object in the connection_manager has been updated by the background thread.
+        # We can now safely access its final state.
+        
+        # 1. Save the final session state to the database using the agent's own storage handler.
+        # This will create the table if it doesn't exist.
+        try:
+            logger.info(f"Writing final session {agent.session_id} to storage.")
+            # write_to_storage is a built-in method that calls storage.upsert() correctly.
+            agent.write_to_storage(user_id=str(user.id), session_id=agent.session_id)
+            logger.info("Session write successful.")
+        except Exception as e:
+            logger.error(f"DATABASE SESSION SAVE FAILED for user {user.id}: {e}\n{traceback.format_exc()}")
+            return # Stop if we can't save the session
 
-            # 2. Log the token usage from the final session state we just received.
+        # 2. Log the token usage from the agent's final run_response object.
+        if hasattr(agent, 'run_response') and agent.run_response:
             try:
-                memory_dict = getattr(final_session_state, 'memory', None)
-                if memory_dict and isinstance(memory_dict, dict):
-                    runs_list = memory_dict.get('runs', [])
-                    if runs_list:
-                        last_run_dict = runs_list[-1]
-                        metrics_dict = last_run_dict.get('response', {}).get('metrics', {})
-                        
-                        input_tokens = sum(metrics_dict.get('input_tokens', [0]))
-                        output_tokens = sum(metrics_dict.get('output_tokens', [0]))
-                        
-                        if input_tokens > 0 or output_tokens > 0:
-                            logger.info(f"Logging token usage for user {user.id}: {input_tokens} in, {output_tokens} out.")
-                            supabase_client.from_('request_logs').insert({
-                                'user_id': str(user.id),
-                                'input_tokens': input_tokens,
-                                'output_tokens': output_tokens
-                            }).execute()
-                            logger.info(f"Successfully logged tokens for user {user.id}.")
-                        else:
-                            logger.info("No token usage to log for this run.")
+                metrics_dict = agent.run_response.metrics or {}
+                
+                # The metrics are already aggregated in the final RunResponse
+                input_tokens = sum(metrics_dict.get('input_tokens', [0]))
+                output_tokens = sum(metrics_dict.get('output_tokens', [0]))
+                
+                if input_tokens > 0 or output_tokens > 0:
+                    logger.info(f"Logging token usage for user {user.id}: {input_tokens} in, {output_tokens} out.")
+                    supabase_client.from_('request_logs').insert({
+                        'user_id': str(user.id),
+                        'input_tokens': input_tokens,
+                        'output_tokens': output_tokens
+                    }).execute()
+                    logger.info(f"Successfully logged tokens for user {user.id}.")
+                else:
+                    logger.info("No token usage to log for this run (metrics were empty).")
             except Exception as metric_error:
                 logger.error(f"Failed to log usage metrics for user {user.id}: {metric_error}\n{traceback.format_exc()}")
+        else:
+            logger.warning("Agent object did not have a 'run_response' attribute to log metrics from.")
 
     except Exception as e:
         error_msg = f"Tool error: {str(e)}\n{traceback.format_exc()}"

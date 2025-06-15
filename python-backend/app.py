@@ -9,6 +9,7 @@ from pathlib import Path
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
+import time # <-- Import time for diagnostic sleep, can be removed later
 
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
@@ -22,12 +23,12 @@ from supabase_client import supabase_client
 
 # --- Agno Imports ---
 from agno.agent import Agent
+from agno.storage.session.agent import AgentSession # Import AgentSession
 from agno.media import Image, Audio, Video
 from gotrue.errors import AuthApiError
 
 # --- Initial Setup ---
 load_dotenv()
-# eventlet.monkey_patch() # Disabling as it can conflict with ThreadPoolExecutor
 
 # --- Logging Configuration ---
 logging.basicConfig(level=logging.INFO)
@@ -53,17 +54,24 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 class IsolatedAssistant:
     """
     Runs the agent in a background thread and streams results back via a queue.
-    This robustly handles streaming while capturing the final metrics.
+    This architecture is designed to be robust and avoid race conditions.
     """
     def __init__(self, sid):
         self.sid = sid
         self.executor = ThreadPoolExecutor(max_workers=1)
 
     def run_safely(self, agent: Agent, message: str, user, context=None, images=None, audio=None, videos=None):
-        """Yields results from the agent as they are produced in the background thread."""
+        """
+        Yields streaming results from the agent. The final item yielded is the complete AgentSession object.
+        """
         q = Queue()
 
         def _producer():
+            """
+            This function runs in a background thread.
+            It streams agent responses and then puts the final, complete session object on the queue.
+            It does NOT perform any database operations.
+            """
             try:
                 if context:
                     complete_message = f"Previous conversation context:\n{context}\n\nCurrent message: {message}"
@@ -83,19 +91,26 @@ class IsolatedAssistant:
 
                 logger.info(f"Calling agent.run in background for user {user.id}")
                 
+                # Stream the response chunks to the queue
                 for chunk in agent.run(**supported_params):
                     q.put(chunk)
                 
-                final_run_response = agent.storage.read(session_id=agent.session_id, user_id=str(user.id))
-                q.put(final_run_response)
+                # --- CRITICAL CHANGE ---
+                # After the run is complete, the `agent` object in this thread has the most up-to-date state.
+                # Get the final session state directly from the agent's memory. DO NOT read from the database here.
+                logger.info("Agent run complete. Getting final session state from memory.")
+                final_session_object = agent.get_agent_session(session_id=agent.session_id, user_id=str(user.id))
+                q.put(final_session_object)
 
             except Exception as e:
                 q.put(e)
             finally:
+                # Signal that the producer is done.
                 q.put(None)
 
         self.executor.submit(_producer)
 
+        # This is the consumer loop, running in the main thread.
         while True:
             item = q.get()
             if item is None:
@@ -163,64 +178,33 @@ def on_disconnect():
 
 
 def process_files(files):
-    images = []
-    audio = []
-    videos = []
-    text_content = []
-    
+    # This function is correct and does not need changes.
+    images, audio, videos, text_content = [], [], [], []
     logger.info(f"Processing {len(files)} files")
-    
     for file_data in files:
-        file_path = file_data.get('path')
-        file_type = file_data.get('type', '')
-        file_name = file_data.get('name', 'unnamed_file')
-        is_text = file_data.get('isText', False)
-        file_content = file_data.get('content')
-        
-        logger.info(f"Processing file: {file_name}, type: {file_type}, path: {file_path}, isText: {is_text}")
-        
-        if not file_path and not (is_text and file_content):
-            logger.warning(f"Skipping file without path or content: {file_name}")
-            continue
-            
+        file_path, file_type, file_name, is_text, file_content = file_data.get('path'), file_data.get('type', ''), file_data.get('name', 'unnamed_file'), file_data.get('isText', False), file_data.get('content')
+        if not file_path and not (is_text and file_content): continue
         if is_text and file_content:
             text_content.append(f"--- File: {file_name} ---\n{file_content}")
-            logger.info(f"Using provided text content for file: {file_name}")
             continue
-            
         try:
             path_obj = Path(file_path)
             file_path = str(path_obj.absolute().resolve())
-            logger.info(f"Normalized path: {file_path}")
-            
             if not path_obj.exists():
                 logger.warning(f"File does not exist at path: {file_path}")
                 continue
         except Exception as e:
             logger.error(f"Path normalization error for {file_path}: {str(e)}")
             continue
-        
         try:
-            if file_type.startswith('image/'):
-                images.append(Image(filepath=file_path))
-            elif file_type.startswith('audio/'):
-                audio.append(Audio(filepath=file_path))
-            elif file_type.startswith('video/'):
-                videos.append(Video(filepath=file_path))
+            if file_type.startswith('image/'): images.append(Image(filepath=file_path))
+            elif file_type.startswith('audio/'): audio.append(Audio(filepath=file_path))
+            elif file_type.startswith('video/'): videos.append(Video(filepath=file_path))
             elif file_type.startswith('text/') or file_type == 'application/json':
-                try:
-                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        content = f.read()
-                    text_content.append(f"--- File: {file_name} ---\n{content}")
-                except Exception as e:
-                    logger.error(f"Error reading text file {file_path}: {e}")
-            else:
-                text_content.append(f"--- File: {file_name} (attached at path: {file_path}) ---")
-        except Exception as e:
-            logger.error(f"Error processing file {file_path}: {str(e)}")
-    
-    combined_text = "\n\n".join(text_content) if text_content else None
-    return combined_text, images, audio, videos
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f: text_content.append(f"--- File: {file_name} ---\n{f.read()}")
+            else: text_content.append(f"--- File: {file_name} (attached at path: {file_path}) ---")
+        except Exception as e: logger.error(f"Error processing file {file_path}: {str(e)}")
+    return "\n\n".join(text_content) if text_content else None, images, audio, videos
 
 
 @socketio.on("send_message")
@@ -274,32 +258,41 @@ def on_send_message(data: str):
         file_content, images, audio, videos = process_files(files)
         combined_message = f"{message}\n\n{file_content}" if file_content else message
 
+        # Consume the generator from run_safely
         for result in isolated_assistant.run_safely(agent, combined_message, user, context, images, audio, videos):
-            if hasattr(result, 'content'):
-                if result.content:
-                    socketio.emit("response", {"content": result.content, "streaming": True, "id": message_id}, room=sid)
-            else:
+            if isinstance(result, AgentSession):
+                # This is the final, complete session object.
                 final_session_state = result
+                break  # Exit the loop, we are done streaming.
+            
+            # This is a streaming chunk of the response.
+            if hasattr(result, 'content') and result.content:
+                socketio.emit("response", {"content": result.content, "streaming": True, "id": message_id}, room=sid)
 
+        # Signal to the client that the text stream is finished.
         socketio.emit("response", {"content": "", "done": True, "id": message_id}, room=sid)
 
-        # --- CRITICAL FIX: Correctly navigate the data structure ---
+        # --- ALL DATABASE I/O IS NOW HANDLED HERE, IN THE MAIN THREAD ---
         if user and final_session_state:
+            # 1. Save the final session state to the database.
             try:
-                # 1. Access the `memory` attribute (which is a dict) from the session object.
+                logger.info(f"Upserting final session {final_session_state.session_id} to database.")
+                agent.storage.upsert(session=final_session_state)
+                logger.info("Session upsert successful.")
+            except Exception as e:
+                logger.error(f"DATABASE SESSION SAVE FAILED for user {user.id}: {e}\n{traceback.format_exc()}")
+                # If this fails, we probably can't log tokens either, so we can stop.
+                return
+
+            # 2. Log the token usage from the final session state we just received.
+            try:
                 memory_dict = getattr(final_session_state, 'memory', None)
-                
                 if memory_dict and isinstance(memory_dict, dict):
-                    # 2. Get the `runs` list from the memory dictionary.
                     runs_list = memory_dict.get('runs', [])
-                    
                     if runs_list:
-                        # 3. The last item in the list is the dictionary of the last run.
                         last_run_dict = runs_list[-1]
-                        response_dict = last_run_dict.get('response', {})
-                        metrics_dict = response_dict.get('metrics', {})
+                        metrics_dict = last_run_dict.get('response', {}).get('metrics', {})
                         
-                        # 4. Extract token counts from the metrics dictionary.
                         input_tokens = sum(metrics_dict.get('input_tokens', [0]))
                         output_tokens = sum(metrics_dict.get('output_tokens', [0]))
                         
@@ -314,8 +307,7 @@ def on_send_message(data: str):
                         else:
                             logger.info("No token usage to log for this run.")
             except Exception as metric_error:
-                error_trace = traceback.format_exc()
-                logger.error(f"Failed to log usage metrics for user {user.id}: {metric_error}\n{error_trace}")
+                logger.error(f"Failed to log usage metrics for user {user.id}: {metric_error}\n{traceback.format_exc()}")
 
     except Exception as e:
         error_msg = f"Tool error: {str(e)}\n{traceback.format_exc()}"

@@ -1,4 +1,4 @@
-# app.py (Corrected, Final, and Definitive Version)
+# app.py (Complete and Corrected Version)
 
 import os
 import logging
@@ -6,14 +6,11 @@ import json
 import uuid
 import traceback
 from pathlib import Path
-
-# --- Use eventlet for concurrency, including its Queue ---
-import eventlet
-from eventlet.queue import Queue
-
+import threading
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
+import eventlet
 
 # --- Local Module Imports ---
 from assistant import get_llm_os
@@ -22,12 +19,12 @@ from supabase_client import supabase_client
 
 # --- Agno Imports ---
 from agno.agent import Agent
-from agno.run.response import RunResponse
 from agno.media import Image, Audio, Video
 from gotrue.errors import AuthApiError
 
 # --- Initial Setup ---
 load_dotenv()
+eventlet.monkey_patch()
 
 # --- Logging Configuration ---
 logging.basicConfig(level=logging.INFO)
@@ -37,12 +34,15 @@ class SocketIOHandler(logging.Handler):
     """Custom logging handler to emit logs over Socket.IO."""
     def emit(self, record):
         try:
+            # Avoid logging loops
             if record.name != 'socketio' and record.name != 'engineio':
                 log_message = self.format(record)
                 socketio.emit('log', {'level': record.levelname.lower(), 'message': log_message})
         except Exception:
+            # If this fails, we can't do much without causing a loop
             pass
 
+# Add the custom handler to the root logger
 logger.addHandler(SocketIOHandler())
 
 # --- Flask & Socket.IO App Initialization ---
@@ -50,60 +50,137 @@ app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 
+class IsolatedAssistant:
+    """
+    Runs the agent in a separate thread to avoid blocking the server.
+    This class is well-designed and requires no changes.
+    """
+    def __init__(self, sid):
+        self.sid = sid
+        self.message_id = None
+
+    def run_safely(self, agent: Agent, message: str, user, context=None, images=None, audio=None, videos=None):
+        """Runs agent in an isolated thread, handles crashes, and logs usage."""
+        def _run_agent(agent, message, user, context, images, audio, videos):
+            try:
+                if context:
+                    complete_message = f"Previous conversation context:\n{context}\n\nCurrent message: {message}"
+                else:
+                    complete_message = message
+
+                import inspect
+                params = inspect.signature(agent.run).parameters
+                supported_params = {
+                    'message': complete_message,
+                    'stream': True,
+                    'user_id': str(user.id) # Pass user_id for memory operations
+                }
+                if 'images' in params and images:
+                    supported_params['images'] = images
+                if 'audio' in params and audio:
+                    supported_params['audio'] = audio
+                if 'videos' in params and videos:
+                    supported_params['videos'] = videos
+
+                logger.info(f"Calling agent.run for user {user.id} with params: {list(supported_params.keys())}")
+                for chunk in agent.run(**supported_params):
+                    if chunk and chunk.content:
+                        eventlet.sleep(0)
+                        socketio.emit("response", {
+                            "content": chunk.content,
+                            "streaming": True,
+                            "id": self.message_id,
+                        }, room=self.sid)
+
+                socketio.emit("response", {
+                    "content": "",
+                    "done": True,
+                    "id": self.message_id,
+                }, room=self.sid)
+
+                # Metric logging for token usage
+                # In the IsolatedAssistant.run_safely method:
+                # --- METRIC LOGGING DISABLED ---
+                # The following block is for the V1 memory system and is not compatible with V2.
+                # It can be re-implemented later by parsing metrics from the final RunResponse object.
+                # if user and agent.memory and hasattr(agent.memory, 'runs') and agent.memory.runs:
+                #     try:
+                #         last_run_metrics = agent.memory.runs[-1].response.metrics
+                #         input_tokens = sum(last_run_metrics.get('input_tokens', [0]))
+                #         output_tokens = sum(last_run_metrics.get('output_tokens', [0]))
+                #         total_tokens = input_tokens + output_tokens
+
+                #         if total_tokens > 0:
+                #             logger.info(f"Logging usage for user {user.id}: {input_tokens} in, {output_tokens} out.")
+                #             supabase_client.from_('request_logs').insert({
+                #                 'user_id': str(user.id),
+                #                 'input_tokens': input_tokens,
+                #                 'output_tokens': output_tokens
+                #             }).execute()
+                #     except Exception as metric_error:
+                #         logger.error(f"Failed to log usage metrics for user {user.id}: {metric_error}")
+
+            except Exception as e:
+                error_msg = f"Tool error: {str(e)}\n{traceback.format_exc()}"
+                logger.error(error_msg)
+                socketio.emit("response", {
+                    "content": "An error occurred while processing your request. Starting a new session...",
+                    "error": True, "done": True, "id": self.message_id,
+                }, room=self.sid)
+                socketio.emit("error", {"message": "Session reset required", "reset": True}, room=self.sid)
+
+        eventlet.spawn(_run_agent, agent, message, user, context, images, audio, videos)
+
+    def terminate(self):
+        pass
+
 class ConnectionManager:
-    """Manages active agent sessions and handles persistence on termination."""
     def __init__(self):
         self.sessions = {}
+        self.lock = threading.Lock()
+        self.isolated_assistants = {}
 
     def create_session(self, sid: str, user_id: str, config: dict, is_deepsearch: bool = False) -> Agent:
-        if sid in self.sessions:
-            self.terminate_session(sid)
+        with self.lock:
+            if sid in self.sessions:
+                self.terminate_session(sid)
 
-        logger.info(f"Creating new session for user: {user_id}")
-        if is_deepsearch:
-            agent = get_deepsearch(user_id=user_id, **config)
-        else:
-            agent = get_llm_os(user_id=user_id, **config)
+            logger.info(f"Creating new session for user: {user_id}")
 
-        self.sessions[sid] = {"agent": agent, "config": config}
-        logger.info(f"Created session {sid} for user {user_id} with config {config}")
-        return agent
+            if is_deepsearch:
+                agent = get_deepsearch(
+                    user_id=user_id,
+                    ddg_search=config.get("ddg_search", False),
+                    web_crawler=config.get("web_crawler", False),
+                    investment_assistant=config.get("investment_assistant", False),
+                    debug_mode=True
+                )
+            else:
+                agent = get_llm_os(
+                    user_id=user_id,
+                    calculator=config.get("calculator", False),
+                    web_crawler=config.get("web_crawler", False),
+                    ddg_search=config.get("ddg_search", False),
+                    shell_tools=config.get("shell_tools", False),
+                    python_assistant=config.get("python_assistant", False),
+                    investment_assistant=config.get("investment_assistant", False),
+                    use_memory=config.get("use_memory", False),
+                    debug_mode=True
+                )
+
+            self.sessions[sid] = {"agent": agent, "config": config}
+            self.isolated_assistants[sid] = IsolatedAssistant(sid)
+            logger.info(f"Created session {sid} for user {user_id} with config {config}")
+            return agent
 
     def terminate_session(self, sid):
-        """
-        Terminates a session, logs its final cumulative metrics to the database, and cleans up.
-        """
-        if sid in self.sessions:
-            session_info = self.sessions.get(sid)
-            if not session_info:
-                return
-
-            agent = session_info.get("agent")
-
-            if agent and hasattr(agent, 'session_metrics') and agent.session_metrics:
-                try:
-                    final_metrics = agent.session_metrics
-                    input_tokens = final_metrics.input_tokens
-                    output_tokens = final_metrics.output_tokens
-
-                    if input_tokens > 0 or output_tokens > 0:
-                        logger.info(
-                            f"TERMINATE_SESSION FOR SID {sid}. "
-                            f"Logging final cumulative usage to DB: {input_tokens} in, {output_tokens} out."
-                        )
-                        supabase_client.from_('request_logs').insert({
-                            'user_id': str(agent.user_id),
-                            'input_tokens': input_tokens,
-                            'output_tokens': output_tokens
-                        }).execute()
-                        logger.info(f"Successfully logged final tokens for session {sid}.")
-                    else:
-                        logger.info(f"Session {sid} terminated with no cumulative token usage to log.")
-                except Exception as e:
-                    logger.error(f"Failed to log usage metrics for session {sid} on termination: {e}\n{traceback.format_exc()}")
-
-            del self.sessions[sid]
-            logger.info(f"Terminated and cleaned up session {sid}")
+        with self.lock:
+            if sid in self.sessions:
+                del self.sessions[sid]
+            if sid in self.isolated_assistants:
+                self.isolated_assistants[sid].terminate()
+                del self.isolated_assistants[sid]
+            logger.info(f"Terminated session {sid}")
 
     def get_session(self, sid):
         return self.sessions.get(sid)
@@ -113,54 +190,11 @@ class ConnectionManager:
 
 connection_manager = ConnectionManager()
 
-def agent_producer(queue, agent, message, user, context, images, audio, videos):
-    """
-    This function runs in a background greenlet.
-    It runs the agent and puts all results (chunks) onto the eventlet-safe queue.
-    It does NOT call socketio.emit.
-    """
-    try:
-        if context:
-            complete_message = f"Previous conversation context:\n{context}\n\nCurrent message: {message}"
-        else:
-            complete_message = message
-
-        import inspect
-        params = inspect.signature(agent.run).parameters
-        supported_params = {
-            'message': complete_message,
-            'stream': True,
-            'user_id': str(user.id)
-        }
-        if 'images' in params and images: supported_params['images'] = images
-        if 'audio' in params and audio: supported_params['audio'] = audio
-        if 'videos' in params and videos: supported_params['videos'] = videos
-
-        logger.info(f"Calling agent.run in background greenlet for user {user.id}")
-        
-        for chunk in agent.run(**supported_params):
-            queue.put(chunk)
-
-        if hasattr(agent, 'session_metrics') and agent.session_metrics:
-            logger.info(
-                f"Run complete. Cumulative session tokens: "
-                f"{agent.session_metrics.input_tokens} in, "
-                f"{agent.session_metrics.output_tokens} out."
-            )
-
-    except Exception as e:
-        queue.put(e)
-    finally:
-        # Signal that the producer is done by putting None on the queue.
-        queue.put(None)
-
-
 @socketio.on("connect")
 def on_connect():
     sid = request.sid
     logger.info(f"Client connected: {sid}")
     emit("status", {"message": "Connected to server"})
-
 
 @socketio.on("disconnect")
 def on_disconnect():
@@ -168,60 +202,90 @@ def on_disconnect():
     logger.info(f"Client disconnected: {sid}")
     connection_manager.remove_session(sid)
 
-
 def process_files(files):
-    # This function is correct and does not need changes.
-    images, audio, videos, text_content = [], [], [], []
+    images = []
+    audio = []
+    videos = []
+    text_content = []
+    
     logger.info(f"Processing {len(files)} files")
+    
     for file_data in files:
-        file_path, file_type, file_name, is_text, file_content = file_data.get('path'), file_data.get('type', ''), file_data.get('name', 'unnamed_file'), file_data.get('isText', False), file_data.get('content')
-        if not file_path and not (is_text and file_content): continue
+        file_path = file_data.get('path')
+        file_type = file_data.get('type', '')
+        file_name = file_data.get('name', 'unnamed_file')
+        is_text = file_data.get('isText', False)
+        file_content = file_data.get('content')
+        
+        logger.info(f"Processing file: {file_name}, type: {file_type}, path: {file_path}, isText: {is_text}")
+        
+        if not file_path and not (is_text and file_content):
+            logger.warning(f"Skipping file without path or content: {file_name}")
+            continue
+            
         if is_text and file_content:
             text_content.append(f"--- File: {file_name} ---\n{file_content}")
+            logger.info(f"Using provided text content for file: {file_name}")
             continue
+            
         try:
             path_obj = Path(file_path)
             file_path = str(path_obj.absolute().resolve())
+            logger.info(f"Normalized path: {file_path}")
+            
             if not path_obj.exists():
                 logger.warning(f"File does not exist at path: {file_path}")
                 continue
         except Exception as e:
             logger.error(f"Path normalization error for {file_path}: {str(e)}")
             continue
+        
         try:
-            if file_type.startswith('image/'): images.append(Image(filepath=file_path))
-            elif file_type.startswith('audio/'): audio.append(Audio(filepath=file_path))
-            elif file_type.startswith('video/'): videos.append(Video(filepath=file_path))
+            if file_type.startswith('image/'):
+                images.append(Image(filepath=file_path))
+            elif file_type.startswith('audio/'):
+                audio.append(Audio(filepath=file_path))
+            elif file_type.startswith('video/'):
+                videos.append(Video(filepath=file_path))
             elif file_type.startswith('text/') or file_type == 'application/json':
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f: text_content.append(f"--- File: {file_name} ---\n{f.read()}")
-            else: text_content.append(f"--- File: {file_name} (attached at path: {file_path}) ---")
-        except Exception as e: logger.error(f"Error processing file {file_path}: {str(e)}")
-    return "\n\n".join(text_content) if text_content else None, images, audio, videos
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                    text_content.append(f"--- File: {file_name} ---\n{content}")
+                except Exception as e:
+                    logger.error(f"Error reading text file {file_path}: {e}")
+            else:
+                text_content.append(f"--- File: {file_name} (attached at path: {file_path}) ---")
+        except Exception as e:
+            logger.error(f"Error processing file {file_path}: {str(e)}")
+    
+    combined_text = "\n\n".join(text_content) if text_content else None
+    return combined_text, images, audio, videos
 
 
 @socketio.on("send_message")
 def on_send_message(data: str):
-    """Main message handler. Uses the robust producer/consumer pattern with eventlet.Queue."""
+    """Main message handler. Authenticates user and dispatches to the agent."""
     sid = request.sid
     user = None
-    message_id = str(uuid.uuid4())
-    
+
     try:
         data = json.loads(data)
         access_token = data.get("accessToken")
 
         if not access_token:
-            emit("error", {"message": "Authentication token missing.", "reset": True}, room=sid)
+            emit("error", {"message": "Authentication token is missing. Please log in again.", "reset": True}, room=sid)
             return
 
         try:
             user_response = supabase_client.auth.get_user(jwt=access_token)
             user = user_response.user
-            if not user: raise AuthApiError("User not found.", 401)
+            if not user:
+                raise AuthApiError("User not found for the provided token.", 401)
             logger.info(f"Request authenticated for user: {user.id}")
         except AuthApiError as e:
             logger.error(f"Invalid token for SID {sid}: {e.message}")
-            emit("error", {"message": "Session expired. Please log in again.", "reset": True}, room=sid)
+            emit("error", {"message": "Your session has expired. Please log in again.", "reset": True}, room=sid)
             return
 
         message = data.get("message", "")
@@ -234,48 +298,44 @@ def on_send_message(data: str):
             emit("status", {"message": "Session terminated"}, room=sid)
             return
 
-        session_info = connection_manager.get_session(sid)
-        if not session_info:
+        session = connection_manager.get_session(sid)
+        if not session:
             config = data.get("config", {})
-            agent = connection_manager.create_session(sid, str(user.id), config, is_deepsearch)
+            # --- CRITICAL FIX: Pass the authenticated user.id when creating a new session ---
+            agent = connection_manager.create_session(
+                sid,
+                user_id=str(user.id),
+                config=config,
+                is_deepsearch=is_deepsearch
+            )
         else:
-            agent = session_info["agent"]
+            agent = session["agent"]
+
+        message_id = str(uuid.uuid4())
+        isolated_assistant = connection_manager.isolated_assistants.get(sid)
+        if not isolated_assistant:
+            emit("error", {"message": "Session error. Starting new chat...", "reset": True}, room=sid)
+            connection_manager.terminate_session(sid)
+            return
         
+        isolated_assistant.message_id = message_id
+
         file_content, images, audio, videos = process_files(files)
         combined_message = f"{message}\n\n{file_content}" if file_content else message
 
-        # --- The Robust Eventlet Queue Pattern ---
-        # 1. Create a queue that is safe for eventlet greenlets.
-        q = Queue()
-
-        # 2. Spawn the producer greenlet. It will start running the agent and putting results on the queue.
-        eventlet.spawn(agent_producer, q, agent, combined_message, user, context, images, audio, videos)
-
-        # 3. Consume results from the queue in the main handler.
-        #    This loop is non-blocking in the eventlet world.
-        while True:
-            chunk = q.get()
-            if chunk is None: # The producer is finished.
-                break
-            
-            if isinstance(chunk, Exception):
-                raise chunk
-
-            if isinstance(chunk, RunResponse) and chunk.content:
-                # Because this emit is in the original request handler, it has the correct
-                # context and will be sent to the correct client.
-                socketio.emit("response", {"content": chunk.content, "streaming": True, "id": message_id}, room=sid)
-
-        # 4. After the loop, the stream is done. Send the final signal.
-        socketio.emit("response", {"content": "", "done": True, "id": message_id}, room=sid)
-        
-        # The session is still active. The final logging will happen only when the client
-        # sends a 'terminate_session' message or disconnects.
+        isolated_assistant.run_safely(
+            agent,
+            combined_message,
+            user=user,
+            context=context,
+            images=images or None,
+            audio=audio or None,
+            videos=videos or None
+        )
 
     except Exception as e:
-        error_msg = f"Tool error: {str(e)}\n{traceback.format_exc()}"
-        logger.error(error_msg)
-        socketio.emit("response", {"content": "An error occurred.", "error": True, "done": True, "id": message_id}, room=sid)
+        logger.error(f"Error in message handler: {e}\n{traceback.format_exc()}")
+        emit("error", {"message": "AI service error. Starting new chat...", "reset": True}, room=sid)
         connection_manager.terminate_session(sid)
 
 

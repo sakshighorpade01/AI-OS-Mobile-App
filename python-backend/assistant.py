@@ -3,7 +3,7 @@ from pathlib import Path
 from textwrap import dedent
 
 from agno.agent import Agent, AgentSession
-from agno.run.response import RunResponse, TeamRunResponse
+from agno.run.response import RunResponse
 from agno.utils.log import log_warning, log_debug
 from agno.memory.v2.memory import UserMemory as UserMemoryV2, SessionSummary as SessionSummaryV2
 from agno.memory.agent import AgentMemory, AgentRun
@@ -16,7 +16,8 @@ from agno.memory.v2.memory import Memory as AgnoMemoryV2
 class AIOS_PatchedAgent(Agent):
     """
     This patched Agent class overrides the load_agent_session method to prevent
-    the destructive reloading of active conversation history.
+    the destructive reloading of active conversation history. This version is
+    compatible with older agno versions that do not have TeamRunResponse.
     """
     def load_agent_session(self, session: AgentSession):
         """Load the existing Agent from an AgentSession (from the database)"""
@@ -88,24 +89,19 @@ class AIOS_PatchedAgent(Agent):
 
         if session.memory is not None:
             if isinstance(self.memory, AgentMemory):
-                # This part is for the older memory system, which you are not using. No changes needed.
                 pass
             elif isinstance(self.memory, AgnoMemoryV2):
                 if "runs" in session.memory:
                     try:
                         if self.memory.runs is None: self.memory.runs = {}
                         
-                        # --- THE FIX ---
-                        # Only load runs from storage if the session isn't already active in memory.
                         if session.session_id not in self.memory.runs:
                             self.memory.runs[session.session_id] = []
                             for run in session.memory["runs"]:
-                                run_session_id = run["session_id"]
-                                if "team_id" in run:
-                                    self.memory.runs[run_session_id].append(TeamRunResponse.from_dict(run))
-                                else:
-                                    self.memory.runs[run_session_id].append(RunResponse.from_dict(run))
-                        # --- END FIX ---
+                                # --- THE SIMPLIFIED FIX ---
+                                # Assume all runs are standard RunResponse, as TeamRunResponse doesn't exist.
+                                self.memory.runs[session.session_id].append(RunResponse.from_dict(run))
+                                # --- END FIX ---
 
                     except Exception as e:
                         log_warning(f"Failed to load runs from memory: {e}")

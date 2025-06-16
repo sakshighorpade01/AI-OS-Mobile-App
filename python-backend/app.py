@@ -6,14 +6,13 @@ import json
 import uuid
 import traceback
 from pathlib import Path
-import threading # This will be removed, but keeping it for diff clarity
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
 import eventlet
 
 # --- Local Module Imports ---
-from assistant import get_llm_os
+from assistant import get_llm_os, AIOS_PatchedAgent # Import the patched agent
 from deepsearch import get_deepsearch
 from supabase_client import supabase_client
 
@@ -24,7 +23,6 @@ from gotrue.errors import AuthApiError
 
 # --- Initial Setup ---
 load_dotenv()
-# eventlet.monkey_patch() # monkey_patch is often called by the server runner, but explicit is safe.
 
 # --- Logging Configuration ---
 logging.basicConfig(level=logging.INFO)
@@ -80,7 +78,6 @@ class IsolatedAssistant:
 
                 logger.info(f"Calling agent.run for user {user.id} with params: {list(supported_params.keys())}")
                 
-                # This loop streams responses directly to the client.
                 for chunk in agent.run(**supported_params):
                     if chunk and chunk.content:
                         eventlet.sleep(0)
@@ -96,7 +93,6 @@ class IsolatedAssistant:
                     "id": self.message_id,
                 }, room=self.sid)
 
-                # --- NEW: Log cumulative tokens to terminal after each run ---
                 if hasattr(agent, 'session_metrics') and agent.session_metrics:
                     logger.info(
                         f"Run complete. Cumulative session tokens for SID {self.sid}: "
@@ -121,7 +117,6 @@ class IsolatedAssistant:
 class ConnectionManager:
     def __init__(self):
         self.sessions = {}
-        # A native threading.Lock is not needed in an eventlet environment.
         self.isolated_assistants = {}
 
     def create_session(self, sid: str, user_id: str, config: dict, is_deepsearch: bool = False) -> Agent:
@@ -142,7 +137,7 @@ class ConnectionManager:
 
     def terminate_session(self, sid):
         """
-        Terminates a session, logs its final cumulative metrics to the database, and cleans up.
+        Terminates a session, saves its final state and metrics to the database, and cleans up.
         """
         if sid in self.sessions:
             session_info = self.sessions.get(sid)
@@ -151,28 +146,40 @@ class ConnectionManager:
 
             agent = session_info.get("agent")
 
-            # --- CRITICAL CHANGE: Implement cumulative logging on session termination ---
-            if agent and hasattr(agent, 'session_metrics') and agent.session_metrics:
+            if agent and isinstance(agent, AIOS_PatchedAgent):
+                # ===================== START: FINAL SAVE LOGIC =====================
+                # This is the new logic to save the complete session state upon termination.
                 try:
-                    final_metrics = agent.session_metrics
-                    input_tokens = final_metrics.input_tokens
-                    output_tokens = final_metrics.output_tokens
-
-                    if input_tokens > 0 or output_tokens > 0:
-                        logger.info(
-                            f"TERMINATE_SESSION FOR SID {sid}. "
-                            f"Logging final cumulative usage to DB: {input_tokens} in, {output_tokens} out."
-                        )
-                        supabase_client.from_('request_logs').insert({
-                            'user_id': str(agent.user_id),
-                            'input_tokens': input_tokens,
-                            'output_tokens': output_tokens
-                        }).execute()
-                        logger.info(f"Successfully logged final tokens for session {sid}.")
-                    else:
-                        logger.info(f"Session {sid} terminated with no cumulative token usage to log.")
+                    user_id = str(agent.user_id) if agent.user_id else None
+                    logger.info(f"Saving final session state for SID {sid} to database.")
+                    agent.save_session_to_storage_on_termination(sid, user_id=user_id)
+                    logger.info(f"Successfully saved final session state for SID {sid}.")
                 except Exception as e:
-                    logger.error(f"Failed to log usage metrics for session {sid} on termination: {e}\n{traceback.format_exc()}")
+                    logger.error(f"Failed to save session state for SID {sid} on termination: {e}\n{traceback.format_exc()}")
+                # ====================== END: FINAL SAVE LOGIC ======================
+
+                # --- Existing logic to log cumulative token usage ---
+                if hasattr(agent, 'session_metrics') and agent.session_metrics:
+                    try:
+                        final_metrics = agent.session_metrics
+                        input_tokens = final_metrics.input_tokens
+                        output_tokens = final_metrics.output_tokens
+
+                        if input_tokens > 0 or output_tokens > 0:
+                            logger.info(
+                                f"TERMINATE_SESSION FOR SID {sid}. "
+                                f"Logging final cumulative usage to DB: {input_tokens} in, {output_tokens} out."
+                            )
+                            supabase_client.from_('request_logs').insert({
+                                'user_id': str(agent.user_id),
+                                'input_tokens': input_tokens,
+                                'output_tokens': output_tokens
+                            }).execute()
+                            logger.info(f"Successfully logged final tokens for session {sid}.")
+                        else:
+                            logger.info(f"Session {sid} terminated with no cumulative token usage to log.")
+                    except Exception as e:
+                        logger.error(f"Failed to log usage metrics for session {sid} on termination: {e}\n{traceback.format_exc()}")
             
             # Now, clean up the session from memory
             del self.sessions[sid]
@@ -202,7 +209,6 @@ def on_disconnect():
     connection_manager.remove_session(sid)
 
 def process_files(files):
-    # This function is correct and does not need changes.
     images, audio, videos, text_content = [], [], [], []
     logger.info(f"Processing {len(files)} files")
     for file_data in files:
@@ -290,7 +296,6 @@ def on_send_message(data: str):
         file_content, images, audio, videos = process_files(files)
         combined_message = f"{message}\n\n{file_content}" if file_content else message
 
-        # This is the original, working "fire-and-forget" streaming logic.
         isolated_assistant.run_safely(
             agent,
             combined_message,

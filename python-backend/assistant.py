@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 from textwrap import dedent
 
+from typing import Optional, List, cast
+
 from agno.agent import Agent, AgentSession
 from agno.run.response import RunResponse
 from agno.utils.log import log_warning, log_debug
@@ -15,121 +17,96 @@ from agno.memory.v2.memory import Memory as AgnoMemoryV2
 
 class AIOS_PatchedAgent(Agent):
     """
-    This patched Agent class overrides the load_agent_session method to prevent
-    the destructive reloading of active conversation history. This version is
-    compatible with older agno versions that do not have TeamRunResponse.
+    This patched Agent class overrides the default load/save behavior to prevent
+    the destructive reloading of active conversation history and to enable a
+    single, final save on session termination.
     """
     def load_agent_session(self, session: AgentSession):
-        """Load the existing Agent from an AgentSession (from the database)"""
-
-        # Get the agent_id, user_id and session_id from the database
-        if self.agent_id is None and session.agent_id is not None:
-            self.agent_id = session.agent_id
-        if self.user_id is None and session.user_id is not None:
-            self.user_id = session.user_id
-        if self.session_id is None and session.session_id is not None:
-            self.session_id = session.session_id
-
-        # Read agent_data from the database
+        """
+        Patched Method: Load the existing Agent from an AgentSession, but critically,
+        do NOT overwrite the in-memory run history if the session is already active.
+        """
+        if self.agent_id is None and session.agent_id is not None: self.agent_id = session.agent_id
+        if self.user_id is None and session.user_id is not None: self.user_id = session.user_id
+        if self.session_id is None and session.session_id is not None: self.session_id = session.session_id
         if session.agent_data is not None:
-            if self.name is None and "name" in session.agent_data:
-                self.name = session.agent_data.get("name")
-
-        # Read session_data from the database
+            if self.name is None and "name" in session.agent_data: self.name = session.agent_data.get("name")
         if session.session_data is not None:
-            if self.session_name is None and "session_name" in session.session_data:
-                self.session_name = session.session_data.get("session_name")
+            if self.session_name is None and "session_name" in session.session_data: self.session_name = session.session_data.get("session_name")
             if "session_state" in session.session_data:
-                session_state_from_db = session.session_data.get("session_state")
-                if (session_state_from_db is not None and isinstance(session_state_from_db, dict) and len(session_state_from_db) > 0):
-                    if self.session_state is not None and len(self.session_state) > 0:
-                        merge_dictionaries(self.session_state, session_state_from_db)
-                    else:
-                        self.session_state = session_state_from_db
+                s_state_db = session.session_data.get("session_state")
+                if s_state_db and isinstance(s_state_db, dict):
+                    if self.session_state: merge_dictionaries(self.session_state, s_state_db)
+                    else: self.session_state = s_state_db
             if "team_session_state" in session.session_data:
-                team_session_state_from_db = session.session_data.get("team_session_state")
-                if (team_session_state_from_db is not None and isinstance(team_session_state_from_db, dict) and len(team_session_state_from_db) > 0):
-                    if self.team_session_state is not None and len(self.team_session_state) > 0:
-                        merge_dictionaries(self.team_session_state, team_session_state_from_db)
-                    else:
-                        self.team_session_state = team_session_state_from_db
+                t_state_db = session.session_data.get("team_session_state")
+                if t_state_db and isinstance(t_state_db, dict):
+                    if self.team_session_state: merge_dictionaries(self.team_session_state, t_state_db)
+                    else: self.team_session_state = t_state_db
             if "session_metrics" in session.session_data:
-                session_metrics_from_db = session.session_data.get("session_metrics")
-                if session_metrics_from_db is not None and isinstance(session_metrics_from_db, dict):
-                    self.session_metrics = SessionMetrics(**session_metrics_from_db)
+                s_metrics_db = session.session_data.get("session_metrics")
+                if s_metrics_db and isinstance(s_metrics_db, dict): self.session_metrics = SessionMetrics(**s_metrics_db)
             if "images" in session.session_data:
-                images_from_db = session.session_data.get("images")
-                if images_from_db is not None and isinstance(images_from_db, list):
+                imgs_db = session.session_data.get("images")
+                if imgs_db and isinstance(imgs_db, list):
                     if self.images is None: self.images = []
-                    self.images.extend([ImageArtifact.model_validate(img) for img in images_from_db])
+                    self.images.extend([ImageArtifact.model_validate(i) for i in imgs_db])
             if "videos" in session.session_data:
-                videos_from_db = session.session_data.get("videos")
-                if videos_from_db is not None and isinstance(videos_from_db, list):
+                vids_db = session.session_data.get("videos")
+                if vids_db and isinstance(vids_db, list):
                     if self.videos is None: self.videos = []
-                    self.videos.extend([VideoArtifact.model_validate(vid) for vid in videos_from_db])
+                    self.videos.extend([VideoArtifact.model_validate(v) for v in vids_db])
             if "audio" in session.session_data:
-                audio_from_db = session.session_data.get("audio")
-                if audio_from_db is not None and isinstance(audio_from_db, list):
+                auds_db = session.session_data.get("audio")
+                if auds_db and isinstance(auds_db, list):
                     if self.audio is None: self.audio = []
-                    self.audio.extend([AudioArtifact.model_validate(aud) for aud in audio_from_db])
-
+                    self.audio.extend([AudioArtifact.model_validate(a) for a in auds_db])
         if session.extra_data is not None:
-            if self.extra_data is not None:
-                merge_dictionaries(session.extra_data, self.extra_data)
-            self.extra_data = session.extra_data
-
-        if self.memory is None:
-            self.memory = session.memory
-
-        if not (isinstance(self.memory, AgentMemory) or isinstance(self.memory, AgnoMemoryV2)):
-            if isinstance(self.memory, dict) and "create_user_memories" in self.memory:
-                self.memory = AgentMemory(**self.memory)
-            else:
-                raise TypeError(f"Expected memory to be a dict or AgentMemory, but got {type(self.memory)}")
-
-        if session.memory is not None:
-            if isinstance(self.memory, AgentMemory):
-                pass
-            elif isinstance(self.memory, AgnoMemoryV2):
-                if "runs" in session.memory:
-                    try:
-                        if self.memory.runs is None: self.memory.runs = {}
-                        
-                        if session.session_id not in self.memory.runs:
-                            self.memory.runs[session.session_id] = []
-                            for run in session.memory["runs"]:
-                                # --- THE SIMPLIFIED FIX ---
-                                # Assume all runs are standard RunResponse, as TeamRunResponse doesn't exist.
-                                self.memory.runs[session.session_id].append(RunResponse.from_dict(run))
-                                # --- END FIX ---
-
-                    except Exception as e:
-                        log_warning(f"Failed to load runs from memory: {e}")
-                if "memories" in session.memory:
-                    try:
-                        if self.memory.memories is None:
-                            self.memory.memories = {
-                                user_id: {
-                                    memory_id: UserMemoryV2.from_dict(memory)
-                                    for memory_id, memory in user_memories.items()
-                                }
-                                for user_id, user_memories in session.memory["memories"].items()
-                            }
-                    except Exception as e:
-                        log_warning(f"Failed to load user memories: {e}")
-                if "summaries" in session.memory:
-                    try:
-                        self.memory.summaries = {
-                            user_id: {
-                                session_id: SessionSummaryV2.from_dict(summary)
-                                for session_id, summary in user_session_summaries.items()
-                            }
-                            for user_id, user_session_summaries in session.memory["summaries"].items()
-                        }
-                    except Exception as e:
-                        log_warning(f"Failed to load session summaries: {e}")
+            if self.extra_data: merge_dictionaries(session.extra_data, self.extra_data)
+            else: self.extra_data = session.extra_data
+        if self.memory is None: self.memory = session.memory
+        if not isinstance(self.memory, (AgentMemory, AgnoMemoryV2)):
+            if isinstance(self.memory, dict) and "create_user_memories" in self.memory: self.memory = AgentMemory(**self.memory)
+            else: raise TypeError(f"Unsupported memory type: {type(self.memory)}")
+        if session.memory and isinstance(self.memory, AgnoMemoryV2):
+            if "runs" in session.memory:
+                try:
+                    if self.memory.runs is None: self.memory.runs = {}
+                    if session.session_id not in self.memory.runs:
+                        self.memory.runs[session.session_id] = [RunResponse.from_dict(r) for r in session.memory["runs"]]
+                except Exception as e: log_warning(f"Failed to load runs from memory: {e}")
+            if "memories" in session.memory:
+                try:
+                    if self.memory.memories is None:
+                        self.memory.memories = {uid: {mid: UserMemoryV2.from_dict(m) for mid, m in umems.items()} for uid, umems in session.memory["memories"].items()}
+                except Exception as e: log_warning(f"Failed to load user memories: {e}")
+            if "summaries" in session.memory:
+                try:
+                    if self.memory.summaries is None:
+                        self.memory.summaries = {uid: {sid: SessionSummaryV2.from_dict(s) for sid, s in ssums.items()} for uid, ssums in session.memory["summaries"].items()}
+                except Exception as e: log_warning(f"Failed to load session summaries: {e}")
         log_debug(f"-*- AgentSession loaded: {session.session_id}")
 
+    def write_to_storage(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
+        """
+        Patched Method: Override the default behavior to prevent saving on every turn.
+        The session will be saved explicitly on termination via another method.
+        """
+        pass
+
+    def save_session_to_storage_on_termination(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
+        """
+        New Method: This method contains the original save logic and is called
+        explicitly from the ConnectionManager during session termination.
+        """
+        if self.storage is not None:
+            log_debug(f"Performing final save for session {session_id} to database.")
+            self.agent_session = cast(
+                AgentSession,
+                self.storage.upsert(session=self.get_agent_session(session_id=session_id, user_id=user_id)),
+            )
+        return self.agent_session
+        
 from agno.tools import Toolkit
 from agno.tools.shell import ShellTools
 from agno.tools.calculator import CalculatorTools

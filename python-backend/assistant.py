@@ -1,7 +1,6 @@
 import os 
 import json
 from pathlib import Path
-import logging
 from textwrap import dedent
 from agno.tools import Toolkit
 from agno.tools.shell import ShellTools
@@ -19,33 +18,6 @@ from agno.memory.v2.db.postgres import PostgresMemoryDb
 from agno.storage.postgres import PostgresStorage
 from agno.memory.v2.memory import Memory as AgnoMemoryV2
 
-
-class AIOS_Agent(Agent):
-    """
-    A custom agent class for AI-OS that overrides the default storage behavior
-    to prevent race conditions in a real-time streaming environment.
-    """
-
-    def write_to_storage(self, *args, **kwargs):
-        """
-        Override the default write_to_storage method to do nothing.
-        This prevents the agent from automatically saving after every run,
-        which was causing a race condition. The saving will now be triggered
-        manually by the ConnectionManager upon session termination.
-        """
-        # This call will now work because 'logger' is defined in this file's scope.
-        logger.debug("Automatic session save skipped by AIOS_Agent override.")
-        pass
-
-    def save_final_session(self, *args, **kwargs):
-        """
-        A new method to explicitly save the session to storage.
-        This will be called only when the session is terminated.
-        It calls the original, working write_to_storage method from the parent class.
-        """
-        # This call will also now work.
-        logger.info("Executing final, explicit session save to storage.")
-        return super().write_to_storage(*args, **kwargs)
     
 def get_llm_os(
     user_id: Optional[str] = None,
@@ -230,7 +202,7 @@ def get_llm_os(
         ])
 
     # Create the main AI_OS agent
-    llm_os = AIOS_Agent(
+    llm_os = Agent(
         user_id=user_id,
         name="AI_OS",
         model=Gemini(id="gemini-2.0-flash"),

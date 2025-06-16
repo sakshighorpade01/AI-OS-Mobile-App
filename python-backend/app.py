@@ -121,49 +121,60 @@ class IsolatedAssistant:
 class ConnectionManager:
     def __init__(self):
         self.sessions = {}
+        # A native threading.Lock is not needed in an eventlet environment.
         self.isolated_assistants = {}
 
     def create_session(self, sid: str, user_id: str, config: dict, is_deepsearch: bool = False) -> Agent:
         if sid in self.sessions:
             self.terminate_session(sid)
+
         logger.info(f"Creating new session for user: {user_id}")
+
         if is_deepsearch:
             agent = get_deepsearch(user_id=user_id, **config)
         else:
             agent = get_llm_os(user_id=user_id, **config)
+
         self.sessions[sid] = {"agent": agent, "config": config}
         self.isolated_assistants[sid] = IsolatedAssistant(sid)
-        logger.info(f"Created session {sid} for user {user_id}")
+        logger.info(f"Created session {sid} for user {user_id} with config {config}")
         return agent
 
     def terminate_session(self, sid):
+        """
+        Terminates a session, logs its final cumulative metrics to the database, and cleans up.
+        """
         if sid in self.sessions:
             session_info = self.sessions.get(sid)
             if not session_info:
                 return
+
             agent = session_info.get("agent")
 
-            # --- STEP 3: Call our new save method before logging tokens ---
-            if agent:
+            # --- CRITICAL CHANGE: Implement cumulative logging on session termination ---
+            if agent and hasattr(agent, 'session_metrics') and agent.session_metrics:
                 try:
-                    # This calls our new method in AIOS_Agent, which in turn calls
-                    # the original, working save logic from the parent class.
-                    agent.save_final_session(user_id=str(agent.user_id), session_id=agent.session_id)
-                except Exception as e:
-                    logger.error(f"DATABASE SESSION SAVE FAILED for user {agent.user_id}: {e}\n{traceback.format_exc()}")
+                    final_metrics = agent.session_metrics
+                    input_tokens = final_metrics.input_tokens
+                    output_tokens = final_metrics.output_tokens
 
-                if hasattr(agent, 'session_metrics') and agent.session_metrics:
-                    try:
-                        final_metrics = agent.session_metrics
-                        input_tokens = final_metrics.input_tokens
-                        output_tokens = final_metrics.output_tokens
-                        if input_tokens > 0 or output_tokens > 0:
-                            logger.info(f"TERMINATE_SESSION FOR SID {sid}. Logging final cumulative usage to DB: {input_tokens} in, {output_tokens} out.")
-                            supabase_client.from_('request_logs').insert({'user_id': str(agent.user_id), 'input_tokens': input_tokens, 'output_tokens': output_tokens}).execute()
-                            logger.info(f"Successfully logged final tokens for session {sid}.")
-                    except Exception as e:
-                        logger.error(f"Failed to log usage metrics for session {sid} on termination: {e}\n{traceback.format_exc()}")
+                    if input_tokens > 0 or output_tokens > 0:
+                        logger.info(
+                            f"TERMINATE_SESSION FOR SID {sid}. "
+                            f"Logging final cumulative usage to DB: {input_tokens} in, {output_tokens} out."
+                        )
+                        supabase_client.from_('request_logs').insert({
+                            'user_id': str(agent.user_id),
+                            'input_tokens': input_tokens,
+                            'output_tokens': output_tokens
+                        }).execute()
+                        logger.info(f"Successfully logged final tokens for session {sid}.")
+                    else:
+                        logger.info(f"Session {sid} terminated with no cumulative token usage to log.")
+                except Exception as e:
+                    logger.error(f"Failed to log usage metrics for session {sid} on termination: {e}\n{traceback.format_exc()}")
             
+            # Now, clean up the session from memory
             del self.sessions[sid]
             if sid in self.isolated_assistants:
                 self.isolated_assistants[sid].terminate()

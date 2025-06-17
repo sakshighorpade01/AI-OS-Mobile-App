@@ -2,110 +2,21 @@ import os
 from pathlib import Path
 from textwrap import dedent
 
-from typing import Optional, List, cast
+from typing import Optional, List
 
 from agno.agent import Agent, AgentSession
-from agno.run.response import RunResponse
-from agno.utils.log import log_warning, log_debug
-from agno.memory.v2.memory import UserMemory as UserMemoryV2, SessionSummary as SessionSummaryV2
-from agno.memory.agent import AgentMemory, AgentRun
-from agno.models.message import Message
-from agno.agent.metrics import SessionMetrics
-from agno.media import ImageArtifact, VideoArtifact, AudioArtifact
-from agno.utils.merge_dict import merge_dictionaries
+from agno.utils.log import log_debug
 from agno.memory.v2.memory import Memory as AgnoMemoryV2
 
 class AIOS_PatchedAgent(Agent):
-    """
-    This patched Agent class overrides the default load/save behavior to prevent
-    the destructive reloading of active conversation history and to enable a
-    single, final save on session termination.
-    """
-    def load_agent_session(self, session: AgentSession):
-        """
-        Patched Method: Load the existing Agent from an AgentSession, but critically,
-        do NOT overwrite the in-memory run history if the session is already active.
-        """
-        if self.agent_id is None and session.agent_id is not None: self.agent_id = session.agent_id
-        if self.user_id is None and session.user_id is not None: self.user_id = session.user_id
-        if self.session_id is None and session.session_id is not None: self.session_id = session.session_id
-        if session.agent_data is not None:
-            if self.name is None and "name" in session.agent_data: self.name = session.agent_data.get("name")
-        if session.session_data is not None:
-            if self.session_name is None and "session_name" in session.session_data: self.session_name = session.session_data.get("session_name")
-            if "session_state" in session.session_data:
-                s_state_db = session.session_data.get("session_state")
-                if s_state_db and isinstance(s_state_db, dict):
-                    if self.session_state: merge_dictionaries(self.session_state, s_state_db)
-                    else: self.session_state = s_state_db
-            if "team_session_state" in session.session_data:
-                t_state_db = session.session_data.get("team_session_state")
-                if t_state_db and isinstance(t_state_db, dict):
-                    if self.team_session_state: merge_dictionaries(self.team_session_state, t_state_db)
-                    else: self.team_session_state = t_state_db
-            if "session_metrics" in session.session_data:
-                s_metrics_db = session.session_data.get("session_metrics")
-                if s_metrics_db and isinstance(s_metrics_db, dict): self.session_metrics = SessionMetrics(**s_metrics_db)
-            if "images" in session.session_data:
-                imgs_db = session.session_data.get("images")
-                if imgs_db and isinstance(imgs_db, list):
-                    if self.images is None: self.images = []
-                    self.images.extend([ImageArtifact.model_validate(i) for i in imgs_db])
-            if "videos" in session.session_data:
-                vids_db = session.session_data.get("videos")
-                if vids_db and isinstance(vids_db, list):
-                    if self.videos is None: self.videos = []
-                    self.videos.extend([VideoArtifact.model_validate(v) for v in vids_db])
-            if "audio" in session.session_data:
-                auds_db = session.session_data.get("audio")
-                if auds_db and isinstance(auds_db, list):
-                    if self.audio is None: self.audio = []
-                    self.audio.extend([AudioArtifact.model_validate(a) for a in auds_db])
-        if session.extra_data is not None:
-            if self.extra_data: merge_dictionaries(session.extra_data, self.extra_data)
-            else: self.extra_data = session.extra_data
-        if self.memory is None: self.memory = session.memory
-        if not isinstance(self.memory, (AgentMemory, AgnoMemoryV2)):
-            if isinstance(self.memory, dict) and "create_user_memories" in self.memory: self.memory = AgentMemory(**self.memory)
-            else: raise TypeError(f"Unsupported memory type: {type(self.memory)}")
-        if session.memory and isinstance(self.memory, AgnoMemoryV2):
-            if "runs" in session.memory:
-                try:
-                    if self.memory.runs is None: self.memory.runs = {}
-                    if session.session_id not in self.memory.runs:
-                        self.memory.runs[session.session_id] = [RunResponse.from_dict(r) for r in session.memory["runs"]]
-                except Exception as e: log_warning(f"Failed to load runs from memory: {e}")
-            if "memories" in session.memory:
-                try:
-                    if self.memory.memories is None:
-                        self.memory.memories = {uid: {mid: UserMemoryV2.from_dict(m) for mid, m in umems.items()} for uid, umems in session.memory["memories"].items()}
-                except Exception as e: log_warning(f"Failed to load user memories: {e}")
-            if "summaries" in session.memory:
-                try:
-                    if self.memory.summaries is None:
-                        self.memory.summaries = {uid: {sid: SessionSummaryV2.from_dict(s) for sid, s in ssums.items()} for uid, ssums in session.memory["summaries"].items()}
-                except Exception as e: log_warning(f"Failed to load session summaries: {e}")
-        log_debug(f"-*- AgentSession loaded: {session.session_id}")
-
     def write_to_storage(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
         """
-        Patched Method: Override the default behavior to prevent saving on every turn.
-        The session will be saved explicitly on termination via another method.
+        Patched Method: Override the default behavior to do nothing.
+        This prevents the agent from saving its state after every single turn.
+        The session will be saved manually and correctly in app.py upon termination.
         """
+        log_debug(f"Turn-by-turn write_to_storage for session {session_id} is disabled by patch.")
         pass
-
-    def save_session_to_storage_on_termination(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
-        """
-        New Method: This method contains the original save logic and is called
-        explicitly from the ConnectionManager during session termination.
-        """
-        if self.storage is not None:
-            log_debug(f"Performing final save for session {session_id} to database.")
-            self.agent_session = cast(
-                AgentSession,
-                self.storage.upsert(session=self.get_agent_session(session_id=session_id, user_id=user_id)),
-            )
-        return self.agent_session
         
 from agno.tools import Toolkit
 from agno.tools.shell import ShellTools

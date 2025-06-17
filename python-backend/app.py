@@ -133,7 +133,7 @@ class ConnectionManager:
                     # 1. Manually assemble the payload by directly accessing agent attributes.
                     # This bypasses the buggy agent.get_agent_session() method.
                     
-                    # Get conversation history (the part that was failing)
+                    # Get conversation history directly from the memory object
                     run_history = agent.memory.runs.get(sid, [])
                     serializable_runs = [run.to_dict() for run in run_history]
 

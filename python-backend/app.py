@@ -1,4 +1,4 @@
-# app.py (Corrected, Final, and Definitive Version)
+# app.py (Final Version with Manual Serialization)
 
 import os
 import logging
@@ -6,6 +6,7 @@ import json
 import uuid
 import traceback
 from pathlib import Path
+from dataclasses import asdict
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
@@ -18,6 +19,7 @@ from supabase_client import supabase_client
 
 # --- Agno Imports ---
 from agno.agent import Agent
+from agno.storage.session.agent import AgentSession
 from agno.media import Image, Audio, Video
 from gotrue.errors import AuthApiError
 
@@ -78,6 +80,8 @@ class IsolatedAssistant:
 
                 logger.info(f"Calling agent.run for user {user.id} with params: {list(supported_params.keys())}")
                 
+                # The agent.run() method is a generator. We must exhaust it to ensure
+                # the final run_response is populated on the agent object.
                 for chunk in agent.run(**supported_params):
                     if chunk and chunk.content:
                         eventlet.sleep(0)
@@ -137,7 +141,8 @@ class ConnectionManager:
 
     def terminate_session(self, sid):
         """
-        Terminates a session, saves its final state and metrics to the database, and cleans up.
+        Terminates a session, manually serializes its final state, saves it to the
+        database, logs metrics, and cleans up.
         """
         if sid in self.sessions:
             session_info = self.sessions.get(sid)
@@ -147,18 +152,50 @@ class ConnectionManager:
             agent = session_info.get("agent")
 
             if agent and isinstance(agent, AIOS_PatchedAgent):
-                # ===================== START: FINAL SAVE LOGIC =====================
-                # This is the new logic to save the complete session state upon termination.
+                # ===================== START: MANUAL SERIALIZATION AND SAVE =====================
                 try:
-                    user_id = str(agent.user_id) if agent.user_id else None
-                    logger.info(f"Saving final session state for SID {sid} to database.")
-                    agent.save_session_to_storage_on_termination(sid, user_id=user_id)
-                    logger.info(f"Successfully saved final session state for SID {sid}.")
-                except Exception as e:
-                    logger.error(f"Failed to save session state for SID {sid} on termination: {e}\n{traceback.format_exc()}")
-                # ====================== END: FINAL SAVE LOGIC ======================
+                    logger.info(f"Starting manual serialization for session SID {sid}.")
+                    
+                    # 1. Directly access the list of RunResponse objects from the agent's memory.
+                    runs_history = agent.memory.runs.get(sid, [])
+                    runs_as_dicts = [run.to_dict() for run in runs_history]
+                    
+                    # 2. Manually construct the 'memory' part of the payload.
+                    memory_payload = {
+                        "runs": runs_as_dicts,
+                        "memories": agent.memory.memories or {},
+                        "summaries": agent.memory.summaries or {}
+                    }
 
-                # --- Existing logic to log cumulative token usage ---
+                    # 3. Manually construct the entire AgentSession payload.
+                    # This bypasses the buggy agent.get_agent_session() method.
+                    final_payload_dict = {
+                        "session_id": sid,
+                        "user_id": str(agent.user_id) if agent.user_id else None,
+                        "agent_id": agent.agent_id,
+                        "team_session_id": agent.team_session_id,
+                        "agent_data": agent.get_agent_data(),
+                        "session_data": agent.get_session_data(),
+                        "extra_data": agent.extra_data,
+                        "memory": memory_payload
+                    }
+                    
+                    # 4. Convert the dictionary to an AgentSession object for the storage layer.
+                    session_to_save = AgentSession.from_dict(final_payload_dict)
+
+                    # 5. Use the agent's storage object to perform the final upsert.
+                    if agent.storage and session_to_save:
+                        logger.info(f"Saving final session state for SID {sid} with {len(runs_as_dicts)} runs to database.")
+                        agent.storage.upsert(session=session_to_save)
+                        logger.info(f"Successfully saved final session state for SID {sid}.")
+                    else:
+                        logger.warning(f"Could not save session {sid}: storage or session object was invalid.")
+
+                except Exception as e:
+                    logger.error(f"Failed to manually serialize and save session for SID {sid}: {e}\n{traceback.format_exc()}")
+                # ====================== END: MANUAL SERIALIZATION AND SAVE ======================
+
+                # --- Existing logic to log cumulative token usage (remains unchanged) ---
                 if hasattr(agent, 'session_metrics') and agent.session_metrics:
                     try:
                         final_metrics = agent.session_metrics

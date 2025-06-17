@@ -11,6 +11,7 @@ from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
 import eventlet
+import datetime
 
 # --- Local Module Imports ---
 from assistant import get_llm_os
@@ -24,7 +25,7 @@ from gotrue.errors import AuthApiError
 
 # --- Initial Setup ---
 load_dotenv()
-# eventlet.monkey_patch() # monkey_patch is often called by the server runner, but explicit is safe.
+# eventlet.monkey_patch() # monkey_Patch is often called by the server runner, but explicit is safe.
 
 # --- Logging Configuration ---
 logging.basicConfig(level=logging.INFO)
@@ -80,10 +81,14 @@ class IsolatedAssistant:
 
                 logger.info(f"Calling agent.run for user {user.id} with params: {list(supported_params.keys())}")
                 
+                # Accumulate the full response content
+                full_content = ""
+                
                 # This loop streams responses directly to the client.
                 for chunk in agent.run(**supported_params):
                     if chunk and chunk.content:
                         eventlet.sleep(0)
+                        full_content += chunk.content
                         socketio.emit("response", {
                             "content": chunk.content,
                             "streaming": True,
@@ -103,6 +108,31 @@ class IsolatedAssistant:
                         f"{agent.session_metrics.input_tokens} in, "
                         f"{agent.session_metrics.output_tokens} out."
                     )
+                
+                # --- NEW: Capture conversation turn in our own history list ---
+                session_info = connection_manager.sessions.get(self.sid)
+                if session_info:
+                    # Create a dictionary representing this turn
+                    turn_data = {
+                        "role": "user",
+                        "content": complete_message,
+                        "timestamp": datetime.datetime.now().isoformat()
+                    }
+                    
+                    # Add user message to history
+                    if 'history' not in session_info:
+                        session_info['history'] = []
+                    session_info['history'].append(turn_data)
+                    
+                    # Add assistant response to history
+                    assistant_turn = {
+                        "role": "assistant",
+                        "content": full_content,
+                        "timestamp": datetime.datetime.now().isoformat()
+                    }
+                    session_info['history'].append(assistant_turn)
+                    
+                    logger.info(f"Added conversation turn to history for SID {self.sid}. History length: {len(session_info['history'])}")
 
             except Exception as e:
                 error_msg = f"Tool error: {str(e)}\n{traceback.format_exc()}"
@@ -135,7 +165,15 @@ class ConnectionManager:
         else:
             agent = get_llm_os(user_id=user_id, **config)
 
-        self.sessions[sid] = {"agent": agent, "config": config}
+        # Initialize session with agent, config, and empty history list
+        self.sessions[sid] = {
+            "agent": agent, 
+            "config": config,
+            "history": [],  # NEW: Our own history list that we control
+            "user_id": user_id,  # Store user_id for easier access
+            "created_at": datetime.datetime.now().isoformat()
+        }
+        
         self.isolated_assistants[sid] = IsolatedAssistant(sid)
         logger.info(f"Created session {sid} for user {user_id} with config {config}")
         return agent
@@ -150,6 +188,8 @@ class ConnectionManager:
                 return
 
             agent = session_info.get("agent")
+            history = session_info.get("history", [])
+            user_id = session_info.get("user_id")
 
             # --- CRITICAL CHANGE: Implement cumulative logging on session termination ---
             if agent and hasattr(agent, 'session_metrics') and agent.session_metrics:
@@ -173,6 +213,41 @@ class ConnectionManager:
                         logger.info(f"Session {sid} terminated with no cumulative token usage to log.")
                 except Exception as e:
                     logger.error(f"Failed to log usage metrics for session {sid} on termination: {e}\n{traceback.format_exc()}")
+            
+            # --- NEW: Save the full conversation history to the database ---
+            if history and len(history) > 0:
+                try:
+                    # Create timestamp for the database
+                    now = int(datetime.datetime.now().timestamp())
+                    
+                    # Prepare the payload for the database
+                    # This mimics the structure that agno would normally create
+                    payload = {
+                        "session_id": sid,
+                        "user_id": user_id,
+                        "agent_id": "AI_OS",  # This is the name set in assistant.py
+                        "created_at": now,
+                        "updated_at": now,
+                        "memory": {
+                            "runs": history  # Our manually maintained history
+                        },
+                        "session_data": {}  # Initialize empty
+                    }
+                    
+                    # Add token metrics if available
+                    if agent and hasattr(agent, 'session_metrics') and agent.session_metrics:
+                        payload["session_data"]["metrics"] = {
+                            "input_tokens": agent.session_metrics.input_tokens,
+                            "output_tokens": agent.session_metrics.output_tokens,
+                            "total_tokens": agent.session_metrics.input_tokens + agent.session_metrics.output_tokens
+                        }
+                    
+                    # Save to database using upsert (will create or update)
+                    logger.info(f"Saving complete conversation history for SID {sid} with {len(history)} turns")
+                    supabase_client.from_('ai_os_sessions').upsert(payload).execute()
+                    logger.info(f"Successfully saved conversation history to database for SID {sid}")
+                except Exception as e:
+                    logger.error(f"Failed to save conversation history for SID {sid}: {e}\n{traceback.format_exc()}")
             
             # Now, clean up the session from memory
             del self.sessions[sid]

@@ -2,11 +2,12 @@ import os
 from pathlib import Path
 from textwrap import dedent
 
-from typing import Optional, List
+from typing import Optional, List, Dict, Any, Callable
 
 from agno.agent import Agent, AgentSession
 from agno.utils.log import log_debug
 from agno.memory.v2.memory import Memory as AgnoMemoryV2
+from agno.exceptions import StopAgentRun
 
 class AIOS_PatchedAgent(Agent):
     def write_to_storage(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
@@ -32,8 +33,12 @@ from automation_tools import AutomationTools
 from image_analysis_toolkit import ImageAnalysisTools
 from agno.memory.v2.db.postgres import PostgresMemoryDb
 from agno.storage.postgres import PostgresStorage
-from local_execution_tools import LocalExecutionTools
 
+# Auto-approve hook for shell and Python tools
+def auto_approve_hook(function_name: str, function_call: Callable, arguments: Dict[str, Any]):
+    """Hook that automatically approves tool execution without user confirmation."""
+    # Simply call the function with the provided arguments and return the result
+    return function_call(**arguments)
     
 def get_llm_os(
     user_id: Optional[str] = None,
@@ -97,25 +102,20 @@ def get_llm_os(
         )
 
     if shell_tools:
-        # Replace ShellTools with LocalExecutionTools
-        local_tools = LocalExecutionTools()
-        tools.append(local_tools)
+        # Add the auto-approve hook to the ShellTools
+        shell_tool = ShellTools(tool_hooks=[auto_approve_hook])
+        tools.append(shell_tool)
         extra_instructions.append(
-            "Use the run_local_shell_command tool for system and file operations on the user's local machine. Example: run_local_shell_command(args=['ls', '-la']) for directory contents. The command will be executed on the user's machine after their approval."
+            "Use the shell_tools for system and file operations. Example: run_shell_command(args='ls -la') for directory contents"
         )
 
     team: List[Agent] = []
     if python_assistant:
-        # Update Python Assistant to use LocalExecutionTools instead of PythonTools
         _python_assistant = Agent(
             name="Python Assistant",
-            tools=[LocalExecutionTools()],
+            tools=[PythonTools(tool_hooks=[auto_approve_hook])],
             role="Python agent",
-            instructions=[
-                "You can write and run python code to fulfill users' requests",
-                "The code will be executed on the user's local machine after their approval.",
-                "Use the run_local_python_script tool to run Python code."
-            ],
+            instructions=["You can write and run python code to fulfill users' requests"],
             model=Gemini(id="gemini-2.0-flash"),
             debug_mode=debug_mode
         )
@@ -232,7 +232,7 @@ def get_llm_os(
             "   - For mathematical calculations, use the `Calculator` tool if precision is required.",
             "   - For up-to-date information, use the `internet_search` tool.  **Always include sources URL's at the end of your response.**",
             "   - When the user provides a URL, IMMEDIATELY use the `Web Crawler` tool without any preliminary message.",
-            "   - When the user asks about files, directories, or system information, IMMEDIATELY use `run_local_shell_command` tool without any preliminary message.",
+            "   - When the user asks about files, directories, or system information, IMMEDIATELY use `ShellTools` without any preliminary message.",
             "   - Delegate python coding tasks to the `Python Assistant`.",
             "   - Delegate investment report requests to the `Investment Assistant`.",
             "**Response Guidelines:**",

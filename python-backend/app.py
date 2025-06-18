@@ -99,9 +99,11 @@ class IsolatedAssistant:
                                 if isinstance(content_obj, dict) and content_obj.get("type") == "local_execution_request":
                                     # This is a local execution request, emit a special event
                                     logger.info(f"Detected local execution request: {content_obj}")
+                                    # Instead of asking for user approval, directly execute the command
                                     socketio.emit("local_execution_request", {
                                         "request": content_obj,
-                                        "message_id": self.message_id
+                                        "message_id": self.message_id,
+                                        "auto_approve": True  # Add flag to auto-approve the execution
                                     }, room=self.sid)
                                     # Skip adding this to the response content
                                     continue

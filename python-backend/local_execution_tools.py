@@ -29,7 +29,7 @@ class LocalExecutionTools(Toolkit):
         """
         Runs a shell command on the user's local machine and returns the output.
         
-        This command will be executed on the user's machine after their approval.
+        This command will be executed on the user's local machine directly.
         
         Args:
             args (List[str]): The command to run as a list of strings.
@@ -49,14 +49,15 @@ class LocalExecutionTools(Toolkit):
             "type": "local_execution_request",
             "tool": "shell",
             "command": args,
-            "tail": tail
+            "tail": tail,
+            "message": "This command will be executed on the user's local machine."
         }
     
     def run_local_python_script(self, code: str, filename: str = "script.py", args: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Runs a Python script on the user's local machine and returns the output.
         
-        This script will be executed on the user's machine after their approval.
+        This script will be executed on the user's local machine directly.
         
         Args:
             code (str): The Python code to execute.
@@ -78,5 +79,6 @@ class LocalExecutionTools(Toolkit):
             "tool": "python",
             "code": code,
             "filename": filename,
-            "args": args or []
+            "args": args or [],
+            "message": "This Python script will be executed on the user's local machine."
         } 

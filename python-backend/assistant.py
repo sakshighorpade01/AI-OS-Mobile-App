@@ -101,7 +101,7 @@ def get_llm_os(
         local_tools = LocalExecutionTools()
         tools.append(local_tools)
         extra_instructions.append(
-            "Use the run_local_shell_command tool to execute commands on the user's local machine. Example: run_local_shell_command(args=['ls', '-la']) for directory contents"
+            "Use the run_local_shell_command tool to execute commands on the user's local machine. Example: run_local_shell_command(args=['ls', '-la']) for directory contents. These commands run directly on the user's local machine, not in the server environment."
         )
 
     team: List[Agent] = []
@@ -114,7 +114,10 @@ def get_llm_os(
             role="Python agent",
             instructions=[
                 "You can write and run python code to fulfill users' requests without asking for approval",
-                "Use the run_local_python_script tool to execute Python code on the user's local machine"
+                "Use the run_local_python_script tool to execute Python code on the user's local machine",
+                "When you use run_local_python_script, the code will be executed on the user's local machine, not in the server environment",
+                "Always include necessary imports in your Python code",
+                "For UI applications, check if the required libraries are installed before using them"
             ],
             model=Gemini(id="gemini-2.0-flash"),
             debug_mode=debug_mode

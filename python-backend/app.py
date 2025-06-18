@@ -420,7 +420,7 @@ def on_send_message(data: str):
 def on_local_execution_result(data):
     """Handle the result of a local execution from the frontend."""
     sid = request.sid
-    logger.info(f"Received local execution result for SID {sid}")
+    logger.info(f"Received local execution result for SID {sid}: {data}")
     
     try:
         message_id = data.get("message_id")
@@ -429,19 +429,19 @@ def on_local_execution_result(data):
         command_type = data.get("type", "")
         
         # Format the result as a response message
-        result_content = ""
         if error:
-            result_content = f"```\n{error}\n```"
+            result_content = f"Error executing command: {error}"
         elif output:
-            result_content = f"```\n{output}\n```"
+            # For shell commands, format the output nicely
+            if command_type == "shell":
+                result_content = f"Command executed successfully on local machine. Output:\n\n{output}"
+            # For Python scripts, also format nicely
+            elif command_type == "python":
+                result_content = f"Python script executed successfully on local machine. Output:\n\n{output}"
+            else:
+                result_content = output
         else:
             result_content = "Command executed successfully with no output."
-            
-        # Add a header based on the command type
-        if command_type == "shell":
-            result_content = f"**Shell Command Result:**\n\n{result_content}"
-        elif command_type == "python":
-            result_content = f"**Python Script Result:**\n\n{result_content}"
         
         # Send the result as a normal response
         socketio.emit("response", {

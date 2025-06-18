@@ -22,6 +22,7 @@ from agno.tools import Toolkit
 from agno.tools.shell import ShellTools
 from agno.tools.calculator import CalculatorTools
 from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.tools.googlesearch import GoogleSearchTools
 from agno.tools.yfinance import YFinanceTools
 from agno.tools.python import PythonTools
 from agno.tools.crawl4ai import Crawl4aiTools
@@ -37,14 +38,12 @@ def get_llm_os(
     user_id: Optional[str] = None,
     calculator: bool = False,
     web_crawler: bool = False,
-    ddg_search: bool = False,
+    internet_search: bool = False,
     shell_tools: bool = False,
     python_assistant: bool = False,
     investment_assistant: bool = False,
     use_memory: bool = False, 
     debug_mode: bool = True,
-    computer_use: bool = False,
-    image_analysis: bool = False,
 ) -> Agent:
     tools: List[Toolkit] = []
     extra_instructions: List[str] = []
@@ -86,29 +85,14 @@ def get_llm_os(
         )
         tools.append(calc_tool)
         extra_instructions.append(
-            "Use the Calculator tool for mathematical operations. Available functions: add, subtract, multiply, divide, exponentiate, factorial, is_prime, square_root"
+            "Use the Calculator tool for mathematical operations."
         )
 
-    if ddg_search:
-        ddg_tool = DuckDuckGoTools(fixed_max_results=10)
-        tools.append(ddg_tool)
+    if internet_search:
+        internet_tool = GoogleSearchTools(max_results=15)
+        tools.append(internet_tool)
         extra_instructions.append(
-            "Use the DuckDuckGo search tool to find current information from the internet. Example: duckduckgo_search(query='your search query') and Always include sources"
-        )
-
-    if computer_use:
-        computer_tool = AutomationTools()
-        tools.append(computer_tool)
-        extra_instructions.append(
-            "To control the computer and analyze screen contents, delegate the task to the `Computer Use` assistant."
-            "You don't have direct access to automation or screen analysis tools. To perform these actions, you MUST delegate to the `Computer Use` assistant using team delegation syntax."
-        )
-
-    if image_analysis:
-        image_tool = ImageAnalysisTools()
-        tools.append(image_tool)
-        extra_instructions.append(
-            "Use the image analysis tools to analyze images. Example: analyze_image(image_path='path/to/image.jpg')"
+            "Use the internet search tool to find current information from the internet. Always include sources at the end of your response."
         )
 
     if shell_tools:
@@ -227,31 +211,23 @@ def get_llm_os(
         information.\
         """),
         instructions=[
-            "Your primary responsibility is to assist the user effectively and efficiently.",
             "**First, analyze the user's message and the conversation history to understand their intent and context.** Pay close attention to any specific requests, topics of interest, or information provided by the user.",
             "**When files, images, audio, or video are provided, analyze them carefully and include their content in your response.**",
             "**Prioritize using available tools to answer the user's query.**",
             "**Decision-Making Process (in order of priority):**",  
             "1. **Knowledge Base Search:** If the user asks about a specific topic, ALWAYS begin by searching your knowledge base using `search_knowledge_base` to see if relevant information is already available.",
             "2. **Direct Answer:** If the user's question can be answered directly based on your existing knowledge or after consulting the knowledge base, provide a clear and concise answer.",
-            "3. **Internet Search:** If the knowledge base doesn't contain the answer, use `duckduckgo_search` to find current information on the internet.  **Always cite your sources.**",
+            "3. **Internet Search:** If the knowledge base doesn't contain the answer, use `internet_search` to find current information on the internet.  **Always include sources at the end of your response.**",
             "4. **Tool Delegation:**  If a specific tool is required to fulfill the user's request (e.g., calculating a value, crawling a website), choose the appropriate tool and use it immediately.",
             "5. **Assistant Delegation:** If a task is best handled by a specialized AI Assistant (e.g., creating an investment report, writing and running python code), delegate the task to the appropriate assistant and relay their response to the user.",
             "6. **Clarification:** If the user's message is unclear or ambiguous, ask clarifying questions to obtain the necessary information before proceeding. **Do not make assumptions.**",
             "**Tool Usage Guidelines:**",
             "   - For mathematical calculations, use the `Calculator` tool if precision is required.",
-            "   - For up-to-date information, use the `DuckDuckGo` tool.  **Always include the source URLs.**",
+            "   - For up-to-date information, use the `internet_search` tool.  **Always include sources URL's at the end of your response.**",
             "   - When the user provides a URL, IMMEDIATELY use the `Web Crawler` tool without any preliminary message.",
             "   - When the user asks about files, directories, or system information, IMMEDIATELY use `ShellTools` without any preliminary message.",
             "   - Delegate python coding tasks to the `Python Assistant`.",
             "   - Delegate investment report requests to the `Investment Assistant`.",
-            "   - For image analysis, use the `Image Analysis` tools.",
-            "When asked about screen contents or to perform actions, follow these steps:",
-            "1. First, use the 'screenshot_and_analyze' tool to capture the current screen.",
-            "2. Then, use the 'analyze_image' tool with the screenshot path to get detailed information.",
-            "3. Based on the analysis, perform any necessary actions using the automation tools.",
-            "4. Provide a clear explanation of what you did and what you found on screen.",
-            "Always provide a step-by-step explanation of your actions.",
             "**Response Guidelines:**",
             "   - Provide clear, concise, and informative answers.",
             "   - Avoid phrases like 'based on my knowledge' or 'depending on the information' or 'based on our previous conversation'.",
@@ -262,12 +238,6 @@ def get_llm_os(
             "**Important Notes:**",
             "   - You have access to long-term memory. Use the `search_knowledge_base` tool to search your memory for relevant information.",
             "   - Do not explain what you're going to do - just use the appropriate tool or delegate the task right away.",
-            "**File Handling:**",
-            "   - When images, PDFs, word documents, audio, or video files are provided, analyze their content directly.",
-            "   - For images, describe what you see in detail.",
-            "   - For PDF and document files, summarize the content and answer questions about it.",
-            "   - For audio files, describe what you hear.",
-            "   - For video files, describe the scenes and content."
         ] + extra_instructions,
         
         # Add long-term memory to the LLM OS backed by JSON file storage

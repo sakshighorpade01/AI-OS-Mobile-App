@@ -25,7 +25,7 @@ from gotrue.errors import AuthApiError
 
 # --- Initial Setup ---
 load_dotenv()
-# eventlet.monkey_patch() # monkey_Patch is often called by the server runner, but explicit is safe.
+# eventlet.monkey_patch() # monkey_patch is often called by the server runner, but explicit is safe.
 
 # --- Logging Configuration ---
 logging.basicConfig(level=logging.INFO)
@@ -55,6 +55,7 @@ class IsolatedAssistant:
     def __init__(self, sid):
         self.sid = sid
         self.message_id = None
+        self.current_response_content = ""  # Store the full response content
 
     def run_safely(self, agent: Agent, message: str, user, context=None, images=None, audio=None, videos=None):
         """Runs agent in an isolated greenlet, streams responses, and accumulates metrics in memory."""
@@ -81,14 +82,15 @@ class IsolatedAssistant:
 
                 logger.info(f"Calling agent.run for user {user.id} with params: {list(supported_params.keys())}")
                 
-                # Accumulate the full response content
-                full_content = ""
+                # Reset the accumulated content for this run
+                self.current_response_content = ""
                 
                 # This loop streams responses directly to the client.
                 for chunk in agent.run(**supported_params):
                     if chunk and chunk.content:
                         eventlet.sleep(0)
-                        full_content += chunk.content
+                        # Accumulate the content
+                        self.current_response_content += chunk.content
                         socketio.emit("response", {
                             "content": chunk.content,
                             "streaming": True,
@@ -110,29 +112,7 @@ class IsolatedAssistant:
                     )
                 
                 # --- NEW: Capture conversation turn in our own history list ---
-                session_info = connection_manager.sessions.get(self.sid)
-                if session_info:
-                    # Create a dictionary representing this turn
-                    turn_data = {
-                        "role": "user",
-                        "content": complete_message,
-                        "timestamp": datetime.datetime.now().isoformat()
-                    }
-                    
-                    # Add user message to history
-                    if 'history' not in session_info:
-                        session_info['history'] = []
-                    session_info['history'].append(turn_data)
-                    
-                    # Add assistant response to history
-                    assistant_turn = {
-                        "role": "assistant",
-                        "content": full_content,
-                        "timestamp": datetime.datetime.now().isoformat()
-                    }
-                    session_info['history'].append(assistant_turn)
-                    
-                    logger.info(f"Added conversation turn to history for SID {self.sid}. History length: {len(session_info['history'])}")
+                self._save_conversation_turn(complete_message)
 
             except Exception as e:
                 error_msg = f"Tool error: {str(e)}\n{traceback.format_exc()}"
@@ -144,6 +124,38 @@ class IsolatedAssistant:
                 socketio.emit("error", {"message": "Session reset required", "reset": True}, room=self.sid)
 
         eventlet.spawn(_run_agent, agent, message, user, context, images, audio, videos)
+    
+    def _save_conversation_turn(self, user_message):
+        """Save the current conversation turn to the session history"""
+        try:
+            session_info = connection_manager.sessions.get(self.sid)
+            if not session_info:
+                logger.warning(f"Cannot save conversation turn: no session found for SID {self.sid}")
+                return
+                
+            # Create a dictionary representing this turn
+            turn_data = {
+                "role": "user",
+                "content": user_message,
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+            
+            # Add user message to history
+            if 'history' not in session_info:
+                session_info['history'] = []
+            session_info['history'].append(turn_data)
+            
+            # Add assistant response to history
+            assistant_turn = {
+                "role": "assistant",
+                "content": self.current_response_content,
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+            session_info['history'].append(assistant_turn)
+            
+            logger.info(f"Added conversation turn to history for SID {self.sid}. History length: {len(session_info['history'])}")
+        except Exception as e:
+            logger.error(f"Error saving conversation turn: {e}")
 
     def terminate(self):
         pass
@@ -244,8 +256,9 @@ class ConnectionManager:
                     
                     # Save to database using upsert (will create or update)
                     logger.info(f"Saving complete conversation history for SID {sid} with {len(history)} turns")
-                    supabase_client.from_('ai_os_sessions').upsert(payload).execute()
+                    result = supabase_client.from_('ai_os_sessions').upsert(payload).execute()
                     logger.info(f"Successfully saved conversation history to database for SID {sid}")
+                    logger.debug(f"Database response: {result}")
                 except Exception as e:
                     logger.error(f"Failed to save conversation history for SID {sid}: {e}\n{traceback.format_exc()}")
             

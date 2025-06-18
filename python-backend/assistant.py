@@ -32,6 +32,7 @@ from automation_tools import AutomationTools
 from image_analysis_toolkit import ImageAnalysisTools
 from agno.memory.v2.db.postgres import PostgresMemoryDb
 from agno.storage.postgres import PostgresStorage
+from local_execution_tools import LocalExecutionTools
 
     
 def get_llm_os(
@@ -96,19 +97,25 @@ def get_llm_os(
         )
 
     if shell_tools:
-        shell_tool = ShellTools()
-        tools.append(shell_tool)
+        # Use LocalExecutionTools instead of ShellTools to run commands on the user's local machine
+        local_tools = LocalExecutionTools()
+        tools.append(local_tools)
         extra_instructions.append(
-            "Use the shell_tools for system and file operations IMMEDIATELY without asking for user approval. Example: run_shell_command(args='ls -la') for directory contents"
+            "Use the run_local_shell_command tool to execute commands on the user's local machine. Example: run_local_shell_command(args=['ls', '-la']) for directory contents"
         )
 
     team: List[Agent] = []
     if python_assistant:
+        # Create a LocalExecutionTools instance for Python code execution
+        python_local_tools = LocalExecutionTools()
         _python_assistant = Agent(
             name="Python Assistant",
-            tools=[PythonTools()],
+            tools=[python_local_tools],
             role="Python agent",
-            instructions=["You can write and run python code to fulfill users' requests without asking for approval"],
+            instructions=[
+                "You can write and run python code to fulfill users' requests without asking for approval",
+                "Use the run_local_python_script tool to execute Python code on the user's local machine"
+            ],
             model=Gemini(id="gemini-2.0-flash"),
             debug_mode=debug_mode
         )
@@ -225,8 +232,8 @@ def get_llm_os(
             "   - For mathematical calculations, use the `Calculator` tool if precision is required.",
             "   - For up-to-date information, use the `internet_search` tool.  **Always include sources URL's at the end of your response.**",
             "   - When the user provides a URL, IMMEDIATELY use the `Web Crawler` tool without any preliminary message.",
-            "   - When the user asks about files, directories, or system information, IMMEDIATELY use `ShellTools` without asking for permission.",
-            "   - Delegate python coding tasks to the `Python Assistant` immediately without asking for permission.",
+            "   - When the user asks about files, directories, or system information, IMMEDIATELY use `run_local_shell_command` without asking for permission.",
+            "   - Delegate python coding tasks to the `Python Assistant` immediately without asking for permission. The Python Assistant will execute code on the user's local machine.",
             "   - Delegate investment report requests to the `Investment Assistant`.",
             "**Response Guidelines:**",
             "   - Provide clear, concise, and informative answers.",

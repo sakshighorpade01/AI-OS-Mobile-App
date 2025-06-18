@@ -89,6 +89,28 @@ class IsolatedAssistant:
                 for chunk in agent.run(**supported_params):
                     if chunk and chunk.content:
                         eventlet.sleep(0)
+                        
+                        # Check if this is a local execution request
+                        try:
+                            # Try to parse the content as JSON
+                            import json
+                            try:
+                                content_obj = json.loads(chunk.content)
+                                if isinstance(content_obj, dict) and content_obj.get("type") == "local_execution_request":
+                                    # This is a local execution request, emit a special event
+                                    logger.info(f"Detected local execution request: {content_obj}")
+                                    socketio.emit("local_execution_request", {
+                                        "request": content_obj,
+                                        "message_id": self.message_id
+                                    }, room=self.sid)
+                                    # Skip adding this to the response content
+                                    continue
+                            except json.JSONDecodeError:
+                                # Not JSON, treat as normal content
+                                pass
+                        except Exception as e:
+                            logger.warning(f"Error checking for local execution request: {e}")
+                            
                         # Accumulate the content
                         self.current_response_content += chunk.content
                         socketio.emit("response", {
@@ -394,6 +416,43 @@ def on_send_message(data: str):
         emit("error", {"message": "AI service error. Starting new chat...", "reset": True}, room=sid)
         connection_manager.terminate_session(sid)
 
+@socketio.on("local_execution_result")
+def on_local_execution_result(data):
+    """Handle the result of a local execution from the frontend."""
+    sid = request.sid
+    logger.info(f"Received local execution result for SID {sid}")
+    
+    try:
+        message_id = data.get("message_id")
+        output = data.get("output", "")
+        error = data.get("error", "")
+        command_type = data.get("type", "")
+        
+        # Format the result as a response message
+        result_content = ""
+        if error:
+            result_content = f"```\n{error}\n```"
+        elif output:
+            result_content = f"```\n{output}\n```"
+        else:
+            result_content = "Command executed successfully with no output."
+            
+        # Add a header based on the command type
+        if command_type == "shell":
+            result_content = f"**Shell Command Result:**\n\n{result_content}"
+        elif command_type == "python":
+            result_content = f"**Python Script Result:**\n\n{result_content}"
+        
+        # Send the result as a normal response
+        socketio.emit("response", {
+            "content": result_content,
+            "streaming": False,
+            "id": message_id,
+        }, room=sid)
+        
+    except Exception as e:
+        logger.error(f"Error handling local execution result: {e}\n{traceback.format_exc()}")
+        socketio.emit("error", {"message": "Error handling command result", "reset": False}, room=sid)
 
 @app.route('/healthz', methods=['GET'])
 def health_check():

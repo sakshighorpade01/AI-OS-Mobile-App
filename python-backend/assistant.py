@@ -82,7 +82,7 @@ def get_llm_os(
 
     if internet_search:
         # Corrected parameter from 'fixed_max_results' to 'max_results'
-        internet_tool = GoogleSearchTools(max_results=15)
+        internet_tool = GoogleSearchTools(fixed_max_results=15)
         tools.append(internet_tool)
         extra_instructions.append(
             "Use the internet search tool to find current information from the internet. Always include sources at the end of your response."

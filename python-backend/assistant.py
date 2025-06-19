@@ -1,23 +1,12 @@
 import os 
 from pathlib import Path
 from textwrap import dedent
+
 from typing import Optional, List
 
 from agno.agent import Agent, AgentSession
 from agno.utils.log import log_debug
 from agno.memory.v2.memory import Memory as AgnoMemoryV2
-from agno.tools import Toolkit
-from agno.tools.calculator import CalculatorTools
-from agno.tools.googlesearch import GoogleSearchTools
-from agno.tools.yfinance import YFinanceTools
-from agno.tools.crawl4ai import Crawl4aiTools
-from agno.models.google import Gemini
-from agno.memory.v2.db.postgres import PostgresMemoryDb
-from agno.storage.postgres import PostgresStorage
-
-# --- Local Tool Import ---
-# Replaced ShellTools and PythonTools with our custom toolkit for local execution.
-from local_tools import LocalExecutionToolkit
 
 class AIOS_PatchedAgent(Agent):
     def write_to_storage(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
@@ -28,7 +17,23 @@ class AIOS_PatchedAgent(Agent):
         """
         log_debug(f"Turn-by-turn write_to_storage for session {session_id} is disabled by patch.")
         pass
+        
+from agno.tools import Toolkit
+from agno.tools.shell import ShellTools
+from agno.tools.calculator import CalculatorTools
+from agno.tools.duckduckgo import DuckDuckGoTools
+from agno.tools.googlesearch import GoogleSearchTools
+from agno.tools.yfinance import YFinanceTools
+from agno.tools.python import PythonTools
+from agno.tools.crawl4ai import Crawl4aiTools
+from agno.models.google import Gemini
+from typing import List, Optional
+from automation_tools import AutomationTools
+from image_analysis_toolkit import ImageAnalysisTools
+from agno.memory.v2.db.postgres import PostgresMemoryDb
+from agno.storage.postgres import PostgresStorage
 
+    
 def get_llm_os(
     user_id: Optional[str] = None,
     calculator: bool = False,
@@ -42,27 +47,30 @@ def get_llm_os(
 ) -> Agent:
     tools: List[Toolkit] = []
     extra_instructions: List[str] = []
-    team: List[Agent] = []
 
     db_url_full = os.getenv("DATABASE_URL")
     if not db_url_full:
         raise ValueError("DATABASE_URL environment variable is not set. Please set it in Render.")
     
+    # Both classes use SQLAlchemy, which needs the driver name in the URL.
     db_url_sqlalchemy = db_url_full.replace("postgresql://", "postgresql+psycopg2://")
 
     # Configure memory
     if use_memory:
+    # 1. Create the database connector for long-term memory
         memory_db = PostgresMemoryDb(
             table_name="agent_memories",
             db_url=db_url_sqlalchemy,
-            schema="public"
+            schema="public"  # <-- CRITICAL FIX: Tell agno to use the public schema
         )
+        # 2. Create the V2 memory object
         memory = AgnoMemoryV2(db=memory_db)
         extra_instructions.append(
             "You have access to long-term memory. Use the `search_knowledge_base` tool to search your memory for relevant information."
         )
     else:
         memory = None
+
 
     if calculator:
         calc_tool = CalculatorTools(
@@ -81,23 +89,31 @@ def get_llm_os(
         )
 
     if internet_search:
-        # Corrected parameter from 'fixed_max_results' to 'max_results'
         internet_tool = GoogleSearchTools(fixed_max_results=15)
         tools.append(internet_tool)
         extra_instructions.append(
             "Use the internet search tool to find current information from the internet. Always include sources at the end of your response."
         )
 
-    # --- MODIFICATION: Replaced ShellTools and PythonTools with LocalExecutionToolkit ---
-    # This single toolkit handles both shell and python execution by delegating to the client.
-    if shell_tools or python_assistant:
-        local_exec_tools = LocalExecutionToolkit()
-        tools.append(local_exec_tools)
-        extra_instructions.extend([
-            "To run shell commands on the user's local machine, use the `run_local_shell` tool.",
-            "To write and execute Python scripts on the user's local machine, use the `run_local_python` tool."
-        ])
-    # --- END MODIFICATION ---
+    if shell_tools:
+        shell_tool = ShellTools()
+        tools.append(shell_tool)
+        extra_instructions.append(
+            "Use the shell_tools for system and file operations. Example: run_shell_command(args='ls -la') for directory contents"
+        )
+
+    team: List[Agent] = []
+    if python_assistant:
+        _python_assistant = Agent(
+            name="Python Assistant",
+            tools=[PythonTools()],
+            role="Python agent",
+            instructions=["You can write and run python code to fulfill users' requests"],
+            model=Gemini(id="gemini-2.0-flash"),
+            debug_mode=debug_mode
+        )
+        team.append(_python_assistant)
+        extra_instructions.append("To write and run python code, delegate the task to the `Python Assistant`.")
 
     if web_crawler:
         _web_crawler = Agent(
@@ -123,9 +139,11 @@ def get_llm_os(
         report_format = dedent("""\
         <report_format>
         ## [Company Name]: Investment Report
+
         ### **Overview**
         {give a brief introduction of the company and why the user should read this report}
         {make this section engaging and create a hook for the reader}
+
         ### Core Metrics
         {provide a summary of core metrics and show the latest data}
         - Current price: {current price}
@@ -137,16 +155,22 @@ def get_llm_os(
         - 50-day average: {50-day average}
         - 200-day average: {200-day average}
         - Analyst Recommendations: {buy, hold, sell} (number of analysts)
+
         ### Financial Performance
         {analyze the company's financial performance}
+
         ### Growth Prospects
         {analyze the company's growth prospects and future potential}
+
         ### News and Updates
         {summarize relevant news that can impact the stock price}
+
         ### [Summary]
         {give a summary of the report and what are the key takeaways}
+
         ### [Recommendation]
         {provide a recommendation on the stock along with a thorough reasoning}
+
         </report_format>
         """)
         
@@ -195,16 +219,14 @@ def get_llm_os(
             "2. **Direct Answer:** If the user's question can be answered directly based on your existing knowledge or after consulting the knowledge base, provide a clear and concise answer.",
             "3. **Internet Search:** If the knowledge base doesn't contain the answer, use `internet_search` to find current information on the internet.  **Always include sources at the end of your response.**",
             "4. **Tool Delegation:**  If a specific tool is required to fulfill the user's request (e.g., calculating a value, crawling a website), choose the appropriate tool and use it immediately.",
-            "5. **Assistant Delegation:** If a task is best handled by a specialized AI Assistant (e.g., creating an investment report), delegate the task to the appropriate assistant and relay their response to the user.",
+            "5. **Assistant Delegation:** If a task is best handled by a specialized AI Assistant (e.g., creating an investment report, writing and running python code), delegate the task to the appropriate assistant and relay their response to the user.",
             "6. **Clarification:** If the user's message is unclear or ambiguous, ask clarifying questions to obtain the necessary information before proceeding. **Do not make assumptions.**",
             "**Tool Usage Guidelines:**",
             "   - For mathematical calculations, use the `Calculator` tool if precision is required.",
             "   - For up-to-date information, use the `internet_search` tool.  **Always include sources URL's at the end of your response.**",
             "   - When the user provides a URL, IMMEDIATELY use the `Web Crawler` tool without any preliminary message.",
-            # --- MODIFICATION: Updated instructions for new local execution tools ---
-            "   - When the user asks about files, directories, or system information on their local machine, IMMEDIATELY use the `run_local_shell` tool.",
-            "   - To write and execute Python code on the user's local machine, use the `run_local_python` tool. You must provide both the filename and the code.",
-            # --- END MODIFICATION ---
+            "   - When the user asks about files, directories, or system information, IMMEDIATELY use `ShellTools` without any preliminary message.",
+            "   - Delegate python coding tasks to the `Python Assistant`.",
             "   - Delegate investment report requests to the `Investment Assistant`.",
             "**Response Guidelines:**",
             "   - Provide clear, concise, and informative answers.",
@@ -218,23 +240,32 @@ def get_llm_os(
             "   - Do not explain what you're going to do - just use the appropriate tool or delegate the task right away.",
         ] + extra_instructions,
         
+        # Add long-term memory to the LLM OS backed by JSON file storage
         storage=PostgresStorage(
             table_name="ai_os_sessions",
             db_url=db_url_sqlalchemy,
             schema="public",
-            auto_upgrade_schema=True
+            auto_upgrade_schema=True # Let agno manage this table's schema
         ),
         memory=memory,
         enable_user_memories=use_memory,
         enable_session_summaries=use_memory,
+        # Add selected tools to the LLM OS
         tools=tools,
+        # Add selected team members to the LLM OS
         team=team,
+        # Show tool calls in the chat
         show_tool_calls=False,
+        # This setting gives the LLM a tool to search the knowledge base for information
         search_knowledge=use_memory,
+        # This setting gives the LLM a tool to get chat history
         read_chat_history=True,
+        # This setting adds chat history to the messages
         add_history_to_messages=True,
         num_history_responses=6,
+        # This setting tells the LLM to format messages in markdown
         markdown=True,
+        # This setting adds the current datetime to the instructions
         add_datetime_to_instructions=True,
         introduction=dedent("""\
         Hi, I'm your AI-OS.

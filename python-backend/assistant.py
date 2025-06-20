@@ -50,7 +50,7 @@ def get_llm_os(
     investment_assistant: bool = False,
     use_memory: bool = False, 
     debug_mode: bool = True,
-    github_tool: bool = False,
+    enable_github: bool = False,
 ) -> Agent:
     tools: List[Toolkit] = []
     extra_instructions: List[str] = []
@@ -79,7 +79,7 @@ def get_llm_os(
         memory = None
 
     
-    if github_tool and user_id:
+    if enable_github and user_id:
         try:
             response = supabase_client.from_("user_integrations") \
                 .select("id", count='exact') \

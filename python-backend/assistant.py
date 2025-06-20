@@ -1,6 +1,7 @@
 import os 
 from pathlib import Path
 from textwrap import dedent
+import logging
 
 from typing import Optional, List
 
@@ -10,6 +11,8 @@ from agno.memory.v2.memory import Memory as AgnoMemoryV2
 
 from github_tools import GitHubTools
 from supabase_client import supabase_client
+
+logger = logging.getLogger(__name__)
 
 class AIOS_PatchedAgent(Agent):
     def write_to_storage(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
@@ -47,7 +50,7 @@ def get_llm_os(
     investment_assistant: bool = False,
     use_memory: bool = False, 
     debug_mode: bool = True,
-    enable_github: bool = False,
+    github_tool: bool = False,
 ) -> Agent:
     tools: List[Toolkit] = []
     extra_instructions: List[str] = []
@@ -76,27 +79,26 @@ def get_llm_os(
         memory = None
 
     
-    if enable_github and user_id:
+    if github_tool and user_id:
         try:
-            # Check if the user has an active GitHub integration in the database
             response = supabase_client.from_("user_integrations") \
                 .select("id", count='exact') \
                 .eq("user_id", user_id) \
                 .eq("service", "github") \
                 .execute()
             
-            # If a record exists, enable the tools for the agent
             if response.count > 0:
                 tools.append(GitHubTools(user_id=user_id))
                 extra_instructions.append(
                     "To interact with the user's GitHub account, such as listing repositories or creating issues, use the `GitHubTools`."
                 )
-                log_debug(f"GitHub tools enabled for user {user_id}.")
+                logger.info(f"GitHub tools enabled for user {user_id}.")
             else:
-                log_debug(f"GitHub tools not enabled for user {user_id}: No integration found.")
+                logger.info(f"GitHub tools not enabled for user {user_id}: No integration found.")
         except Exception as e:
-            # Log the error but don't crash the application
-            log_debug(f"Could not check for GitHub integration for user {user_id}: {e}")
+            # Use the standard logger, which can handle exception objects correctly.
+            # exc_info=True will also log the full traceback for better debugging.
+            logger.error(f"Could not check for GitHub integration for user {user_id}", exc_info=True)
 
 
     if calculator:

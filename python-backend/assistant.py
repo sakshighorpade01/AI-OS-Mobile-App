@@ -8,6 +8,9 @@ from agno.agent import Agent, AgentSession
 from agno.utils.log import log_debug
 from agno.memory.v2.memory import Memory as AgnoMemoryV2
 
+from github_tools import GitHubTools
+from supabase_client import supabase_client
+
 class AIOS_PatchedAgent(Agent):
     def write_to_storage(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
         """
@@ -44,6 +47,7 @@ def get_llm_os(
     investment_assistant: bool = False,
     use_memory: bool = False, 
     debug_mode: bool = True,
+    github_tool: bool = False,
 ) -> Agent:
     tools: List[Toolkit] = []
     extra_instructions: List[str] = []
@@ -70,6 +74,29 @@ def get_llm_os(
         )
     else:
         memory = None
+
+    
+    if github_tool and user_id:
+        try:
+            # Check if the user has an active GitHub integration in the database
+            response = supabase_client.from_("user_integrations") \
+                .select("id", count='exact') \
+                .eq("user_id", user_id) \
+                .eq("service", "github") \
+                .execute()
+            
+            # If a record exists, enable the tools for the agent
+            if response.count > 0:
+                tools.append(GitHubTools(user_id=user_id))
+                extra_instructions.append(
+                    "To interact with the user's GitHub account, such as listing repositories or creating issues, use the `GitHubTools`."
+                )
+                log_debug(f"GitHub tools enabled for user {user_id}.")
+            else:
+                log_debug(f"GitHub tools not enabled for user {user_id}: No integration found.")
+        except Exception as e:
+            # Log the error but don't crash the application
+            log_debug(f"Could not check for GitHub integration for user {user_id}: {e}")
 
 
     if calculator:
@@ -218,7 +245,7 @@ def get_llm_os(
             "1. **Knowledge Base Search:** If the user asks about a specific topic, ALWAYS begin by searching your knowledge base using `search_knowledge_base` to see if relevant information is already available.",
             "2. **Direct Answer:** If the user's question can be answered directly based on your existing knowledge or after consulting the knowledge base, provide a clear and concise answer.",
             "3. **Internet Search:** If the knowledge base doesn't contain the answer, use `internet_search` to find current information on the internet.  **Always include sources at the end of your response.**",
-            "4. **Tool Delegation:**  If a specific tool is required to fulfill the user's request (e.g., calculating a value, crawling a website), choose the appropriate tool and use it immediately.",
+            "4. **Tool Delegation:**  If a specific tool is required to fulfill the user's request (e.g., calculating a value, crawling a website, interacting with GitHub), choose the appropriate tool and use it immediately.",
             "5. **Assistant Delegation:** If a task is best handled by a specialized AI Assistant (e.g., creating an investment report, writing and running python code), delegate the task to the appropriate assistant and relay their response to the user.",
             "6. **Clarification:** If the user's message is unclear or ambiguous, ask clarifying questions to obtain the necessary information before proceeding. **Do not make assumptions.**",
             "**Tool Usage Guidelines:**",
@@ -228,6 +255,7 @@ def get_llm_os(
             "   - When the user asks about files, directories, or system information, IMMEDIATELY use `ShellTools` without any preliminary message.",
             "   - Delegate python coding tasks to the `Python Assistant`.",
             "   - Delegate investment report requests to the `Investment Assistant`.",
+            "   - To perform actions on GitHub, like listing repositories or creating issues, use the `GitHubTools`.",
             "**Response Guidelines:**",
             "   - Provide clear, concise, and informative answers.",
             "   - Avoid phrases like 'based on my knowledge' or 'depending on the information' or 'based on our previous conversation'.",

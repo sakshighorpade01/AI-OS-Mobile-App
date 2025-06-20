@@ -6,33 +6,28 @@ import json
 import uuid
 import traceback
 from pathlib import Path
-import threading # This will be removed, but keeping it for diff clarity
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect, url_for, session
 from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
 import eventlet
 import datetime
 
-# --- Local Module Imports ---
+from authlib.integrations.flask_client import OAuth
+
 from assistant import get_llm_os
 from deepsearch import get_deepsearch
 from supabase_client import supabase_client
 
-# --- Agno Imports ---
 from agno.agent import Agent
 from agno.media import Image, Audio, Video
 from gotrue.errors import AuthApiError
 
-# --- Initial Setup ---
 load_dotenv()
-# eventlet.monkey_patch() # monkey_patch is often called by the server runner, but explicit is safe.
 
-# --- Logging Configuration ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class SocketIOHandler(logging.Handler):
-    """Custom logging handler to emit logs over Socket.IO."""
     def emit(self, record):
         try:
             if record.name != 'socketio' and record.name != 'engineio':
@@ -43,22 +38,33 @@ class SocketIOHandler(logging.Handler):
 
 logger.addHandler(SocketIOHandler())
 
-# --- Flask & Socket.IO App Initialization ---
 app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY")
+if not app.secret_key:
+    raise ValueError("FLASK_SECRET_KEY is not set. Please set it in your environment variables.")
+
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
+oauth = OAuth(app)
+oauth.register(
+    name='github',
+    client_id=os.getenv("GITHUB_CLIENT_ID"),
+    client_secret=os.getenv("GITHUB_CLIENT_SECRET"),
+    access_token_url='https://github.com/login/oauth/access_token',
+    access_token_params=None,
+    authorize_url='https://github.com/login/oauth/authorize',
+    authorize_params=None,
+    api_base_url='https://api.github.com/',
+    client_kwargs={'scope': 'repo user:email'},
+)
 
 class IsolatedAssistant:
-    """
-    Runs the agent in a background greenlet to stream responses.
-    """
     def __init__(self, sid):
         self.sid = sid
         self.message_id = None
-        self.current_response_content = ""  # Store the full response content
+        self.current_response_content = ""
 
     def run_safely(self, agent: Agent, message: str, user, context=None, images=None, audio=None, videos=None):
-        """Runs agent in an isolated greenlet, streams responses, and accumulates metrics in memory."""
         def _run_agent(agent, message, user, context, images, audio, videos):
             try:
                 if context:
@@ -82,14 +88,11 @@ class IsolatedAssistant:
 
                 logger.info(f"Calling agent.run for user {user.id} with params: {list(supported_params.keys())}")
                 
-                # Reset the accumulated content for this run
                 self.current_response_content = ""
                 
-                # This loop streams responses directly to the client.
                 for chunk in agent.run(**supported_params):
                     if chunk and chunk.content:
                         eventlet.sleep(0)
-                        # Accumulate the content
                         self.current_response_content += chunk.content
                         socketio.emit("response", {
                             "content": chunk.content,
@@ -103,7 +106,6 @@ class IsolatedAssistant:
                     "id": self.message_id,
                 }, room=self.sid)
 
-                # --- NEW: Log cumulative tokens to terminal after each run ---
                 if hasattr(agent, 'session_metrics') and agent.session_metrics:
                     logger.info(
                         f"Run complete. Cumulative session tokens for SID {self.sid}: "
@@ -111,7 +113,6 @@ class IsolatedAssistant:
                         f"{agent.session_metrics.output_tokens} out."
                     )
                 
-                # --- NEW: Capture conversation turn in our own history list ---
                 self._save_conversation_turn(complete_message)
 
             except Exception as e:
@@ -126,26 +127,22 @@ class IsolatedAssistant:
         eventlet.spawn(_run_agent, agent, message, user, context, images, audio, videos)
     
     def _save_conversation_turn(self, user_message):
-        """Save the current conversation turn to the session history"""
         try:
             session_info = connection_manager.sessions.get(self.sid)
             if not session_info:
                 logger.warning(f"Cannot save conversation turn: no session found for SID {self.sid}")
                 return
                 
-            # Create a dictionary representing this turn
             turn_data = {
                 "role": "user",
                 "content": user_message,
                 "timestamp": datetime.datetime.now().isoformat()
             }
             
-            # Add user message to history
             if 'history' not in session_info:
                 session_info['history'] = []
             session_info['history'].append(turn_data)
             
-            # Add assistant response to history
             assistant_turn = {
                 "role": "assistant",
                 "content": self.current_response_content,
@@ -163,7 +160,6 @@ class IsolatedAssistant:
 class ConnectionManager:
     def __init__(self):
         self.sessions = {}
-        # A native threading.Lock is not needed in an eventlet environment.
         self.isolated_assistants = {}
 
     def create_session(self, sid: str, user_id: str, config: dict, is_deepsearch: bool = False) -> Agent:
@@ -171,18 +167,18 @@ class ConnectionManager:
             self.terminate_session(sid)
 
         logger.info(f"Creating new session for user: {user_id}")
+        config['enable_github'] = True 
 
         if is_deepsearch:
             agent = get_deepsearch(user_id=user_id, **config)
         else:
             agent = get_llm_os(user_id=user_id, **config)
 
-        # Initialize session with agent, config, and empty history list
         self.sessions[sid] = {
             "agent": agent, 
             "config": config,
-            "history": [],  # NEW: Our own history list that we control
-            "user_id": user_id,  # Store user_id for easier access
+            "history": [],
+            "user_id": user_id,
             "created_at": datetime.datetime.now().isoformat()
         }
         
@@ -191,78 +187,41 @@ class ConnectionManager:
         return agent
 
     def terminate_session(self, sid):
-        """
-        Terminates a session, logs its final cumulative metrics to the database, and cleans up.
-        """
         if sid in self.sessions:
             session_info = self.sessions.get(sid)
-            if not session_info:
-                return
-
+            if not session_info: return
             agent = session_info.get("agent")
             history = session_info.get("history", [])
             user_id = session_info.get("user_id")
 
-            # --- CRITICAL CHANGE: Implement cumulative logging on session termination ---
             if agent and hasattr(agent, 'session_metrics') and agent.session_metrics:
                 try:
                     final_metrics = agent.session_metrics
-                    input_tokens = final_metrics.input_tokens
-                    output_tokens = final_metrics.output_tokens
-
+                    input_tokens, output_tokens = final_metrics.input_tokens, final_metrics.output_tokens
                     if input_tokens > 0 or output_tokens > 0:
-                        logger.info(
-                            f"TERMINATE_SESSION FOR SID {sid}. "
-                            f"Logging final cumulative usage to DB: {input_tokens} in, {output_tokens} out."
-                        )
                         supabase_client.from_('request_logs').insert({
-                            'user_id': str(agent.user_id),
-                            'input_tokens': input_tokens,
-                            'output_tokens': output_tokens
+                            'user_id': str(agent.user_id), 'input_tokens': input_tokens, 'output_tokens': output_tokens
                         }).execute()
-                        logger.info(f"Successfully logged final tokens for session {sid}.")
-                    else:
-                        logger.info(f"Session {sid} terminated with no cumulative token usage to log.")
                 except Exception as e:
                     logger.error(f"Failed to log usage metrics for session {sid} on termination: {e}\n{traceback.format_exc()}")
             
-            # --- NEW: Save the full conversation history to the database ---
             if history and len(history) > 0:
                 try:
-                    # Create timestamp for the database
                     now = int(datetime.datetime.now().timestamp())
-                    
-                    # Prepare the payload for the database
-                    # This mimics the structure that agno would normally create
                     payload = {
-                        "session_id": sid,
-                        "user_id": user_id,
-                        "agent_id": "AI_OS",  # This is the name set in assistant.py
-                        "created_at": now,
-                        "updated_at": now,
-                        "memory": {
-                            "runs": history  # Our manually maintained history
-                        },
-                        "session_data": {}  # Initialize empty
+                        "session_id": sid, "user_id": user_id, "agent_id": "AI_OS",
+                        "created_at": now, "updated_at": now, "memory": { "runs": history }, "session_data": {}
                     }
-                    
-                    # Add token metrics if available
                     if agent and hasattr(agent, 'session_metrics') and agent.session_metrics:
                         payload["session_data"]["metrics"] = {
                             "input_tokens": agent.session_metrics.input_tokens,
                             "output_tokens": agent.session_metrics.output_tokens,
                             "total_tokens": agent.session_metrics.input_tokens + agent.session_metrics.output_tokens
                         }
-                    
-                    # Save to database using upsert (will create or update)
-                    logger.info(f"Saving complete conversation history for SID {sid} with {len(history)} turns")
-                    result = supabase_client.from_('ai_os_sessions').upsert(payload).execute()
-                    logger.info(f"Successfully saved conversation history to database for SID {sid}")
-                    logger.debug(f"Database response: {result}")
+                    supabase_client.from_('ai_os_sessions').upsert(payload).execute()
                 except Exception as e:
                     logger.error(f"Failed to save conversation history for SID {sid}: {e}\n{traceback.format_exc()}")
             
-            # Now, clean up the session from memory
             del self.sessions[sid]
             if sid in self.isolated_assistants:
                 self.isolated_assistants[sid].terminate()
@@ -276,6 +235,108 @@ class ConnectionManager:
         self.terminate_session(sid)
 
 connection_manager = ConnectionManager()
+
+@app.route('/login/github')
+def login_github():
+    token = request.args.get('token')
+    if not token:
+        return "Authentication token is missing.", 400
+    session['supabase_token'] = token
+    redirect_uri = url_for('auth_callback_github', _external=True)
+    return oauth.github.authorize_redirect(redirect_uri)
+
+@app.route('/auth/github/callback')
+def auth_callback_github():
+    try:
+        supabase_token = session.get('supabase_token')
+        if not supabase_token:
+            return "Your session has expired. Please try connecting again.", 400
+        try:
+            user_response = supabase_client.auth.get_user(jwt=supabase_token)
+            user = user_response.user
+            if not user:
+                raise AuthApiError("User not found for the provided token.", 401)
+        except AuthApiError as e:
+            logger.error(f"Invalid token during GitHub auth callback: {e.message}")
+            return "Your session is invalid. Please log in and try again.", 401
+        
+        token = oauth.github.authorize_access_token()
+        integration_data = {
+            'user_id': str(user.id), 'service': 'github',
+            'access_token': token.get('access_token'), 'scopes': token.get('scope', '').split(',')
+        }
+        supabase_client.from_('user_integrations').upsert(integration_data).execute()
+        logger.info(f"Successfully saved GitHub integration for user {user.id}")
+        return """
+            <h1>Authentication Successful!</h1>
+            <p>You have successfully connected your GitHub account. You can now close this window.</p>
+        """
+    except Exception as e:
+        logger.error(f"Error in GitHub auth callback: {e}\n{traceback.format_exc()}")
+        return "An error occurred during authentication. Please try again.", 500
+
+# --- NEW: API Endpoints for managing integrations ---
+def get_user_from_token(request):
+    """Helper function to authenticate a user from a Bearer token."""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return None, ('Authorization header is missing or invalid', 401)
+    
+    jwt = auth_header.split(' ')[1]
+    try:
+        user_response = supabase_client.auth.get_user(jwt=jwt)
+        if not user_response.user:
+            raise AuthApiError("User not found for token.", 401)
+        return user_response.user, None
+    except AuthApiError as e:
+        logger.error(f"API authentication error: {e.message}")
+        return None, ('Invalid or expired token', 401)
+
+@app.route('/api/integrations', methods=['GET'])
+def get_integrations_status():
+    """Endpoint for the frontend to check which services are connected."""
+    user, error = get_user_from_token(request)
+    if error:
+        return jsonify({"error": error[0]}), error[1]
+
+    try:
+        response = supabase_client.from_('user_integrations') \
+            .select('service') \
+            .eq('user_id', str(user.id)) \
+            .execute()
+        
+        connected_services = [item['service'] for item in response.data]
+        return jsonify({"integrations": connected_services})
+    except Exception as e:
+        logger.error(f"Failed to get integration status for user {user.id}: {e}")
+        return jsonify({"error": "Failed to retrieve integration status"}), 500
+
+@app.route('/api/integrations/disconnect', methods=['POST'])
+def disconnect_integration():
+    """Endpoint to remove a service integration for a user."""
+    user, error = get_user_from_token(request)
+    if error:
+        return jsonify({"error": error[0]}), error[1]
+
+    data = request.get_json()
+    service_to_disconnect = data.get('service')
+    if not service_to_disconnect:
+        return jsonify({"error": "Service name not provided"}), 400
+
+    try:
+        supabase_client.from_('user_integrations') \
+            .delete() \
+            .eq('user_id', str(user.id)) \
+            .eq('service', service_to_disconnect) \
+            .execute()
+        
+        logger.info(f"User {user.id} disconnected from {service_to_disconnect}")
+        return jsonify({"message": f"Successfully disconnected from {service_to_disconnect}"}), 200
+    except Exception as e:
+        logger.error(f"Failed to disconnect {service_to_disconnect} for user {user.id}: {e}")
+        return jsonify({"error": "Failed to disconnect integration"}), 500
+
+# --- End of new API endpoints ---
 
 @socketio.on("connect")
 def on_connect():
@@ -378,7 +439,6 @@ def on_send_message(data: str):
         file_content, images, audio, videos = process_files(files)
         combined_message = f"{message}\n\n{file_content}" if file_content else message
 
-        # This is the original, working "fire-and-forget" streaming logic.
         isolated_assistant.run_safely(
             agent,
             combined_message,
@@ -405,4 +465,4 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8765))
     app_debug_mode = os.environ.get("DEBUG", "False").lower() == "true"
     logger.info(f"Starting server on host 0.0.0.0 port {port}, Flask debug mode: {app_debug_mode}")
-    socketio.run(app, host="0.0.0.0", port=port, debug=app_debug_mode, use_reloader=app_debug_mode) 
+    socketio.run(app, host="0.0.0.0", port=port, debug=app_debug_mode, use_reloader=app_debug_mode)

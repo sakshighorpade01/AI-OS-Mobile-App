@@ -10,32 +10,25 @@ from agno.utils.log import log_debug
 from agno.memory.v2.memory import Memory as AgnoMemoryV2
 
 from github_tools import GitHubTools
+from google_email_tools import GoogleEmailTools
 from supabase_client import supabase_client
 
 logger = logging.getLogger(__name__)
 
 class AIOS_PatchedAgent(Agent):
     def write_to_storage(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
-        """
-        Patched Method: Override the default behavior to do nothing.
-        This prevents the agent from saving its state after every single turn.
-        The session will be saved manually and correctly in app.py upon termination.
-        """
         log_debug(f"Turn-by-turn write_to_storage for session {session_id} is disabled by patch.")
         pass
         
 from agno.tools import Toolkit
 from agno.tools.shell import ShellTools
 from agno.tools.calculator import CalculatorTools
-from agno.tools.duckduckgo import DuckDuckGoTools
 from agno.tools.googlesearch import GoogleSearchTools
 from agno.tools.yfinance import YFinanceTools
 from agno.tools.python import PythonTools
 from agno.tools.crawl4ai import Crawl4aiTools
 from agno.models.google import Gemini
 from typing import List, Optional
-from automation_tools import AutomationTools
-from image_analysis_toolkit import ImageAnalysisTools
 from agno.memory.v2.db.postgres import PostgresMemoryDb
 from agno.storage.postgres import PostgresStorage
 
@@ -51,6 +44,7 @@ def get_llm_os(
     use_memory: bool = False, 
     debug_mode: bool = True,
     enable_github: bool = False,
+    enable_google_email: bool = False,
 ) -> Agent:
     tools: List[Toolkit] = []
     extra_instructions: List[str] = []
@@ -99,6 +93,18 @@ def get_llm_os(
             # Use the standard logger, which can handle exception objects correctly.
             # exc_info=True will also log the full traceback for better debugging.
             logger.error(f"Could not check for GitHub integration for user {user_id}", exc_info=True)
+
+    if enable_google_email and user_id:
+        try:
+            response = supabase_client.from_("user_integrations").select("id", count='exact').eq("user_id", user_id).eq("service", "google").execute()
+            if response.count > 0:
+                tools.append(GoogleEmailTools(user_id=user_id))
+                extra_instructions.append("To read or send emails from the user's connected Gmail account, use the `GoogleEmailTools`.")
+                logger.info(f"Google Email tools enabled for user {user_id}.")
+            else:
+                logger.info(f"Google Email tools not enabled for user {user_id}: No integration found.")
+        except Exception as e:
+            logger.error(f"Could not check for Google Email integration for user {user_id}", exc_info=True)
 
 
     if calculator:
@@ -247,7 +253,7 @@ def get_llm_os(
             "1. **Knowledge Base Search:** If the user asks about a specific topic, ALWAYS begin by searching your knowledge base using `search_knowledge_base` to see if relevant information is already available.",
             "2. **Direct Answer:** If the user's question can be answered directly based on your existing knowledge or after consulting the knowledge base, provide a clear and concise answer.",
             "3. **Internet Search:** If the knowledge base doesn't contain the answer, use `internet_search` to find current information on the internet.  **Always include sources at the end of your response.**",
-            "4. **Tool Delegation:**  If a specific tool is required to fulfill the user's request (e.g., calculating a value, crawling a website, interacting with GitHub), choose the appropriate tool and use it immediately.",
+            "4. **Tool Delegation:**  If a specific tool is required to fulfill the user's request (e.g., calculating a value, crawling a website, interacting with GitHub or Gmail), choose the appropriate tool and use it immediately.",
             "5. **Assistant Delegation:** If a task is best handled by a specialized AI Assistant (e.g., creating an investment report, writing and running python code), delegate the task to the appropriate assistant and relay their response to the user.",
             "6. **Clarification:** If the user's message is unclear or ambiguous, ask clarifying questions to obtain the necessary information before proceeding. **Do not make assumptions.**",
             "**Tool Usage Guidelines:**",
@@ -258,6 +264,7 @@ def get_llm_os(
             "   - Delegate python coding tasks to the `Python Assistant`.",
             "   - Delegate investment report requests to the `Investment Assistant`.",
             "   - To perform actions on GitHub, like listing repositories or creating issues, use the `GitHubTools`.",
+            "   - To read or send emails, use the `GoogleEmailTools`.",
             "**Response Guidelines:**",
             "   - Provide clear, concise, and informative answers.",
             "   - Avoid phrases like 'based on my knowledge' or 'depending on the information' or 'based on our previous conversation'.",

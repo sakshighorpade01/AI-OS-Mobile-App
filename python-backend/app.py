@@ -46,6 +46,8 @@ if not app.secret_key:
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 oauth = OAuth(app)
+
+# --- GitHub OAuth Registration (Existing) ---
 oauth.register(
     name='github',
     client_id=os.getenv("GITHUB_CLIENT_ID"),
@@ -57,6 +59,27 @@ oauth.register(
     api_base_url='https://api.github.com/',
     client_kwargs={'scope': 'repo user:email'},
 )
+
+# --- NEW: Google OAuth Registration ---
+oauth.register(
+    name='google',
+    client_id=os.getenv("GOOGLE_CLIENT_ID"),
+    client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+    authorize_url='https://accounts.google.com/o/oauth2/auth',
+    authorize_params=None,
+    access_token_url='https://accounts.google.com/o/oauth2/token',
+    access_token_params=None,
+    refresh_token_url=None, # Authlib handles this automatically
+    api_base_url='https://www.googleapis.com/oauth2/v1/',
+    client_kwargs={
+        'scope': 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
+        # 'access_type': 'offline' is crucial to get a refresh_token
+        'access_type': 'offline',
+        # 'prompt': 'consent' ensures the user is prompted for offline access, which is necessary to receive a refresh token on subsequent authorizations.
+        'prompt': 'consent'
+    }
+)
+
 
 class IsolatedAssistant:
     def __init__(self, sid):
@@ -167,7 +190,9 @@ class ConnectionManager:
             self.terminate_session(sid)
 
         logger.info(f"Creating new session for user: {user_id}")
+        # --- MODIFIED: Add flags for both integrations ---
         config['enable_github'] = True 
+        config['enable_google_email'] = True
 
         if is_deepsearch:
             agent = get_deepsearch(user_id=user_id, **config)
@@ -236,48 +261,68 @@ class ConnectionManager:
 
 connection_manager = ConnectionManager()
 
-@app.route('/login/github')
-def login_github():
+# --- Generic Login Route ---
+@app.route('/login/<provider>')
+def login_provider(provider):
     token = request.args.get('token')
     if not token:
         return "Authentication token is missing.", 400
     session['supabase_token'] = token
-    redirect_uri = url_for('auth_callback_github', _external=True)
-    return oauth.github.authorize_redirect(redirect_uri)
+    
+    redirect_uri = url_for('auth_callback', provider=provider, _external=True)
+    
+    # Use the correct provider client from authlib
+    if provider not in oauth._clients:
+        return "Invalid provider specified.", 404
+        
+    return oauth.create_client(provider).authorize_redirect(redirect_uri)
 
-@app.route('/auth/github/callback')
-def auth_callback_github():
+# --- Generic Callback Route ---
+@app.route('/auth/<provider>/callback')
+def auth_callback(provider):
     try:
         supabase_token = session.get('supabase_token')
         if not supabase_token:
             return "Your session has expired. Please try connecting again.", 400
+        
         try:
             user_response = supabase_client.auth.get_user(jwt=supabase_token)
             user = user_response.user
             if not user:
                 raise AuthApiError("User not found for the provided token.", 401)
         except AuthApiError as e:
-            logger.error(f"Invalid token during GitHub auth callback: {e.message}")
+            logger.error(f"Invalid token during {provider} auth callback: {e.message}")
             return "Your session is invalid. Please log in and try again.", 401
         
-        token = oauth.github.authorize_access_token()
+        client = oauth.create_client(provider)
+        token = client.authorize_access_token()
+        
+        # Prepare data, including refresh_token for Google
         integration_data = {
-            'user_id': str(user.id), 'service': 'github',
-            'access_token': token.get('access_token'), 'scopes': token.get('scope', '').split(',')
+            'user_id': str(user.id),
+            'service': provider,
+            'access_token': token.get('access_token'),
+            'refresh_token': token.get('refresh_token'), # Will be null for GitHub, populated for Google
+            'scopes': token.get('scope', '').split(' '), # Google uses space-separated scopes
         }
+        
+        # Remove null values before upserting
+        integration_data = {k: v for k, v in integration_data.items() if v is not None}
+
         supabase_client.from_('user_integrations').upsert(integration_data).execute()
-        logger.info(f"Successfully saved GitHub integration for user {user.id}")
-        return """
+        
+        logger.info(f"Successfully saved {provider} integration for user {user.id}")
+
+        return f"""
             <h1>Authentication Successful!</h1>
-            <p>You have successfully connected your GitHub account. You can now close this window.</p>
+            <p>You have successfully connected your {provider.capitalize()} account. You can now close this window.</p>
         """
     except Exception as e:
-        logger.error(f"Error in GitHub auth callback: {e}\n{traceback.format_exc()}")
+        logger.error(f"Error in {provider} auth callback: {e}\n{traceback.format_exc()}")
         return "An error occurred during authentication. Please try again.", 500
 
-# --- NEW: API Endpoints for managing integrations ---
+
 def get_user_from_token(request):
-    """Helper function to authenticate a user from a Bearer token."""
     auth_header = request.headers.get('Authorization')
     if not auth_header or not auth_header.startswith('Bearer '):
         return None, ('Authorization header is missing or invalid', 401)
@@ -294,17 +339,12 @@ def get_user_from_token(request):
 
 @app.route('/api/integrations', methods=['GET'])
 def get_integrations_status():
-    """Endpoint for the frontend to check which services are connected."""
     user, error = get_user_from_token(request)
     if error:
         return jsonify({"error": error[0]}), error[1]
 
     try:
-        response = supabase_client.from_('user_integrations') \
-            .select('service') \
-            .eq('user_id', str(user.id)) \
-            .execute()
-        
+        response = supabase_client.from_('user_integrations').select('service').eq('user_id', str(user.id)).execute()
         connected_services = [item['service'] for item in response.data]
         return jsonify({"integrations": connected_services})
     except Exception as e:
@@ -313,7 +353,6 @@ def get_integrations_status():
 
 @app.route('/api/integrations/disconnect', methods=['POST'])
 def disconnect_integration():
-    """Endpoint to remove a service integration for a user."""
     user, error = get_user_from_token(request)
     if error:
         return jsonify({"error": error[0]}), error[1]
@@ -324,19 +363,12 @@ def disconnect_integration():
         return jsonify({"error": "Service name not provided"}), 400
 
     try:
-        supabase_client.from_('user_integrations') \
-            .delete() \
-            .eq('user_id', str(user.id)) \
-            .eq('service', service_to_disconnect) \
-            .execute()
-        
+        supabase_client.from_('user_integrations').delete().eq('user_id', str(user.id)).eq('service', service_to_disconnect).execute()
         logger.info(f"User {user.id} disconnected from {service_to_disconnect}")
         return jsonify({"message": f"Successfully disconnected from {service_to_disconnect}"}), 200
     except Exception as e:
         logger.error(f"Failed to disconnect {service_to_disconnect} for user {user.id}: {e}")
         return jsonify({"error": "Failed to disconnect integration"}), 500
-
-# --- End of new API endpoints ---
 
 @socketio.on("connect")
 def on_connect():
@@ -351,7 +383,6 @@ def on_disconnect():
     connection_manager.remove_session(sid)
 
 def process_files(files):
-    # This function is correct and does not need changes.
     images, audio, videos, text_content = [], [], [], []
     logger.info(f"Processing {len(files)} files")
     for file_data in files:
@@ -379,21 +410,16 @@ def process_files(files):
         except Exception as e: logger.error(f"Error processing file {file_path}: {str(e)}")
     return "\n\n".join(text_content) if text_content else None, images, audio, videos
 
-
 @socketio.on("send_message")
 def on_send_message(data: str):
-    """Main message handler. Authenticates user and dispatches to the agent."""
     sid = request.sid
     user = None
-
     try:
         data = json.loads(data)
         access_token = data.get("accessToken")
-
         if not access_token:
             emit("error", {"message": "Authentication token is missing. Please log in again.", "reset": True}, room=sid)
             return
-
         try:
             user_response = supabase_client.auth.get_user(jwt=access_token)
             user = user_response.user
@@ -404,62 +430,43 @@ def on_send_message(data: str):
             logger.error(f"Invalid token for SID {sid}: {e.message}")
             emit("error", {"message": "Your session has expired. Please log in again.", "reset": True}, room=sid)
             return
-
         message = data.get("message", "")
         context = data.get("context", "")
         files = data.get("files", [])
         is_deepsearch = data.get("is_deepsearch", False)
-
         if data.get("type") == "terminate_session":
             connection_manager.terminate_session(sid)
             emit("status", {"message": "Session terminated"}, room=sid)
             return
-
         session = connection_manager.get_session(sid)
         if not session:
             config = data.get("config", {})
             agent = connection_manager.create_session(
-                sid,
-                user_id=str(user.id),
-                config=config,
-                is_deepsearch=is_deepsearch
+                sid, user_id=str(user.id), config=config, is_deepsearch=is_deepsearch
             )
         else:
             agent = session["agent"]
-
         message_id = str(uuid.uuid4())
         isolated_assistant = connection_manager.isolated_assistants.get(sid)
         if not isolated_assistant:
             emit("error", {"message": "Session error. Starting new chat...", "reset": True}, room=sid)
             connection_manager.terminate_session(sid)
             return
-        
         isolated_assistant.message_id = message_id
-
         file_content, images, audio, videos = process_files(files)
         combined_message = f"{message}\n\n{file_content}" if file_content else message
-
         isolated_assistant.run_safely(
-            agent,
-            combined_message,
-            user=user,
-            context=context,
-            images=images or None,
-            audio=audio or None,
-            videos=videos or None
+            agent, combined_message, user=user, context=context,
+            images=images or None, audio=audio or None, videos=videos or None
         )
-
     except Exception as e:
         logger.error(f"Error in message handler: {e}\n{traceback.format_exc()}")
         emit("error", {"message": "AI service error. Starting new chat...", "reset": True}, room=sid)
         connection_manager.terminate_session(sid)
 
-
 @app.route('/healthz', methods=['GET'])
 def health_check():
-    """Standard health check endpoint for Render."""
     return "OK", 200
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8765))

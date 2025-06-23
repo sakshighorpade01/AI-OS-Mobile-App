@@ -1,6 +1,6 @@
 {
   "name": "ai-os-desktop",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "AI-OS Desktop Assistant: An AI-Powered Desktop Application",
   "main": "js/main.js",
   "scripts": {

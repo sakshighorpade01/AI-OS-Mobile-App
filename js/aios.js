@@ -81,6 +81,7 @@ class AIOS {
             signupError: document.getElementById('signup-error'),
             // --- NEW: Cache the GitHub connect button ---
             connectGithubBtn: document.getElementById('connect-github-btn'),
+            connectGoogleBtn: document.getElementById('connect-google-btn'),
         };
     }
 
@@ -124,8 +125,7 @@ class AIOS {
             this.handleSignup();
         });
         
-        // --- NEW: Add event listener for the GitHub connect button ---
-        addClickHandler(this.elements.connectGithubBtn, (e) => {
+        const integrationButtonHandler = (e) => {
             const button = e.currentTarget;
             const action = button.dataset.action;
             const provider = button.dataset.provider;
@@ -135,7 +135,10 @@ class AIOS {
             } else if (action === 'disconnect') {
                 this.disconnectIntegration(provider);
             }
-        });
+        };
+        
+        addClickHandler(this.elements.connectGithubBtn, integrationButtonHandler);
+        addClickHandler(this.elements.connectGoogleBtn, integrationButtonHandler);
 
         if (this.authService) {
             this.authService.onAuthChange((user) => {
@@ -211,6 +214,7 @@ class AIOS {
         if (!session || !session.access_token) {
             // Not logged in, so can't have integrations. Ensure default state.
             this.updateIntegrationButton('github', false);
+            this.updateIntegrationButton('google', false);
             return;
         }
         try {
@@ -221,18 +225,23 @@ class AIOS {
             
             const data = await response.json();
             const isGithubConnected = data.integrations.includes('github');
+            const isGoogleConnected = data.integrations.includes('google');
+
             this.updateIntegrationButton('github', isGithubConnected);
+            this.updateIntegrationButton('google', isGoogleConnected);
 
         } catch (error) {
             console.error('Error checking integration status:', error);
             // Don't show a notification, just default the UI
             this.updateIntegrationButton('github', false);
+            this.updateIntegrationButton('google', false);
         }
     }
 
     // --- NEW: Helper to update a specific integration button's UI ---
     updateIntegrationButton(provider, isConnected) {
-        const button = this.elements.connectGithubBtn; // Assuming only github for now
+        // Dynamically find the button based on the provider name
+        const button = this.elements[`connect${provider.charAt(0).toUpperCase() + provider.slice(1)}Btn`];
         if (!button) return;
 
         const textSpan = button.querySelector('.btn-text');
@@ -558,6 +567,7 @@ class AIOS {
         } else {
             // --- NEW: Ensure button is in default state when logged out ---
             this.updateIntegrationButton('github', false);
+            this.updateIntegrationButton('google', false);
         }
     }
 

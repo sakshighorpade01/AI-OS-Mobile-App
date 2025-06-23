@@ -2,44 +2,33 @@
 
 import base64
 import logging
-import os  # --- NEW: Import the 'os' module ---
+import os
 from email.mime.text import MIMEText
 from typing import List, Optional, Dict, Any
 
 from agno.tools import Toolkit
+from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build, Resource
 from googleapiclient.errors import HttpError
-from google.auth.transport.requests import Request  # --- NEW: Import the 'Request' object ---
 
 from supabase_client import supabase_client
 
-# Set up a logger for this module
 logger = logging.getLogger(__name__)
 
 class GoogleEmailTools(Toolkit):
     """A toolkit for reading, searching, and sending emails via the Gmail API."""
 
     def __init__(self, user_id: str):
-        """
-        Initializes the GoogleEmailTools toolkit.
-        """
         super().__init__(
             name="google_email_tools",
-            tools=[
-                self.read_latest_emails,
-                self.send_email,
-            ],
+            tools=[self.read_latest_emails, self.send_email],
         )
         self.user_id = user_id
-        self._credentials = None
+        self._credentials: Optional[Credentials] = None
         self._gmail_service: Optional[Resource] = None
 
     def _get_credentials(self) -> Optional[Credentials]:
-        """
-        Fetches the user's Google OAuth credentials from the database.
-        Handles token refresh if the access token is expired.
-        """
         if self._credentials and self._credentials.valid:
             return self._credentials
 
@@ -47,7 +36,7 @@ class GoogleEmailTools(Toolkit):
             logger.info(f"Fetching Google credentials for user_id: {self.user_id}")
             response = (
                 supabase_client.from_("user_integrations")
-                .select("access_token, refresh_token")
+                .select("access_token, refresh_token, scopes")
                 .eq("user_id", self.user_id)
                 .eq("service", "google")
                 .single()
@@ -65,18 +54,22 @@ class GoogleEmailTools(Toolkit):
                 token_uri='https://oauth2.googleapis.com/token',
                 client_id=os.getenv("GOOGLE_CLIENT_ID"),
                 client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
-                scopes=['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send']
+                scopes=creds_data.get('scopes')
             )
 
-            if creds.expired and creds.refresh_token:
-                logger.info(f"Google token expired for user {self.user_id}. Refreshing...")
-                creds.refresh(Request())  # This now works because Request is imported
-                
-                # Persist the new credentials
-                supabase_client.from_('user_integrations').update({
-                    'access_token': creds.token
-                }).eq('user_id', self.user_id).eq('service', 'google').execute()
-                logger.info(f"Successfully refreshed and saved new token for user {self.user_id}.")
+            # --- MODIFIED: More robust refresh logic ---
+            if creds.expired:
+                if creds.refresh_token:
+                    logger.info(f"Google token expired for user {self.user_id}. Refreshing...")
+                    creds.refresh(Request())
+                    supabase_client.from_('user_integrations').update({
+                        'access_token': creds.token
+                    }).eq('user_id', self.user_id).eq('service', 'google').execute()
+                    logger.info(f"Successfully refreshed and saved new token for user {self.user_id}.")
+                else:
+                    # If token is expired and there's no way to refresh it, fail early.
+                    logger.error(f"Google token for user {self.user_id} is expired and no refresh token is available.")
+                    return None
 
             self._credentials = creds
             return self._credentials
@@ -86,14 +79,11 @@ class GoogleEmailTools(Toolkit):
             return None
 
     def _get_gmail_service(self) -> Optional[Resource]:
-        """Initializes and returns the Gmail API service resource."""
         if self._gmail_service:
             return self._gmail_service
-
         credentials = self._get_credentials()
         if not credentials:
             return None
-
         try:
             service = build('gmail', 'v1', credentials=credentials)
             self._gmail_service = service
@@ -103,13 +93,10 @@ class GoogleEmailTools(Toolkit):
             return None
 
     def read_latest_emails(self, max_results: int = 5, only_unread: bool = True) -> str:
-        """
-        Reads the most recent emails from the user's inbox.
-        """
         service = self._get_gmail_service()
         if not service:
-            return "Google account not connected or credentials invalid. Please connect your Google account in the settings."
-
+            return "Google account not connected or credentials invalid. Please reconnect your Google account in the settings."
+        # ... (rest of the function is unchanged)
         try:
             query = 'is:unread' if only_unread else ''
             results = service.users().messages().list(userId='me', maxResults=max_results, q=query).execute()
@@ -132,14 +119,12 @@ class GoogleEmailTools(Toolkit):
             logger.error(f"An error occurred reading emails: {error}")
             return f"An error occurred while trying to read your emails: {error}"
 
+
     def send_email(self, to: str, subject: str, body: str) -> str:
-        """
-        Sends an email on the user's behalf.
-        """
         service = self._get_gmail_service()
         if not service:
-            return "Google account not connected or credentials invalid. Please connect your Google account in the settings."
-
+            return "Google account not connected or credentials invalid. Please reconnect your Google account in the settings."
+        # ... (rest of the function is unchanged)
         try:
             message = MIMEText(body)
             message['to'] = to

@@ -1,7 +1,8 @@
-# python-backend/google_email_tools.py
+# python-backend/google_email_tools.py (Corrected and Final Version)
 
 import base64
 import logging
+import os  # --- NEW: Import the 'os' module ---
 from email.mime.text import MIMEText
 from typing import List, Optional, Dict, Any
 
@@ -9,6 +10,7 @@ from agno.tools import Toolkit
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build, Resource
 from googleapiclient.errors import HttpError
+from google.auth.transport.requests import Request  # --- NEW: Import the 'Request' object ---
 
 from supabase_client import supabase_client
 
@@ -21,9 +23,6 @@ class GoogleEmailTools(Toolkit):
     def __init__(self, user_id: str):
         """
         Initializes the GoogleEmailTools toolkit.
-
-        Args:
-            user_id: The UUID of the user to perform actions for.
         """
         super().__init__(
             name="google_email_tools",
@@ -69,10 +68,10 @@ class GoogleEmailTools(Toolkit):
                 scopes=['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send']
             )
 
-            # If the token is expired, refresh it
             if creds.expired and creds.refresh_token:
                 logger.info(f"Google token expired for user {self.user_id}. Refreshing...")
-                creds.refresh(Request()) # The Request object is automatically handled by the library
+                creds.refresh(Request())  # This now works because Request is imported
+                
                 # Persist the new credentials
                 supabase_client.from_('user_integrations').update({
                     'access_token': creds.token
@@ -106,13 +105,6 @@ class GoogleEmailTools(Toolkit):
     def read_latest_emails(self, max_results: int = 5, only_unread: bool = True) -> str:
         """
         Reads the most recent emails from the user's inbox.
-
-        Args:
-            max_results: The maximum number of emails to retrieve. Defaults to 5.
-            only_unread: If True, fetches only unread emails. Defaults to True.
-
-        Returns:
-            A formatted string summarizing the latest emails, or an error message.
         """
         service = self._get_gmail_service()
         if not service:
@@ -143,14 +135,6 @@ class GoogleEmailTools(Toolkit):
     def send_email(self, to: str, subject: str, body: str) -> str:
         """
         Sends an email on the user's behalf.
-
-        Args:
-            to: The recipient's email address.
-            subject: The subject of the email.
-            body: The plain text content of the email.
-
-        Returns:
-            A confirmation message or an error message.
         """
         service = self._get_gmail_service()
         if not service:

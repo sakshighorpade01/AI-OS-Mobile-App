@@ -1,11 +1,13 @@
+// aios.js
+
 class AIOS {
     constructor() {
         this.initialized = false;
         this.currentTab = 'profile';
         this.elements = {};
-        this.userDataPath = null; // Will be set during initialization
-        this.userData = null; // Will be loaded during initialization
-        this.authService = null; // Will be set during initialization
+        this.userDataPath = null; 
+        this.userData = null; 
+        this.authService = null; 
     }
 
     async init() {
@@ -13,9 +15,7 @@ class AIOS {
 
         await this._initializePaths();
         
-        // Initialize auth service
         try {
-            // Use the auth service exposed through preload.js
             this.authService = window.electron.auth;
             await this.authService.init();
         } catch (error) {
@@ -33,17 +33,14 @@ class AIOS {
 
     async _initializePaths() {
         try {
-            // Get the user data path from the main process
             const userDataPath = await window.electron.ipcRenderer.invoke('get-path', 'userData');
             this.userDataPath = window.electron.path.join(userDataPath, 'userData');
             
-            // Create the userData directory if it doesn't exist
             if (!window.electron.fs.existsSync(this.userDataPath)) {
                 window.electron.fs.mkdirSync(this.userDataPath, { recursive: true });
             }
         } catch (error) {
             console.error('Failed to initialize paths:', error);
-            // Fallback to a relative path if the IPC call fails
             this.userDataPath = window.electron.path.join('userData');
             if (!window.electron.fs.existsSync(this.userDataPath)) {
                 window.electron.fs.mkdirSync(this.userDataPath, { recursive: true });
@@ -69,7 +66,6 @@ class AIOS {
             subject: document.getElementById('subject'),
             description: document.getElementById('description'),
             screenshot: document.getElementById('screenshot'),
-            // Auth elements
             accountLoggedOut: document.getElementById('account-logged-out'),
             accountLoggedIn: document.getElementById('account-logged-in'),
             authTabs: document.querySelectorAll('.auth-tab-btn'),
@@ -82,7 +78,9 @@ class AIOS {
             signupPassword: document.getElementById('signupPassword'),
             confirmPassword: document.getElementById('confirmPassword'),
             loginError: document.getElementById('login-error'),
-            signupError: document.getElementById('signup-error')
+            signupError: document.getElementById('signup-error'),
+            // --- NEW: Cache the GitHub connect button ---
+            connectGithubBtn: document.getElementById('connect-github-btn'),
         };
     }
 
@@ -112,7 +110,6 @@ class AIOS {
 
         this.elements.screenshot?.addEventListener('change', (e) => this.handleFileUpload(e));
         
-        // Auth event listeners
         this.elements.authTabs?.forEach(tab => {
             tab.addEventListener('click', () => this.switchAuthTab(tab.dataset.authTab));
         });
@@ -127,27 +124,31 @@ class AIOS {
             this.handleSignup();
         });
         
-        // Listen for auth state changes
+        // --- NEW: Add event listener for the GitHub connect button ---
+        addClickHandler(this.elements.connectGithubBtn, (e) => {
+            const button = e.currentTarget;
+            const action = button.dataset.action;
+            const provider = button.dataset.provider;
+
+            if (action === 'connect') {
+                this.startAuthFlow(provider);
+            } else if (action === 'disconnect') {
+                this.disconnectIntegration(provider);
+            }
+        });
+
         if (this.authService) {
             this.authService.onAuthChange((user) => {
                 console.log('Auth change detected:', user);
                 this.updateAuthUI();
                 if (user) {
-                    // Update email display
                     if (this.elements.userEmail) {
                         this.elements.userEmail.textContent = user.email;
                     }
-                    
-                    // Update name display if available
                     if (this.elements.userName) {
-                        // Check for name in user_metadata, then from user object directly
                         const name = user.user_metadata?.name || user.name || 'User';
-                        console.log('Setting user name from metadata:', name);
-                        console.log('Full user metadata on auth change:', JSON.stringify(user.user_metadata));
                         this.elements.userName.textContent = name;
                     }
-                    
-                    // Update user data
                     this.userData.account.email = user.email;
                     if (user.user_metadata && user.user_metadata.name) {
                         this.userData.account.name = user.user_metadata.name;
@@ -155,6 +156,101 @@ class AIOS {
                     this.saveUserData();
                 }
             });
+        }
+    }
+
+    async startAuthFlow(provider) {
+        if (!this.authService) {
+            this.showNotification('Authentication service not available.', 'error');
+            return;
+        }
+        const session = await this.authService.getSession();
+        if (!session || !session.access_token) {
+            this.showNotification('You must be logged in to connect an integration.', 'error');
+            return;
+        }
+        const backendUrl = 'https://ai-os-yjbb.onrender.com';
+        const authUrl = `${backendUrl}/login/${provider}?token=${session.access_token}`;
+        console.log(`Opening auth URL for ${provider}: ${authUrl}`);
+        window.electron.ipcRenderer.send('open-webview', authUrl);
+    }
+
+    async disconnectIntegration(provider) {
+        if (!confirm(`Are you sure you want to disconnect your ${provider} account?`)) {
+            return;
+        }
+        const session = await this.authService.getSession();
+        if (!session || !session.access_token) {
+            this.showNotification('Authentication error. Please log in again.', 'error');
+            return;
+        }
+        try {
+            const response = await fetch('https://ai-os-yjbb.onrender.com/api/integrations/disconnect', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({ service: provider })
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to disconnect');
+            }
+            this.showNotification(`Successfully disconnected from ${provider}.`, 'success');
+            this.checkIntegrationStatus(); // Refresh the UI
+        } catch (error) {
+            console.error(`Error disconnecting ${provider}:`, error);
+            this.showNotification(error.message, 'error');
+        }
+    }
+
+    // --- NEW: Method to check integration status and update UI ---
+    async checkIntegrationStatus() {
+        const session = await this.authService.getSession();
+        if (!session || !session.access_token) {
+            // Not logged in, so can't have integrations. Ensure default state.
+            this.updateIntegrationButton('github', false);
+            return;
+        }
+        try {
+            const response = await fetch('https://ai-os-yjbb.onrender.com/api/integrations', {
+                headers: { 'Authorization': `Bearer ${session.access_token}` }
+            });
+            if (!response.ok) throw new Error('Failed to fetch integration status');
+            
+            const data = await response.json();
+            const isGithubConnected = data.integrations.includes('github');
+            this.updateIntegrationButton('github', isGithubConnected);
+
+        } catch (error) {
+            console.error('Error checking integration status:', error);
+            // Don't show a notification, just default the UI
+            this.updateIntegrationButton('github', false);
+        }
+    }
+
+    // --- NEW: Helper to update a specific integration button's UI ---
+    updateIntegrationButton(provider, isConnected) {
+        const button = this.elements.connectGithubBtn; // Assuming only github for now
+        if (!button) return;
+
+        const textSpan = button.querySelector('.btn-text');
+        const connectIcon = button.querySelector('.icon-connect');
+        const connectedIcon = button.querySelector('.icon-connected');
+
+        if (isConnected) {
+            button.classList.add('connected');
+            button.dataset.action = 'disconnect';
+            textSpan.textContent = 'Disconnect';
+            connectIcon.style.display = 'none';
+            connectedIcon.style.display = 'inline-block';
+        } else {
+            button.classList.remove('connected');
+            button.dataset.action = 'connect';
+            textSpan.textContent = 'Connect';
+            connectIcon.style.display = 'inline-block';
+            connectedIcon.style.display = 'none';
         }
     }
 
@@ -171,7 +267,7 @@ class AIOS {
                 : defaultData;
         } catch (error) {
             console.error('Error loading user data:', error);
-            return defaultData; // Always return default data on error
+            return defaultData;
         }
     }
 
@@ -198,18 +294,13 @@ class AIOS {
         });
         
         if (this.elements.userEmail) {
-            // If user is authenticated, use that email
             const user = this.authService?.getCurrentUser();
             if (user) {
                 this.elements.userEmail.textContent = user.email;
                 this.userData.account.email = user.email;
                 
-                // Update name if available
                 if (this.elements.userName) {
-                    // First try to get name from user_metadata, then from the user object directly
                     const name = user.user_metadata?.name || user.name || 'User';
-                    console.log('Loading user name from metadata:', name);
-                    console.log('Full user metadata:', user.user_metadata);
                     this.elements.userName.textContent = name;
                     this.userData.account.name = name;
                 }
@@ -290,25 +381,10 @@ class AIOS {
             return;
         }
         
-        // Get values from form elements
         const name = this.elements.signupName ? this.elements.signupName.value : '';
         const email = this.elements.signupEmail.value;
         const password = this.elements.signupPassword.value;
         const confirmPassword = this.elements.confirmPassword.value;
-        
-        console.log('Form elements:', {
-            nameElement: this.elements.signupName,
-            emailElement: this.elements.signupEmail,
-            passwordElement: this.elements.signupPassword,
-            confirmPasswordElement: this.elements.confirmPassword
-        });
-        
-        console.log('Form values:', {
-            name: name,
-            email: email,
-            password: password ? '[REDACTED]' : undefined,
-            confirmPassword: confirmPassword ? '[REDACTED]' : undefined
-        });
         
         if (!name || !email || !password || !confirmPassword) {
             this.elements.signupError.textContent = 'All fields are required';
@@ -321,20 +397,7 @@ class AIOS {
         }
         
         try {
-            // Store name in a local variable to ensure it's not lost
             const userName = name.trim();
-            console.log('Signing up with name:', userName);
-            console.log('Name input element value:', this.elements.signupName.value);
-            console.log('Name input element:', this.elements.signupName);
-            
-            // Log the exact parameters being passed to signUp
-            console.log('Parameters being passed to authService.signUp:', {
-                email: email,
-                password: password ? '[REDACTED]' : undefined,
-                userName: userName
-            });
-            
-            // Pass the name explicitly as a string
             const result = await this.authService.signUp(email, password, userName);
             if (result.success) {
                 this.elements.signupForm.reset();
@@ -382,7 +445,6 @@ class AIOS {
                     }
                 });
                 
-                // Sign out if authenticated
                 if (this.authService && this.authService.isAuthenticated()) {
                     this.authService.signOut();
                 }
@@ -465,12 +527,10 @@ class AIOS {
     }
     
     switchAuthTab(tabName) {
-        // Toggle active class on tab buttons
         this.elements.authTabs.forEach(tab => {
             tab.classList.toggle('active', tab.dataset.authTab === tabName);
         });
         
-        // Toggle active class on forms
         if (tabName === 'login') {
             this.elements.loginForm.classList.add('active');
             this.elements.signupForm.classList.remove('active');
@@ -490,20 +550,14 @@ class AIOS {
         
         if (isAuthenticated) {
             const user = this.authService.getCurrentUser();
-            console.log('Authenticated user:', user);
-            console.log('User metadata:', user.user_metadata);
+            if (this.elements.userEmail) this.elements.userEmail.textContent = user.email;
+            if (this.elements.userName) this.elements.userName.textContent = user.user_metadata?.name || user.name || 'User';
             
-            if (this.elements.userEmail) {
-                this.elements.userEmail.textContent = user.email;
-            }
-            
-            if (this.elements.userName) {
-                // First try to get name from user_metadata, then from the user object directly
-                const name = user.user_metadata?.name || user.name || 'User';
-                console.log('Displaying user name:', name);
-                console.log('Full user metadata object:', JSON.stringify(user.user_metadata));
-                this.elements.userName.textContent = name;
-            }
+            // --- NEW: Check integration status when user is logged in ---
+            this.checkIntegrationStatus();
+        } else {
+            // --- NEW: Ensure button is in default state when logged out ---
+            this.updateIntegrationButton('github', false);
         }
     }
 

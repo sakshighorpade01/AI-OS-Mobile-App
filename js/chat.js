@@ -14,13 +14,12 @@ let chatConfig = {
     tasks: false,
     tools: {
         calculator: true,
-        ddg_search: true,
+        internet_search: true,
         python_assistant: true,
         investment_assistant: true,
         shell_tools: true,
         web_crawler: true,
-        computer_use: true,
-        image_analysis: true
+        enable_github: true
     },
     deepsearch: false
 };
@@ -822,13 +821,12 @@ function init() {
             tasks: false, // Reset tasks to false
             tools: {  // Reset tools to their default state
                 calculator: true,
-                ddg_search: true,
+                internet_search: true,
                 python_assistant: true,
                 investment_assistant: true,
                 shell_tools: true,
                 web_crawler: true,
-                computer_use: true,
-                image_analysis: true
+                enable_github: true
             },
             deepsearch: false
         };

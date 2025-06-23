@@ -189,10 +189,8 @@ contextBridge.exposeInMainWorld(
             signOut: async () => await authService.signOut(),
             getCurrentUser: () => authService.getCurrentUser(),
             isAuthenticated: () => authService.isAuthenticated(),
-            // --- ADDED THIS LINE ---
             getSession: async () => await authService.getSession(),
             onAuthChange: (callback) => {
-                // Create a wrapper function that will be called when auth state changes
                 const wrappedCallback = (user) => callback(user);
                 return authService.onAuthChange(wrappedCallback);
             }

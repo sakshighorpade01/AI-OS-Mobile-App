@@ -1,14 +1,14 @@
-# python-backend/github_tools.py
+# python-backend/github_tools.py (Corrected Version)
 
 import logging
 from typing import List, Optional
 
-from agno.tools import Toolkit, tool
+# --- MODIFIED: Removed 'tool' from imports as it's no longer needed here ---
+from agno.tools import Toolkit
 from github import Github, GithubException
 
 from supabase_client import supabase_client
 
-# Set up a logger for this module
 logger = logging.getLogger(__name__)
 
 class GitHubTools(Toolkit):
@@ -17,10 +17,8 @@ class GitHubTools(Toolkit):
     def __init__(self, user_id: str):
         """
         Initializes the GitHubTools toolkit.
-
-        Args:
-            user_id: The UUID of the user to perform actions for.
         """
+        # This super().__init__ call correctly registers the methods below as tools.
         super().__init__(
             name="github_tools",
             tools=[
@@ -31,7 +29,7 @@ class GitHubTools(Toolkit):
         self.user_id = user_id
         self._github_client: Optional[Github] = None
         self._access_token: Optional[str] = None
-        self._token_fetched = False  # Flag to avoid repeated DB queries if token is not found
+        self._token_fetched = False
 
     def _get_access_token(self) -> Optional[str]:
         """
@@ -81,7 +79,7 @@ class GitHubTools(Toolkit):
         
         return None
 
-    @tool
+    # --- MODIFIED: Removed the @tool decorator ---
     def list_repositories(self) -> str:
         """
         Lists all public and private repositories the authenticated user has access to.
@@ -104,7 +102,7 @@ class GitHubTools(Toolkit):
             logger.error(f"GitHub API error while listing repositories for user {self.user_id}: {e}")
             return f"Error accessing GitHub API: {e.data.get('message', 'Invalid credentials or permissions')}. Please try reconnecting your account."
 
-    @tool
+    # --- MODIFIED: Removed the @tool decorator ---
     def create_issue(self, repo_full_name: str, title: str, body: str) -> str:
         """
         Creates a new issue in a specified repository.

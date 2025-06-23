@@ -47,7 +47,6 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 oauth = OAuth(app)
 
-# --- GitHub OAuth Registration (Existing) ---
 oauth.register(
     name='github',
     client_id=os.getenv("GITHUB_CLIENT_ID"),
@@ -60,7 +59,6 @@ oauth.register(
     client_kwargs={'scope': 'repo user:email'},
 )
 
-# --- NEW: Google OAuth Registration ---
 oauth.register(
     name='google',
     client_id=os.getenv("GOOGLE_CLIENT_ID"),
@@ -69,13 +67,12 @@ oauth.register(
     authorize_params=None,
     access_token_url='https://accounts.google.com/o/oauth2/token',
     access_token_params=None,
-    refresh_token_url=None, # Authlib handles this automatically
+    refresh_token_url=None,
     api_base_url='https://www.googleapis.com/oauth2/v1/',
     client_kwargs={
-        'scope': 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
-        # 'access_type': 'offline' is crucial to get a refresh_token
+        # --- MODIFIED: Added the Google Drive readonly scope ---
+        'scope': 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/drive.readonly',
         'access_type': 'offline',
-        # 'prompt': 'consent' ensures the user is prompted for offline access, which is necessary to receive a refresh token on subsequent authorizations.
         'prompt': 'consent'
     }
 )
@@ -190,9 +187,9 @@ class ConnectionManager:
             self.terminate_session(sid)
 
         logger.info(f"Creating new session for user: {user_id}")
-        # --- MODIFIED: Add flags for both integrations ---
         config['enable_github'] = True 
         config['enable_google_email'] = True
+        config['enable_google_drive'] = True # Prepare for next step
 
         if is_deepsearch:
             agent = get_deepsearch(user_id=user_id, **config)
@@ -261,7 +258,6 @@ class ConnectionManager:
 
 connection_manager = ConnectionManager()
 
-# --- Generic Login Route ---
 @app.route('/login/<provider>')
 def login_provider(provider):
     token = request.args.get('token')
@@ -271,13 +267,11 @@ def login_provider(provider):
     
     redirect_uri = url_for('auth_callback', provider=provider, _external=True)
     
-    # Use the correct provider client from authlib
     if provider not in oauth._clients:
         return "Invalid provider specified.", 404
         
     return oauth.create_client(provider).authorize_redirect(redirect_uri)
 
-# --- Generic Callback Route ---
 @app.route('/auth/<provider>/callback')
 def auth_callback(provider):
     try:
@@ -297,16 +291,14 @@ def auth_callback(provider):
         client = oauth.create_client(provider)
         token = client.authorize_access_token()
         
-        # Prepare data, including refresh_token for Google
         integration_data = {
             'user_id': str(user.id),
             'service': provider,
             'access_token': token.get('access_token'),
-            'refresh_token': token.get('refresh_token'), # Will be null for GitHub, populated for Google
-            'scopes': token.get('scope', '').split(' '), # Google uses space-separated scopes
+            'refresh_token': token.get('refresh_token'),
+            'scopes': token.get('scope', '').split(' '),
         }
         
-        # Remove null values before upserting
         integration_data = {k: v for k, v in integration_data.items() if v is not None}
 
         supabase_client.from_('user_integrations').upsert(integration_data).execute()

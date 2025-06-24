@@ -164,7 +164,7 @@ def get_llm_os(
                            " - Comprehensive Explanation: Offer a one-paragraph reasoning summarizing the overall analysis without jumping to conclusions."
                         ],
             description="You can write code to fulfill users' requests",
-            model=Gemini(id="gemini-2.5-pro"),
+            model=Gemini(id="gemini-2.5-flas"),
             debug_mode=debug_mode
         )
         team.append(_coding_assistant)

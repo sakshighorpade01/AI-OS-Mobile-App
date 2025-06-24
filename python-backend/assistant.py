@@ -40,7 +40,7 @@ def get_llm_os(
     web_crawler: bool = False,
     internet_search: bool = False,
     shell_tools: bool = False,
-    python_assistant: bool = False,
+    coding_assistant: bool = False,
     investment_assistant: bool = False,
     use_memory: bool = False, 
     debug_mode: bool = True,
@@ -146,23 +146,35 @@ def get_llm_os(
         )
 
     team: List[Agent] = []
-    if python_assistant:
-        _python_assistant = Agent(
-            name="Python Assistant",
+    if coding_assistant:
+        _coding_assistant = Agent(
+            name="Coding Assistant",
             tools=[PythonTools()],
-            role="Python agent",
-            instructions=["You can write and run python code to fulfill users' requests"],
-            model=Gemini(id="gemini-2.0-flash"),
+            role="Coding agent",
+            instructions=["Please proceed as an expert developer with the following approach:",
+                           " - Deep Analysis:",
+                           " - Step-by-step evaluation: Analyze the code and its functionality thoroughly.",
+                           " - Logical reasoning: Think deeply and logically about every aspect.",
+                           " - Diagnosis:",
+                           " - Issue Identification: Determine what the problem is with full technical details.",
+                           " - Specification Detailing: Provide precise descriptions and specifications of the issue.",
+                           " - Root Cause Analysis: List all underlying factors and causes contributing to the problem.",
+                           " - Solution Strategy:",
+                           " - Propose Solutions: List potential fixes and approaches to resolve the identified issue.",
+                           " - Comprehensive Explanation: Offer a one-paragraph reasoning summarizing the overall analysis without jumping to conclusions."
+                        ],
+            description="You can write code to fulfill users' requests",
+            model=Gemini(id="gemini-2.5-pro"),
             debug_mode=debug_mode
         )
-        team.append(_python_assistant)
-        extra_instructions.append("To write and run python code, delegate the task to the `Python Assistant`.")
+        team.append(_coding_assistant)
+        extra_instructions.append("To write code, delegate the task to the `Coding Assistant`.")
 
     if web_crawler:
         _web_crawler = Agent(
             name="Web Crawler",
             role="Extract information from a given URL",
-            model=Gemini(id="gemini-2.0-flash"),
+            model=Gemini(id="gemini-2.5-flash-lite-preview-06-17"),
             instructions=[
                 "For a given URL, extract relevant information and summarize the content.",
                 "Provide the user with the extracted information in a clear and concise manner.",
@@ -220,7 +232,7 @@ def get_llm_os(
         _investment_assistant = Agent(
             name="Investment Assistant",
             role="Write investment reports on companies",
-            model=Gemini(id="gemini-2.0-flash"),
+            model=Gemini(id="gemini-2.5-flash-lite-preview-06-17"),
             instructions=[
                 "For a given stock symbol, get the stock price, company information, analyst recommendations, and company news",
                 "Carefully read the research and generate a final - Goldman Sachs worthy investment report in the report format provided.",
@@ -246,7 +258,7 @@ def get_llm_os(
     llm_os = AIOS_PatchedAgent(
         user_id=user_id,
         name="AI_OS",
-        model=Gemini(id="gemini-2.0-flash"),
+        model=Gemini(id="gemini-2.5-flash"),
         description=dedent("""\
         You are AI-OS, an advanced AI system designed to be a helpful and efficient assistant. You have access to a suite of 
         tools and a team of specialized AI Assistants. Your primary goal is to understand the user's needs and leverage your 

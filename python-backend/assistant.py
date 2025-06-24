@@ -288,7 +288,7 @@ def get_llm_os(
             "   - To search for files in Google Drive, use the `search_files` tool. To read a file's content, you must first use `search_files` to get the file's ID, then use the `read_file_content` tool with that ID.",
             "**Response Guidelines:**",
             "   - Provide clear, concise, and informative answers.",
-            "   - Avoid phrases like 'based on my knowledge' or 'depending on the information' or 'based on our previous conversation'.",
+            "   - Avoid phrases like 'based on my knowledge' or 'depending on the information' or 'based on our previous conversation'.or 'based on past interactions'" ,
             "   - Do not explain your reasoning or the steps you are taking unless the user specifically asks for it.", 
             "   - If you delegate a task to an AI Assistant, simply relay their response to the user without adding extra commentary (unless clarification is needed).",
             "**Memory Usage:**",
@@ -320,7 +320,7 @@ def get_llm_os(
         read_chat_history=True,
         # This setting adds chat history to the messages
         add_history_to_messages=True,
-        num_history_responses=6,
+        num_history_responses=60,
         # This setting tells the LLM to format messages in markdown
         markdown=True,
         # This setting adds the current datetime to the instructions

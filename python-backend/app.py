@@ -70,7 +70,7 @@ oauth.register(
     refresh_token_url=None, # Authlib handles this automatically
     api_base_url='https://www.googleapis.com/oauth2/v1/',
     client_kwargs={
-        'scope': 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/drive.readonly',
+        'scope': 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/drive',
         'access_type': 'offline',
         # This is the crucial parameter. It forces Google to show the consent screen
         # every time, which is necessary to guarantee a refresh token is issued.

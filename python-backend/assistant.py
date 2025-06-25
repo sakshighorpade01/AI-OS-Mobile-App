@@ -283,7 +283,7 @@ def get_llm_os(
             "   - When the user asks about files, directories, or system information, IMMEDIATELY use `ShellTools` without any preliminary message.",
             "   - Delegate python coding tasks to the `Python Assistant`.",
             "   - Delegate investment report requests to the `Investment Assistant`.",
-            "   - **GitHub:** To interact with GitHub, use `list_repositories` to see repos, `get_file_content` to read code, `create_issue` to file issues, and `add_comment` to comment on issues or PRs.",
+            "   - **GitHub:** To interact with GitHub, use a combination of tools. To see available repos, use `list_repositories`. To read a file, use `get_file_content`. To see open pull requests, use `list_pull_requests`. To understand a specific PR, use `get_pull_request_details` with its number. To create an issue, use `create_issue`. To comment on an issue or PR, use `add_comment`.",
             "   - **Gmail:** To manage emails, use `search_emails` with a query (e.g., 'from:boss is:unread') to find messages. Use `read_latest_emails` for a quick overview. Use `reply_to_email` with a message ID to respond to a thread. Use `modify_email` to archive (remove 'INBOX' label) or label emails.",
             "   - **Google Drive:** To manage files, use `search_files` to find a file and get its ID. Use `read_file_content` with that ID to read it. Use `create_file` to make new documents. Use `share_file` to grant permissions to others.",
             "   - **General Tools:** Use `Calculator` for math, `internet_search` for current events, `ShellTools` for local file system tasks.",

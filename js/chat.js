@@ -15,11 +15,13 @@ let chatConfig = {
     tools: {
         calculator: true,
         internet_search: true,
-        python_assistant: true,
+        coding_assistant: true,
         investment_assistant: true,
         shell_tools: true,
         web_crawler: true,
-        enable_github: true
+        enable_github: true,
+        enable_google_email: true,
+        enable_google_drive: true
     },
     deepsearch: false
 };
@@ -822,11 +824,13 @@ function init() {
             tools: {  // Reset tools to their default state
                 calculator: true,
                 internet_search: true,
-                python_assistant: true,
+                coding_assistant: true,
                 investment_assistant: true,
                 shell_tools: true,
                 web_crawler: true,
-                enable_github: true
+                enable_github: true,
+                enable_google_email: true,
+                enable_google_drive: true
             },
             deepsearch: false
         };

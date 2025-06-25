@@ -270,7 +270,18 @@ def login_provider(provider):
     
     if provider not in oauth._clients:
         return "Invalid provider specified.", 404
+    
+    # --- MODIFIED SECTION ---
+    # For Google, we will explicitly add the parameters to guarantee they are sent.
+    if provider == 'google':
+        return oauth.google.authorize_redirect(
+            redirect_uri,
+            access_type='offline',
+            prompt='consent'
+        )
+    # --- END MODIFIED SECTION ---
         
+    # Fallback for other providers like GitHub
     return oauth.create_client(provider).authorize_redirect(redirect_uri)
 
 @app.route('/auth/<provider>/callback')
@@ -291,6 +302,8 @@ def auth_callback(provider):
         
         client = oauth.create_client(provider)
         token = client.authorize_access_token()
+
+        logger.info(f"Received token data from {provider}: {token}")
         
         integration_data = {
             'user_id': str(user.id),

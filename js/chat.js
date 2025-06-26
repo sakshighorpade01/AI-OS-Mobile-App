@@ -284,28 +284,15 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-/**
- * Handles sending a message to the server. Reads context files if needed.
- */
 async function handleSendMessage() {
     const floatingInput = document.getElementById('floating-input');
     const message = floatingInput.value.trim();
     const sendMessageBtn = document.getElementById('send-message');
 
-    if (!message && fileAttachmentHandler.getAttachedFiles().length === 0) {
-        return; // Don't send empty messages without files
-    }
+    if (!message && fileAttachmentHandler.getAttachedFiles().length === 0) return;
 
     floatingInput.disabled = true;
     sendMessageBtn.disabled = true;
-
-    // --- NEW: Authentication Check ---
-    if (!window.electron || !window.electron.auth) {
-        showNotification('Authentication service not available.', 'error');
-        floatingInput.disabled = false;
-        sendMessageBtn.disabled = false;
-        return;
-    }
 
     const session = await window.electron.auth.getSession();
     if (!session || !session.access_token) {
@@ -314,85 +301,79 @@ async function handleSendMessage() {
         sendMessageBtn.disabled = false;
         return;
     }
-    // --- END: Authentication Check ---
 
     if (!connectionStatus) {
-        showNotification('Not connected to server. Please wait for connection...', 'error');
+        showNotification('Not connected to server. Please wait...', 'error');
         ipcRenderer.send('restart-python-bridge');
         floatingInput.disabled = false;
         sendMessageBtn.disabled = false;
         return;
     }
 
-    // Normal chat processing with Python backend
-    const attachedFiles = fileAttachmentHandler.getAttachedFiles();
-
-    if (message) {
-        addMessage(message, true);
-    }
-
-    // Process files if any
-    if (attachedFiles.length > 0) {
-        // Show indication that files are being sent
-        addMessage(`Sending ${attachedFiles.length} files...`, true);
-    }
+    if (message) addMessage(message, true);
+    if (fileAttachmentHandler.getAttachedFiles().length > 0) addMessage(`Sending ${fileAttachmentHandler.getAttachedFiles().length} files...`, true);
 
     const messageData = {
         message: message,
         id: Date.now().toString(),
-        files: attachedFiles,
+        files: fileAttachmentHandler.getAttachedFiles(),
         is_deepsearch: chatConfig.deepsearch,
-        accessToken: session.access_token // <-- SECURE TOKEN ADDED HERE
+        accessToken: session.access_token
     };
 
+    // 1. Handle initial session configuration (only runs once)
     if (!sessionActive) {
         messageData.config = {
             use_memory: chatConfig.memory,
             ...chatConfig.tools
         };
-
-        let combinedContext = "";
-        const selectedSessions = contextHandler.getSelectedSessions();
-
-        if (selectedSessions && selectedSessions.length > 0) {
-            const contextStr = selectedSessions.map(session => {
-                if (!session.interactions || !session.interactions.length) return '';
-                const formattedInteractions = session.interactions.map(interaction => {
-                    return `User: ${interaction.user_input}\nAssistant: ${interaction.llm_output}`;
-                }).join('\n\n');
-                return formattedInteractions;
-            }).filter(Boolean).join('\n---\n');
-
-            if (contextStr) {
-                combinedContext += contextStr + "\n---\n";
-            }
-        }
-
-        if (chatConfig.tasks) {
-            try {
-                const userContextPath = path.join(__dirname, '../user_context.txt');
-                const taskListPath = path.join(__dirname, '../tasklist.txt');
-
-                const userContextContent = await fs.readFile(userContextPath, 'utf8');
-                const taskListContent = await fs.readFile(taskListPath, 'utf8');
-
-                combinedContext += `User Context:\n${userContextContent}\n---\n`;
-                combinedContext += `Task List:\n${taskListContent}\n---\n`;
-            } catch (error) {
-                console.error("Error reading user context or task list:", error);
-                showNotification("Error reading context files. Check console.", "error");
-            }
-        }
-
-        if (combinedContext) {
-            messageData.context = combinedContext;
-        }
         sessionActive = true;
     }
 
+    // 2. Handle context injection (runs every time if context is selected)
+    let combinedContext = "";
+    const selectedSessions = contextHandler.getSelectedSessions();
+
+    if (selectedSessions && selectedSessions.length > 0) {
+        const contextStr = selectedSessions.map(session => {
+            if (!session.interactions || !session.interactions.length) return '';
+            return session.interactions.map(interaction => `User: ${interaction.user_input}\nAssistant: ${interaction.llm_output}`).join('\n\n');
+        }).filter(Boolean).join('\n---\n');
+
+        if (contextStr) combinedContext += contextStr + "\n---\n";
+        
+        // CRITICAL: Clear the context after preparing it for sending.
+        // This makes it a "one-shot" action.
+        contextHandler.clearSelectedContext();
+    }
+
+    // Handle tasks context (if enabled)
+    if (chatConfig.tasks) {
+        try {
+            const userContextPath = path.join(__dirname, '../user_context.txt');
+            const taskListPath = path.join(__dirname, '../tasklist.txt');
+            const userContextContent = await fs.readFile(userContextPath, 'utf8');
+            const taskListContent = await fs.readFile(taskListPath, 'utf8');
+            combinedContext += `User Context:\n${userContextContent}\n---\n`;
+            combinedContext += `Task List:\n${taskListContent}\n---\n`;
+            
+            // Also make tasks a one-shot action
+            chatConfig.tasks = false;
+            document.querySelector('[data-tool="tasks"]').classList.remove('active');
+
+        } catch (error) {
+            console.error("Error reading context/task files:", error);
+            showNotification("Error reading context files.", "error");
+        }
+    }
+
+    // Add the final combined context to the payload if it exists
+    if (combinedContext) {
+        messageData.context = combinedContext;
+    }
+
+    // 3. Send the final message payload
     try {
-        console.log('Sending message with data:', messageData);
-        // Send message to python-bridge via IPC
         ipcRenderer.send('send-message', messageData);
         fileAttachmentHandler.clearAttachedFiles();
     } catch (error) {

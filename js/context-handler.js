@@ -1,4 +1,4 @@
-// context-handler.js (Updated with improved session titles)
+// context-handler.js (Final Version with UI structure update)
 
 class ContextHandler {
     constructor() {
@@ -11,7 +11,6 @@ class ContextHandler {
 
     initializeElements() {
         const contextWindow = document.getElementById('context-window');
-
         this.elements = {
             contextBtn: document.querySelector('[data-tool="context"]'),
             contextWindow: contextWindow,
@@ -21,17 +20,12 @@ class ContextHandler {
             indicator: document.querySelector('.context-active-indicator'),
             contextViewer: document.getElementById('selected-context-viewer')
         };
-
         if (this.elements.indicator) {
-            this.elements.indicator.classList.add('clickable');
             this.elements.indicator.style.cursor = 'pointer';
             this.elements.indicator.addEventListener('click', () => {
-                if (window.unifiedPreviewHandler) {
-                    window.unifiedPreviewHandler.showViewer();
-                }
+                if (window.unifiedPreviewHandler) window.unifiedPreviewHandler.showViewer();
             });
         }
-    
         const closeViewerBtn = document.querySelector('.close-viewer-btn');
         if (closeViewerBtn) {
             closeViewerBtn.addEventListener('click', () => this.hideContextViewer());
@@ -43,53 +37,57 @@ class ContextHandler {
             this.elements.contextWindow?.classList.remove('hidden');
             this.loadSessions();
         });
-
         this.elements.closeContextBtn?.addEventListener('click', () => {
             this.elements.contextWindow?.classList.add('hidden');
         });
-
         this.elements.syncBtn?.addEventListener('click', (e) => {
             e.preventDefault();
             this.loadSessions();
+        });
+
+        // --- MODIFICATION: ADDED EVENT DELEGATION ---
+        // This single listener handles clicks on any checkbox within the container.
+        this.elements.sessionsContainer?.addEventListener('change', (e) => {
+            if (e.target.matches('.session-checkbox')) {
+                const checkbox = e.target;
+                const sessionItem = checkbox.closest('.session-item');
+                if (sessionItem) {
+                    sessionItem.classList.toggle('selected', checkbox.checked);
+                }
+                this.updateSelectionUI();
+            }
         });
     }
 
     async loadSessions() {
         if (!this.elements.sessionsContainer) return;
-        this.elements.sessionsContainer.innerHTML = '<div class="session-item">Loading sessions...</div>';
-        
+        this.elements.sessionsContainer.innerHTML = '<div class="session-item-loading">Loading sessions...</div>';
         const session = await window.electron.auth.getSession();
         if (!session || !session.access_token) {
-            this.elements.sessionsContainer.innerHTML = '<div class="session-item">Please log in to view your chat history.</div>';
+            this.elements.sessionsContainer.innerHTML = '<div class="empty-state">Please log in to view chat history.</div>';
             return;
         }
-
         try {
             const response = await fetch('https://ai-os-yjbb.onrender.com/api/sessions', {
                 headers: { 'Authorization': `Bearer ${session.access_token}` }
             });
-
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
             const sessions = await response.json();
             this.loadedSessions = sessions;
             this.showSessionList(sessions);
-
         } catch (err) {
             console.error('Error loading sessions:', err);
-            this.elements.sessionsContainer.innerHTML = `<div class="session-item">Error loading sessions: ${err.message}</div>`;
+            this.elements.sessionsContainer.innerHTML = `<div class="empty-state">Error loading sessions: ${err.message}</div>`;
         }
     }
 
     showSessionList(sessions) {
         this.elements.sessionsContainer.innerHTML = '';
         this.elements.sessionsContainer.style.display = 'grid';
-
         if (sessions.length === 0) {
-            this.elements.sessionsContainer.innerHTML = '<div class="session-item">No sessions found.</div>';
+            this.elements.sessionsContainer.innerHTML = '<div class="empty-state">No sessions found.</div>';
             return;
         }
-
         this.addSelectionHeader();
         this.renderSessionItems(sessions);
         this.initializeSelectionControls();
@@ -103,15 +101,13 @@ class ContextHandler {
                 <span class="selected-count">0 selected</span>
                 <button class="use-selected-btn">Use Selected</button>
                 <button class="clear-selection-btn">Clear</button>
-            </div>
-        `;
+            </div>`;
         this.elements.sessionsContainer.appendChild(selectionHeader);
     }
 
     renderSessionItems(sessions) {
         sessions.forEach(sessionData => {
-            const sessionItem = this.createSessionItem(sessionData);
-            this.elements.sessionsContainer.appendChild(sessionItem);
+            this.elements.sessionsContainer.appendChild(this.createSessionItem(sessionData));
         });
     }
 
@@ -120,47 +116,44 @@ class ContextHandler {
         sessionItem.className = 'session-item';
         sessionItem.dataset.sessionId = session.session_id;
         
-        // --- MODIFICATION FOR BETTER UX ---
-        // Generate a title from the first user message, with a fallback.
-        let sessionName = `Session ${session.session_id.substring(0, 8)}...`; // Fallback title
+        let sessionName = `Session ${session.session_id.substring(0, 8)}...`;
         if (session.memory?.runs?.length > 0) {
             const firstUserRun = session.memory.runs.find(run => run.role === 'user' && run.content.trim() !== '');
             if (firstUserRun) {
-                // Use the first line of the user's message as the title
                 let title = firstUserRun.content.split('\n')[0].trim();
-                // Truncate if it's too long
-                if (title.length > 45) {
-                    title = title.substring(0, 45) + '...';
-                }
+                if (title.length > 45) title = title.substring(0, 45) + '...';
                 sessionName = title;
             }
         }
-        // --- END MODIFICATION ---
         
         const creationDate = new Date(session.created_at * 1000);
         const formattedDate = creationDate.toLocaleDateString() + ' ' + creationDate.toLocaleTimeString();
         const messageCount = session.memory?.runs?.length || 0;
 
-        sessionItem.innerHTML = this.getSessionItemHTML(sessionName, formattedDate, messageCount);
+        sessionItem.innerHTML = this.getSessionItemHTML(session, sessionName, formattedDate, messageCount);
         
-        const checkbox = sessionItem.querySelector('.session-checkbox');
         const contentArea = sessionItem.querySelector('.session-content');
         
-        checkbox.addEventListener('change', (e) => {
-            e.stopPropagation();
-            sessionItem.classList.toggle('selected', checkbox.checked);
-            this.updateSelectionUI();
-        });
-        
-        contentArea.onclick = () => this.showSessionDetails(session.session_id);
+        // --- MODIFICATION: REMOVED THE UNRELIABLE EVENT LISTENER ---
+        // The 'change' event is now handled by the delegated listener in bindEvents().
+
+        contentArea.onclick = (e) => {
+            if (e.target.tagName.toLowerCase() !== 'input' && e.target.tagName.toLowerCase() !== 'label') {
+                this.showSessionDetails(session.session_id);
+            }
+        };
         
         return sessionItem;
     }
 
-    getSessionItemHTML(sessionName, formattedDate, messageCount) {
+    // --- (The rest of the file remains unchanged) ---
+    
+    getSessionItemHTML(session, sessionName, formattedDate, messageCount) {
+        const checkboxId = `session-check-${session.session_id}`;
         return `
             <div class="session-select">
-                <input type="checkbox" class="session-checkbox" />
+                <input type="checkbox" class="session-checkbox" id="${checkboxId}" />
+                <label for="${checkboxId}" class="checkbox-label"><i class="fas fa-check"></i></label>
             </div>
             <div class="session-content">
                 <h3>${sessionName}</h3>
@@ -181,7 +174,6 @@ class ContextHandler {
     initializeSelectionControls() {
         const useSelectedBtn = this.elements.sessionsContainer.querySelector('.use-selected-btn');
         const clearBtn = this.elements.sessionsContainer.querySelector('.clear-selection-btn');
-
         if (useSelectedBtn) {
             useSelectedBtn.addEventListener('click', () => {
                 const selectedData = this.getSelectedSessionsData();
@@ -189,22 +181,17 @@ class ContextHandler {
                     this.selectedContextSessions = selectedData;
                     this.elements.contextWindow.classList.add('hidden');
                     this.updateContextIndicator();
-                    this.showNotification(`${selectedData.length} sessions selected as context`, 'info', 3000);
+                    this.showNotification(`${selectedData.length} sessions selected as context`, 'info');
                 }
             });
         }
-        
-        if (clearBtn) {
-            clearBtn.addEventListener('click', () => this.clearSelectedContext());
-        }
+        if (clearBtn) clearBtn.addEventListener('click', () => this.clearSelectedContext());
     }
 
     updateSelectionUI() {
         const selectionActions = this.elements.sessionsContainer.querySelector('.selection-actions');
         if (!selectionActions) return;
-            
         const selectedCount = this.elements.sessionsContainer.querySelectorAll('.session-checkbox:checked').length;
-        
         selectionActions.classList.toggle('hidden', selectedCount === 0);
         if (selectedCount > 0) {
             selectionActions.querySelector('.selected-count').textContent = `${selectedCount} selected`;
@@ -216,7 +203,6 @@ class ContextHandler {
         this.elements.sessionsContainer.querySelectorAll('.session-checkbox:checked').forEach(checkbox => {
             selectedIds.add(checkbox.closest('.session-item').dataset.sessionId);
         });
-
         return this.loadedSessions
             .filter(session => selectedIds.has(session.session_id))
             .map(session => ({
@@ -233,24 +219,16 @@ class ContextHandler {
             this.showNotification('Could not find session details.', 'error');
             return;
         }
-
         const template = document.getElementById('session-detail-template');
-        if (!template) {
-            console.error("Session detail template not found in chat.html!");
-            return;
-        }
+        if (!template) return console.error("Session detail template not found!");
 
         const view = template.content.cloneNode(true);
-        
-        // --- Use the same title generation logic for consistency ---
         let sessionName = `Session ${session.session_id.substring(0, 8)}...`;
         if (session.memory?.runs?.length > 0) {
             const firstUserRun = session.memory.runs.find(run => run.role === 'user' && run.content.trim() !== '');
             if (firstUserRun) {
                 let title = firstUserRun.content.split('\n')[0].trim();
-                if (title.length > 45) {
-                    title = title.substring(0, 45) + '...';
-                }
+                if (title.length > 45) title = title.substring(0, 45) + '...';
                 sessionName = title;
             }
         }
@@ -263,12 +241,7 @@ class ContextHandler {
             session.memory.runs.forEach(run => {
                 const messageEntry = document.createElement('div');
                 messageEntry.className = `message-entry role-${run.role}`;
-                messageEntry.innerHTML = `
-                    <div class="message-content">
-                        <span class="message-label">${run.role.charAt(0).toUpperCase() + run.role.slice(1)}:</span>
-                        <div class="message-text">${run.content}</div>
-                    </div>
-                `;
+                messageEntry.innerHTML = `<div class="message-content"><span class="message-label">${run.role.charAt(0).toUpperCase() + run.role.slice(1)}:</span><div class="message-text">${run.content}</div></div>`;
                 messagesContainer.appendChild(messageEntry);
             });
         } else {
@@ -278,24 +251,34 @@ class ContextHandler {
         view.querySelector('.back-button').addEventListener('click', () => {
             this.showSessionList(this.loadedSessions);
         });
-
         this.elements.sessionsContainer.innerHTML = '';
         this.elements.sessionsContainer.style.display = 'block';
         this.elements.sessionsContainer.appendChild(view);
     }
 
     clearSelectedContext() {
-        this.elements.sessionsContainer.querySelectorAll('.session-checkbox:checked').forEach(cb => cb.checked = false);
-        this.elements.sessionsContainer.querySelectorAll('.session-item.selected').forEach(item => item.classList.remove('selected'));
+        this.elements.sessionsContainer?.querySelectorAll('.session-checkbox:checked').forEach(cb => cb.checked = false);
+        this.elements.sessionsContainer?.querySelectorAll('.session-item.selected').forEach(item => item.classList.remove('selected'));
         this.selectedContextSessions = [];
         this.updateSelectionUI();
         this.updateContextIndicator();
     }
 
-    updateContextIndicator() {
-        if (window.unifiedPreviewHandler) {
-            window.unifiedPreviewHandler.updateContextIndicator();
+    // --- NEW METHOD ---
+    /**
+     * Removes a single session from the selected context by its index.
+     * @param {number} index - The index of the session to remove.
+     */
+    removeSelectedSession(index) {
+        if (index > -1 && index < this.selectedContextSessions.length) {
+            this.selectedContextSessions.splice(index, 1);
+            // After removing, update the main context indicator badge.
+            this.updateContextIndicator();
         }
+    }
+
+    updateContextIndicator() {
+        if (window.unifiedPreviewHandler) window.unifiedPreviewHandler.updateContextIndicator();
     }
 
     showNotification(message, type = 'info', duration = 3000) {
@@ -316,10 +299,7 @@ class ContextHandler {
     }
     
     hideContextViewer() {
-        if (this.elements.contextViewer) {
-            this.elements.contextViewer.classList.remove('visible');
-        }
+        if (this.elements.contextViewer) this.elements.contextViewer.classList.remove('visible');
     }
 }
-
 export default ContextHandler;

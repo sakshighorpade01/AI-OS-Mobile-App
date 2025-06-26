@@ -198,8 +198,9 @@ function showConnectionError(message = 'Connecting to server...') {
  * @param {boolean} isStreaming - True if the message is part of a stream.
  * @param {string} [messageId] - Unique ID for streamed messages.
  * @param {boolean} [isDone] - True if the stream is complete.
+ * @param {object|null} [turnContextData] - The context data (sessions, files) for this specific turn.
  */
-function addMessage(message, isUser, isStreaming = false, messageId = null, isDone = false) {
+function addMessage(message, isUser, isStreaming = false, messageId = null, isDone = false, turnContextData = null) {
     const chatMessages = document.getElementById('chat-messages');
     const inputElement = document.getElementById('floating-input');
     const sendButton = document.getElementById('send-message');
@@ -207,12 +208,51 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
     inputElement.disabled = false;
     sendButton.disabled = false;
 
-    if (isStreaming && !isUser) {
+    const messageDiv = document.createElement('div');
+
+    if (isUser) {
+        messageDiv.className = 'message message-user';
+
+        // Create a container for the message content and context button
+        const userMessageContainer = document.createElement('div');
+        userMessageContainer.className = 'user-message-container';
+
+        // Add the text part of the message if it exists
+        if (message) {
+            const textDiv = document.createElement('div');
+            textDiv.className = 'user-message-text';
+            textDiv.textContent = message;
+            userMessageContainer.appendChild(textDiv);
+        }
+
+        // Add the context button if there's context data
+        if (turnContextData) {
+            const sessionCount = turnContextData.sessions?.length || 0;
+            const fileCount = turnContextData.files?.length || 0;
+            
+            const parts = [];
+            if (sessionCount > 0) parts.push(`${sessionCount} session${sessionCount > 1 ? 's' : ''}`);
+            if (fileCount > 0) parts.push(`${fileCount} file${fileCount > 1 ? 's' : ''}`);
+            
+            const buttonText = `Context: ${parts.join(' & ')}`;
+            
+            const contextBtn = document.createElement('button');
+            contextBtn.className = 'view-turn-context-btn';
+            contextBtn.innerHTML = `<i class="fas fa-paperclip"></i> ${buttonText}`;
+            
+            // Store the context data on the parent message div
+            messageDiv.dataset.context = JSON.stringify(turnContextData);
+            
+            userMessageContainer.appendChild(contextBtn);
+        }
+        
+        messageDiv.appendChild(userMessageContainer);
+
+    } else if (isStreaming) {
         if (!messageId) return;
 
-        let messageDiv = ongoingStreams[messageId];
-        if (!messageDiv) {
-            messageDiv = document.createElement('div');
+        let existingMessageDiv = ongoingStreams[messageId];
+        if (!existingMessageDiv) {
             messageDiv.className = 'message message-bot';
 
             // Add thinking indicator
@@ -243,10 +283,11 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
                 }
             }, 1000);
             ongoingStreams[messageId].timer = timer;
+            existingMessageDiv = messageDiv;
         }
 
         if (typeof message === 'object' && message.content) {
-            const contentDiv = messageDiv.querySelector('.message-content');
+            const contentDiv = existingMessageDiv.querySelector('.message-content');
             if (contentDiv) {
                 const formattedContent = messageFormatter.formatStreaming(message.content, messageId);
                 contentDiv.innerHTML = formattedContent;
@@ -257,12 +298,8 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
             }
         }
     } else {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${isUser ? 'message-user' : 'message-bot'}`;
-
-        if (isUser) {
-            messageDiv.textContent = message;
-        } else if (typeof message === 'object' && message.content) {
+        messageDiv.className = 'message message-bot';
+        if (typeof message === 'object' && message.content) {
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
             contentDiv.innerHTML = messageFormatter.format(message.content);
@@ -277,19 +314,25 @@ function addMessage(message, isUser, isStreaming = false, messageId = null, isDo
             contentDiv.textContent = message;
             messageDiv.appendChild(contentDiv);
         }
+    }
 
+    // Only append if it's not a streaming update to an existing div
+    if (!isStreaming || !ongoingStreams[messageId]) {
         chatMessages.appendChild(messageDiv);
     }
 
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
+
 async function handleSendMessage() {
     const floatingInput = document.getElementById('floating-input');
     const message = floatingInput.value.trim();
     const sendMessageBtn = document.getElementById('send-message');
+    const attachedFiles = fileAttachmentHandler.getAttachedFiles();
+    const selectedSessions = contextHandler.getSelectedSessions();
 
-    if (!message && fileAttachmentHandler.getAttachedFiles().length === 0) return;
+    if (!message && attachedFiles.length === 0) return;
 
     floatingInput.disabled = true;
     sendMessageBtn.disabled = true;
@@ -309,42 +352,27 @@ async function handleSendMessage() {
         sendMessageBtn.disabled = false;
         return;
     }
-
-    if (message) addMessage(message, true);
-    if (fileAttachmentHandler.getAttachedFiles().length > 0) addMessage(`Sending ${fileAttachmentHandler.getAttachedFiles().length} files...`, true);
-
-    const messageData = {
-        message: message,
-        id: Date.now().toString(),
-        files: fileAttachmentHandler.getAttachedFiles(),
-        is_deepsearch: chatConfig.deepsearch,
-        accessToken: session.access_token
-    };
-
-    // 1. Handle initial session configuration (only runs once)
-    if (!sessionActive) {
-        messageData.config = {
-            use_memory: chatConfig.memory,
-            ...chatConfig.tools
+    
+    // --- NEW: Capture and serialize context for the UI ---
+    let turnContextData = null;
+    if (selectedSessions.length > 0 || attachedFiles.length > 0) {
+        turnContextData = {
+            sessions: selectedSessions,
+            files: attachedFiles,
         };
-        sessionActive = true;
     }
 
-    // 2. Handle context injection (runs every time if context is selected)
-    let combinedContext = "";
-    const selectedSessions = contextHandler.getSelectedSessions();
+    // --- MODIFIED: Add user message to chat UI with context data ---
+    addMessage(message, true, false, null, false, turnContextData);
 
+    // --- MODIFIED: Prepare context for the BACKEND ---
+    let combinedContextForBackend = "";
     if (selectedSessions && selectedSessions.length > 0) {
         const contextStr = selectedSessions.map(session => {
             if (!session.interactions || !session.interactions.length) return '';
             return session.interactions.map(interaction => `User: ${interaction.user_input}\nAssistant: ${interaction.llm_output}`).join('\n\n');
         }).filter(Boolean).join('\n---\n');
-
-        if (contextStr) combinedContext += contextStr + "\n---\n";
-        
-        // CRITICAL: Clear the context after preparing it for sending.
-        // This makes it a "one-shot" action.
-        contextHandler.clearSelectedContext();
+        if (contextStr) combinedContextForBackend += contextStr + "\n---\n";
     }
 
     // Handle tasks context (if enabled)
@@ -354,28 +382,38 @@ async function handleSendMessage() {
             const taskListPath = path.join(__dirname, '../tasklist.txt');
             const userContextContent = await fs.readFile(userContextPath, 'utf8');
             const taskListContent = await fs.readFile(taskListPath, 'utf8');
-            combinedContext += `User Context:\n${userContextContent}\n---\n`;
-            combinedContext += `Task List:\n${taskListContent}\n---\n`;
+            combinedContextForBackend += `User Context:\n${userContextContent}\n---\n`;
+            combinedContextForBackend += `Task List:\n${taskListContent}\n---\n`;
             
-            // Also make tasks a one-shot action
             chatConfig.tasks = false;
             document.querySelector('[data-tool="tasks"]').classList.remove('active');
-
         } catch (error) {
             console.error("Error reading context/task files:", error);
             showNotification("Error reading context files.", "error");
         }
     }
 
-    // Add the final combined context to the payload if it exists
-    if (combinedContext) {
-        messageData.context = combinedContext;
+    // --- MODIFIED: Create the payload for the backend ---
+    const messageData = {
+        message: message,
+        id: Date.now().toString(),
+        files: attachedFiles,
+        is_deepsearch: chatConfig.deepsearch,
+        accessToken: session.access_token,
+        context: combinedContextForBackend || undefined,
+    };
+
+    if (!sessionActive) {
+        messageData.config = {
+            use_memory: chatConfig.memory,
+            ...chatConfig.tools
+        };
+        sessionActive = true;
     }
 
-    // 3. Send the final message payload
+    // --- Send the final message payload ---
     try {
         ipcRenderer.send('send-message', messageData);
-        fileAttachmentHandler.clearAttachedFiles();
     } catch (error) {
         console.error('Error sending message:', error);
         addMessage('Error sending message', false);
@@ -383,9 +421,13 @@ async function handleSendMessage() {
         sendMessageBtn.disabled = false;
     }
 
+    // --- Clear inputs and context AFTER sending ---
     floatingInput.value = '';
     floatingInput.style.height = 'auto';
+    fileAttachmentHandler.clearAttachedFiles();
+    contextHandler.clearSelectedContext();
 }
+
 
 /**
  * Initializes the tools menu and its behavior.
@@ -578,22 +620,46 @@ class UnifiedPreviewHandler {
     }
 
     initializeViewer() {
-        // The HTML structure is already defined in chat.html
-        // We just need to set up event listeners
         this.viewer.querySelector('.close-viewer-btn').addEventListener('click', () => {
             this.hideViewer();
         });
 
-        // Set up tab switching
+        this.viewer.addEventListener('click', (e) => {
+            const previewToggleBtn = e.target.closest('.preview-toggle');
+            if (previewToggleBtn) {
+                const fileItem = previewToggleBtn.closest('.file-preview-item');
+                if (fileItem) {
+                    const contentItem = fileItem.querySelector('.file-preview-content-item');
+                    if (contentItem) {
+                        contentItem.classList.toggle('visible');
+                    }
+                }
+                return;
+            }
+
+            const removeSessionBtn = e.target.closest('.remove-session-btn');
+            if (removeSessionBtn) {
+                const sessionIndex = parseInt(removeSessionBtn.dataset.sessionIndex, 10);
+                this.contextHandler.removeSelectedSession(sessionIndex);
+                this.showViewer(); // Re-render the live viewer to reflect the change
+                return;
+            }
+
+            const removeFileBtn = e.target.closest('.remove-file');
+            if (removeFileBtn) {
+                const fileItem = removeFileBtn.closest('.file-preview-item');
+                const fileIndex = Array.from(fileItem.parentNode.children).indexOf(fileItem);
+                this.fileAttachmentHandler.removeFile(fileIndex);
+                this.showViewer(); // Re-render the live viewer
+            }
+        });
+
         const tabs = this.viewer.querySelectorAll('.viewer-tab');
         tabs.forEach(tab => {
             tab.addEventListener('click', () => {
-                // Remove active class from all tabs
                 tabs.forEach(t => t.classList.remove('active'));
-                // Add active class to clicked tab
                 tab.classList.add('active');
 
-                // Show the corresponding tab content
                 const tabId = tab.getAttribute('data-tab');
                 this.viewer.querySelectorAll('.tab-content').forEach(content => {
                     content.classList.remove('active');
@@ -602,12 +668,18 @@ class UnifiedPreviewHandler {
             });
         });
 
-        // Update context indicator when files are attached or sessions are selected
         this.updateContextIndicator();
     }
 
+    showHistoricalContext(contextData) {
+        this.updateContextContent(contextData.sessions);
+        this.updateFilesContent(contextData.files);
+        this.viewer.classList.add('visible');
+    }
+
     showViewer() {
-        this.updateContent();
+        this.updateContextContent(this.contextHandler.getSelectedSessions());
+        this.updateFilesContent(this.fileAttachmentHandler.getAttachedFiles());
         this.viewer.classList.add('visible');
     }
 
@@ -615,16 +687,8 @@ class UnifiedPreviewHandler {
         this.viewer.classList.remove('visible');
     }
 
-    updateContent() {
-        this.updateContextContent();
-        this.updateFilesContent();
-        this.updateContextIndicator();
-    }
-
-    updateContextContent() {
+    updateContextContent(sessions) {
         const contextContent = this.viewer.querySelector('.context-preview-content');
-        const sessions = this.contextHandler.getSelectedSessions();
-
         if (!sessions?.length) {
             contextContent.innerHTML = '<p class="empty-state">No context sessions selected</p>';
             return;
@@ -632,7 +696,12 @@ class UnifiedPreviewHandler {
 
         contextContent.innerHTML = sessions.map((session, index) => `
             <div class="session-block">
-                <h4>Session ${index + 1}</h4>
+                <div class="session-block-header">
+                    <h4>Session ${index + 1}</h4>
+                    <button class="remove-session-btn" data-session-index="${index}" title="Remove Session">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
                 ${session.interactions.map(int => `
                     <div class="interaction">
                         <div class="user-message"><strong>User:</strong> ${int.user_input}</div>
@@ -643,10 +712,8 @@ class UnifiedPreviewHandler {
         `).join('');
     }
 
-    updateFilesContent() {
+    updateFilesContent(files) {
         const filesContent = this.viewer.querySelector('.files-preview-content');
-        const files = this.fileAttachmentHandler.getAttachedFiles();
-
         if (!files?.length) {
             filesContent.innerHTML = '<p class="empty-state">No files attached</p>';
             return;
@@ -671,18 +738,6 @@ class UnifiedPreviewHandler {
                 <div class="file-preview-content-item">${file.isMedia ? this.renderMediaPreview(file) : (file.content || "No preview available")}</div>
             </div>
         `).join('');
-
-        // Add event listeners for file actions
-        filesContent.querySelectorAll('.file-preview-item').forEach((item, index) => {
-            item.querySelector('.preview-toggle').addEventListener('click', () => {
-                item.querySelector('.file-preview-content-item').classList.toggle('visible');
-            });
-
-            item.querySelector('.remove-file').addEventListener('click', () => {
-                this.fileAttachmentHandler.removeFile(index);
-                this.updateContent();
-            });
-        });
     }
 
     renderMediaPreview(file) {
@@ -740,7 +795,6 @@ class UnifiedPreviewHandler {
             badge.classList.remove('visible');
         }
 
-        // Add click handler if not already added
         if (!indicator.hasClickHandler) {
             indicator.addEventListener('click', () => this.showViewer());
             indicator.hasClickHandler = true;
@@ -766,8 +820,8 @@ function init() {
 
     initializeToolsMenu();
     handleMemoryToggle();
-    handleTasksToggle(); // Initialize the Tasks button
-    setupIpcListeners(); // Set up IPC communication
+    handleTasksToggle();
+    setupIpcListeners();
     initializeAutoExpandingTextarea();
     fileAttachmentHandler = new FileAttachmentHandler(null, supportedFileTypes, maxFileSize);
     window.unifiedPreviewHandler = new UnifiedPreviewHandler(contextHandler, fileAttachmentHandler);
@@ -801,8 +855,8 @@ function init() {
 
         chatConfig = {
             memory: false,
-            tasks: false, // Reset tasks to false
-            tools: {  // Reset tools to their default state
+            tasks: false,
+            tools: {
                 calculator: true,
                 internet_search: true,
                 coding_assistant: true,
@@ -815,15 +869,31 @@ function init() {
             },
             deepsearch: false
         };
-        // Reset the AI-OS checkbox
         document.getElementById('ai_os').checked = true;
-        //reset tasks
         document.querySelector('[data-tool="tasks"]').classList.remove('active');
         document.getElementById('deep_search').checked = false;
 
         document.querySelectorAll('.tool-btn').forEach(btn => {
             btn.classList.remove('active');
         });
+    });
+
+    // --- NEW: Event listener for historical context buttons ---
+    elements.messages.addEventListener('click', (e) => {
+        const contextBtn = e.target.closest('.view-turn-context-btn');
+        if (contextBtn) {
+            const messageDiv = contextBtn.closest('.message');
+            const contextDataString = messageDiv.dataset.context;
+            if (contextDataString) {
+                try {
+                    const contextData = JSON.parse(contextDataString);
+                    window.unifiedPreviewHandler.showHistoricalContext(contextData);
+                } catch (err) {
+                    console.error("Failed to parse historical context data:", err);
+                    showNotification("Could not display context for this message.", "error");
+                }
+            }
+        }
     });
 }
 

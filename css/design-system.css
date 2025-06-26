@@ -1,5 +1,3 @@
-/* AIOS Design System - Modern UI */
-
 /* Color System */
 :root {
   /* Primary Palette */
@@ -47,20 +45,20 @@
   --error-700: #b91c1c;
   
   /* Light Theme Variables */
-  --bg-color: var(--neutral-50);
+  --bg-color: #FAF8F0;
   --elevated-bg: white;
   --text-color: var(--neutral-900);
   --text-secondary: var(--neutral-600);
   
   --taskbar-bg: rgba(255, 255, 255, 0.9);
   --window-bg: rgba(255, 255, 255, 0.95);
-  --border-color: var(--neutral-200);
+  --border-color: #EAE0C8;
   --divider-color: var(--neutral-100);
   
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.07); 
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.12), 0 2px 4px -1px rgba(0, 0, 0, 0.08); 
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.07); 
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.12), 0 10px 10px -5px rgba(0, 0, 0, 0.06);
   
   --accent-color: var(--primary-600);
   --accent-hover: var(--primary-700);
@@ -74,23 +72,20 @@
   --input-focus-border: var(--primary-500);
   --input-focus-ring: var(--primary-100);
   
-  /* Component-specific colors */
   --message-user-bg: var(--primary-600);
-  --message-user-text: white;
-  --message-bot-bg: var(--neutral-100);
+  --message-user-text: rgb(0, 0, 0);
+  --message-bot-bg: #F5F3EB;
   --message-bot-text: var(--neutral-900);
   
   --button-primary-bg: var(--primary-600);
   --button-primary-text: white;
-  --button-secondary-bg: var(--neutral-200);
+  --button-secondary-bg: #EFEBE0;
   --button-secondary-text: var(--neutral-800);
   
   --card-bg: white;
-  
-  /* Code & Syntax Highlighting */
-  --code-bg: var(--neutral-100);
+  --code-bg: #F5F3EB; 
   --code-text: var(--neutral-900);
-  --code-border: var(--neutral-200);
+  --code-border: #EAE0C8; 
 }
 
 /* Dark Theme Variables */

@@ -1,5 +1,3 @@
---- START OF FILE chat.css ---
-
 :root {
     --window-bg: #ffffff;
     --taskbar-bg: #f8f9fa;
@@ -84,11 +82,11 @@
 /* Chat Container */
 .chat-container {
     position: fixed;
-    top: 25px;
+    top: 5px;
     left: 50%;
     transform: translateX(-50%);
     width: 45%;
-    height: calc(100% - 120px);
+    height: calc(100% - 100px);
     padding: 10px;
     z-index: 999;
     animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -109,49 +107,11 @@
     background-color: var(--window-bg);
     border-radius: 16px;
     box-shadow: 0 8px 32px var(--shadow-color);
-    border: 1px solid var(--border-color);
     height: 100%;
     display: flex;
     flex-direction: column;
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-}
-
-.chat-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 7px;
-    border-bottom: 1px solid var(--border-color);
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 16px 16px 0 0;
-}
-.chat-title {
-    font-weight: 400;
-    color: var(--text-color);
-    font-size: 1.1rem;
-    padding: 2px;
-    letter-spacing: 0.01em;
-}
-
-.chat-controls {
-    display: flex;
-    gap: 12px;
-}
-
-.minimize-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--text-color);
-    padding: 8px;
-    border-radius: 8px;
-    transition: all 0.2s ease;
-}
-
-.minimize-btn:hover {
-    background-color: var(--shadow-color);
-    transform: translateY(-1px);
 }
 
 /* Messages Area */
@@ -184,15 +144,70 @@
 
 .message-user {
     margin-left: auto;
-    background-color: var(--taskbar-bg);
+    background-color: var(--message-user-bg); 
     color: var(--text-color);
     padding: 12px 16px;
     border-radius: 16px 16px 0 16px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    display: flex;
+    justify-content: flex-end;
 }
 
+/* --- NEW: Container for user message text and context button --- */
+.user-message-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    max-width: 100%;
+}
+
+.user-message-text {
+    text-align: right;
+    word-break: break-word;
+}
+
+.view-turn-context-btn {
+    background-color: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: var(--text-color);
+    padding: 6px 12px;
+    border-radius: 9999px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background-color 0.2s ease;
+}
+
+.view-turn-context-btn:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: scale(1.05); /* Slight pop on hover */
+    color: var(--text-color);
+}
+
+.view-turn-context-btn i {
+    font-size: 0.8rem;
+}
+
+.dark-mode .message-user .view-turn-context-btn {
+    color: var(--text-color);
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.dark-mode .message-user .view-turn-context-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+/* --- END NEW --- */
+
+
 .message-bot {
-    background-color: var(--taskbar-bg);
+    background-color: var(--message-bot-bg); 
     color: var(--text-color);
     padding: 16px;
     border-radius: 16px 16px 16px 0;
@@ -892,23 +907,29 @@
 
 .selected-context-viewer {
     position: fixed;
-    right: 0;
     top: 50%;
-    transform: translate(100%, -50%);
-    width: 500px;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.95);
+    width: 90%;
+    max-width: 700px; 
     height: 85vh;
     background: var(--window-bg);
-    border-radius: 16px 0 0 16px;
+    border-radius: 16px; 
     border: 1px solid var(--border-color);
-    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.1);
-    z-index: 1000;
-    transition: transform 0.3s ease;
+    box-shadow: var(--shadow-xl);
+    transition: transform 0.3s ease, opacity 0.3s ease;
     display: flex;
     flex-direction: column;
+    opacity: 0;
+    visibility: hidden;
+    z-index: 1000;
 }
 
 .selected-context-viewer.visible {
     transform: translate(0, -50%);
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+    visibility: visible;
 }
 
 .context-viewer-header {
@@ -941,11 +962,12 @@
     gap: 8px;
     background: none;
     border: none;
-    border-bottom: 2px solid transparent;
+    border-bottom: 3px solid transparent;
     color: var(--text-secondary);
     cursor: pointer;
     font-weight: var(--font-medium);
     transition: all 0.2s ease;
+    margin-bottom: -1px;
 }
 
 .viewer-tab.active {
@@ -955,13 +977,14 @@
 
 .viewer-tab:hover:not(.active) {
     color: var(--text-color);
-    background-color: rgba(0, 0, 0, 0.03);
+    background-color: var(--hover-bg);
 }
 
 .context-viewer-content {
     flex: 1;
-    overflow: hidden;
+    overflow-y: auto; /* Changed from hidden to auto */
     position: relative;
+    background-color: var(--bg-color); /* Use main bg for contrast */
 }
 
 .tab-content {
@@ -1006,13 +1029,47 @@
     box-shadow: var(--shadow-sm);
 }
 
-.session-block h4 {
-    margin: 0;
+/* --- NEW STYLES --- */
+.session-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     padding: 12px 16px;
-    font-size: var(--text-sm);
-    font-weight: var(--font-semibold);
     background-color: var(--neutral-100);
     border-bottom: 1px solid var(--border-color);
+}
+
+.dark-mode .session-block-header {
+    background-color: var(--neutral-800);
+}
+
+.session-block-header h4 {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: var(--font-semibold);
+}
+
+.remove-session-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.remove-session-btn:hover {
+    background-color: var(--neutral-200);
+    color: var(--error-500);
+}
+
+.dark-mode .remove-session-btn:hover {
+    background-color: var(--neutral-700);
 }
 
 .interaction {
@@ -1056,7 +1113,7 @@
 /* File preview items */
 .file-preview-item {
     background-color: var(--elevated-bg);
-    border-radius: 8px;
+    border-radius: 12px;
     border: 1px solid var(--border-color);
     margin-bottom: 16px;
     overflow: hidden;
@@ -1581,4 +1638,138 @@ a:hover {
 
 .message-entry.role-user .message-label {
     color: var(--accent-color);
+}
+
+/* ================================================================= */
+/* CHAT SESSIONS UI/UX OVERHAUL (Add or replace existing styles)   */
+/* ================================================================= */
+
+.context-window .context-content {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    padding: 16px 24px;
+}
+
+/* Base Card Style for Sessions */
+.session-item {
+    background: var(--elevated-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: var(--shadow-sm);
+    padding: 12px 16px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.session-item:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--accent-muted);
+}
+
+.dark-mode .session-item:hover {
+    border-color: var(--neutral-700);
+    background: var(--neutral-800);
+}
+
+/* Card Content Area */
+.session-content {
+    flex-grow: 1;
+    cursor: pointer; /* Makes the whole card feel clickable */
+}
+
+.session-content h3 {
+    font-weight: 500;
+    color: var(--text-color);
+    font-size: 0.95rem;
+    line-height: 1.4;
+    margin-bottom: 8px;
+    transition: color 0.2s ease;
+}
+
+.session-item:hover .session-content h3 {
+    color: var(--accent-color);
+}
+
+/* Metadata (Date, Message Count) */
+.session-meta {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.session-meta .meta-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.session-meta .meta-item i {
+    width: 12px; /* Ensures alignment */
+    text-align: center;
+    opacity: 0.7;
+}
+
+/* Custom Checkbox Implementation */
+.session-select {
+    padding-top: 2px; /* Fine-tune alignment */
+}
+
+.session-checkbox {
+    /* Hide the ugly default checkbox */
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.checkbox-label {
+    position: relative;
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    background-color: var(--window-bg);
+    border: 2px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.checkbox-label i.fa-check {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    font-size: 12px;
+    color: white;
+    transition: all 0.2s ease;
+}
+
+.session-item:hover .checkbox-label {
+    border-color: var(--accent-color);
+}
+
+/* Checked State for Custom Checkbox */
+.session-checkbox:checked + .checkbox-label {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+}
+
+.session-checkbox:checked + .checkbox-label i.fa-check {
+    transform: translate(-50%, -50%) scale(1);
+}
+
+/* --- Selected Card State --- */
+.session-item.selected {
+    border-color: var(--accent-color);
+    background-color: var(--accent-muted);
+}
+
+.dark-mode .session-item.selected {
+    background-color: rgba(60, 80, 220, 0.15); /* Faint blue glow */
+    border-color: var(--primary-700);
 }

@@ -271,17 +271,13 @@ def login_provider(provider):
     if provider not in oauth._clients:
         return "Invalid provider specified.", 404
     
-    # --- MODIFIED SECTION ---
-    # For Google, we will explicitly add the parameters to guarantee they are sent.
     if provider == 'google':
         return oauth.google.authorize_redirect(
             redirect_uri,
             access_type='offline',
             prompt='consent'
         )
-    # --- END MODIFIED SECTION ---
         
-    # Fallback for other providers like GitHub
     return oauth.create_client(provider).authorize_redirect(redirect_uri)
 
 @app.route('/auth/<provider>/callback')
@@ -375,6 +371,30 @@ def disconnect_integration():
     except Exception as e:
         logger.error(f"Failed to disconnect {service_to_disconnect} for user {user.id}: {e}")
         return jsonify({"error": "Failed to disconnect integration"}), 500
+
+# --- NEW ENDPOINT FOR FETCHING SESSIONS ---
+@app.route('/api/sessions', methods=['GET'])
+def get_user_sessions():
+    user, error = get_user_from_token(request)
+    if error:
+        return jsonify({"error": error[0]}), error[1]
+
+    try:
+        # Query the database for the user's sessions
+        response = supabase_client.from_('ai_os_sessions') \
+            .select('session_id, created_at, memory') \
+            .eq('user_id', str(user.id)) \
+            .order('created_at', desc=True) \
+            .limit(50) \
+            .execute()
+
+        # The response from Supabase is already in a serializable format
+        return jsonify(response.data), 200
+
+    except Exception as e:
+        logger.error(f"Failed to get sessions for user {user.id}: {e}")
+        return jsonify({"error": "Failed to retrieve session history"}), 500
+# --- END NEW ENDPOINT ---
 
 @socketio.on("connect")
 def on_connect():

@@ -1,7 +1,7 @@
 {
-  "name": "ai-os-desktop",
-  "version": "1.0.2",
-  "description": "AI-OS Desktop Assistant: An AI-Powered Desktop Application",
+  "name": "aetheria-ai",
+  "version": "1.0.4",
+  "description": "Aetheria ai Desktop Assistant: An AI-Powered Desktop Application",
   "main": "js/main.js",
   "scripts": {
     "start": "electron .",
@@ -10,8 +10,8 @@
   },
   "build": {
     "appId": "com.mycompany.aiosdesktop",
-    "productName": "AI-OS",
-    "copyright": "Copyright © 2024 aiosdesktop",
+    "productName": "Aetheria ai",
+    "copyright": "Copyright © 2024 Aetheria ai",
     "directories": {
       "output": "dist",
       "buildResources": "assets"

@@ -257,10 +257,10 @@ def get_llm_os(
     # Create the main AI_OS agent
     llm_os = AIOS_PatchedAgent(
         user_id=user_id,
-        name="AI_OS",
+        name="Aetheria ai",
         model=Gemini(id="gemini-2.5-flash"),
         description=dedent("""\
-        You are AI-OS, an advanced AI system designed to be a helpful and efficient assistant. You have access to a suite of 
+        You are Aetheria ai, an advanced AI system designed to be a helpful and efficient assistant. You have access to a suite of 
         tools and a team of specialized AI Assistants. Your primary goal is to understand the user's needs and leverage your 
         resources to fulfill them effectively. You are proactive, resourceful, and prioritize providing accurate and relevant
         information.\
@@ -327,7 +327,7 @@ def get_llm_os(
         # This setting adds the current datetime to the instructions
         add_datetime_to_instructions=True,
         introduction=dedent("""\
-        Hi, I'm your AI-OS.
+        Hi, I'm your Aetheria ai.
         I have access to a set of tools and AI Assistants to assist you.
         Let's solve some problems together!\
         """),

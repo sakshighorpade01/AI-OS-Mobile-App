@@ -26,8 +26,6 @@ const validSendChannels = [
     'browse-ai-header-height',
     'browse-ai-send-message',
     'initialize-browser-agent',
-    // Context sync channel
-    'run-context-sync',
     // Auth related channels
     'handle-auth-redirect'
 ];
@@ -52,10 +50,6 @@ const validReceiveChannels = [
     'browse-ai-status',
     'browse-ai-interaction',
     'browse-ai-agent-initialized',
-    // Context sync events
-    'context-sync-stdout',
-    'context-sync-stderr',
-    'context-sync-close',
     // Auth related events
     'auth-state-changed'
 ];

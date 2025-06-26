@@ -35,7 +35,7 @@ function createWindow() {
             enableRemoteModule: true,
             webSecurity: false
         },
-        frame: false,
+        frame: true,
         transparent: true
     });
 
@@ -297,34 +297,6 @@ ipcMain.handle('get-app-path', () => {
 
 ipcMain.handle('resolve-app-resource', (event, ...segments) => {
     return path.join(app.getAppPath(), ...segments);
-});
-
-// Context handler syncSessions IPC handler - still uses local Python
-ipcMain.on('run-context-sync', (event) => {
-    try {
-        // Note: this still uses the local Python installation as context_manager.py
-        // handles local file operations that need to be done on the client side
-        const pythonProcess = spawn('python', ['python-backend/context_manager.py']);
-        
-        pythonProcess.stdout.on('data', (data) => {
-            console.log(`Sync stdout: ${data}`);
-            event.sender.send('context-sync-stdout', data.toString());
-        });
-        
-        pythonProcess.stderr.on('data', (data) => {
-            console.error(`Sync stderr: ${data}`);
-            event.sender.send('context-sync-stderr', data.toString());
-        });
-        
-        pythonProcess.on('close', (code) => {
-            console.log(`Sync process exited with code ${code}`);
-            event.sender.send('context-sync-close', code);
-        });
-    } catch (error) {
-        console.error('Error executing sync script:', error);
-        event.sender.send('context-sync-stderr', error.toString());
-        event.sender.send('context-sync-close', 1);
-    }
 });
 
 app.whenReady().then(createWindow);

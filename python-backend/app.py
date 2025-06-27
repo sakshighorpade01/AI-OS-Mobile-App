@@ -1,4 +1,4 @@
-# app.py (Corrected, Final, and Definitive Version)
+# app.py (Final, Definitive, and Corrected Version)
 
 import os
 import logging
@@ -372,7 +372,6 @@ def disconnect_integration():
         logger.error(f"Failed to disconnect {service_to_disconnect} for user {user.id}: {e}")
         return jsonify({"error": "Failed to disconnect integration"}), 500
 
-# --- NEW ENDPOINT FOR FETCHING SESSIONS ---
 @app.route('/api/sessions', methods=['GET'])
 def get_user_sessions():
     user, error = get_user_from_token(request)
@@ -391,7 +390,6 @@ def get_user_sessions():
         logger.error(f"Failed to get sessions for user {user.id}: {e}")
         return jsonify({"error": "Failed to retrieve session history"}), 500
 
-# --- NEW ENDPOINT FOR GENERATING PRE-SIGNED UPLOAD URLS ---
 @app.route('/api/generate-upload-url', methods=['POST'])
 def generate_upload_url():
     user, error = get_user_from_token(request)
@@ -407,19 +405,11 @@ def generate_upload_url():
     
     try:
         upload_details = supabase_client.storage.from_('media-uploads').create_signed_upload_url(file_path)
-        
-        # --- FIX ---
-        # The key from the Python library is 'signed_url' (snake_case).
-        # We must access it with that name. We then create a new dictionary
-        # with the key 'signedURL' (camelCase) because that is what the frontend JS expects.
         response_data = {
             "signedURL": upload_details['signed_url'],
             "path": upload_details['path']
         }
-        # --- END FIX ---
-        
         return jsonify(response_data), 200
-        
     except Exception as e:
         logger.error(f"Failed to create signed URL for user {user.id}: {e}\n{traceback.format_exc()}")
         return jsonify({"error": "Could not create signed URL"}), 500
@@ -436,7 +426,7 @@ def on_disconnect():
     logger.info(f"Client disconnected: {sid}")
     connection_manager.remove_session(sid)
 
-# --- MODIFIED FUNCTION TO HANDLE URLS INSTEAD OF FILEPATHS ---
+# --- MODIFIED FUNCTION (FINAL, DEFINITIVE VERSION) ---
 def process_files(files_data):
     images, audio, videos, other_files, text_content = [], [], [], [], []
     logger.info(f"Processing {len(files_data)} files")
@@ -446,21 +436,25 @@ def process_files(files_data):
         file_type = file_data.get('type', '')
         
         # --- NEW LOGIC ---
-        # If the file has a URL, it's a media file uploaded to cloud storage.
-        if 'url' in file_data:
-            file_url = file_data['url']
+        # If the file has a path, it's a media file in our private Supabase bucket.
+        # The backend must now download its content.
+        if 'path' in file_data:
+            file_path_in_bucket = file_data['path']
             try:
+                # Download the file content from the private bucket
+                file_bytes = supabase_client.storage.from_('media-uploads').download(file_path_in_bucket)
+                
+                # Pass the raw binary content to the Agno media object
                 if file_type.startswith('image/'):
-                    images.append(Image(url=file_url))
+                    images.append(Image(content=file_bytes))
                 elif file_type.startswith('audio/'):
-                    audio.append(Audio(url=file_url))
+                    audio.append(Audio(content=file_bytes))
                 elif file_type.startswith('video/'):
-                    videos.append(Video(url=file_url))
+                    videos.append(Video(content=file_bytes))
                 else:
-                    # Handle other file types like PDF, DOCX etc. via URL
-                    other_files.append(File(url=file_url, mime_type=file_type))
+                    other_files.append(File(content=file_bytes, mime_type=file_type))
             except Exception as e:
-                logger.error(f"Error processing file from URL {file_url}: {str(e)}")
+                logger.error(f"Error downloading file from Supabase Storage at path {file_path_in_bucket}: {str(e)}")
             continue
 
         # --- EXISTING LOGIC for text files sent with content ---
@@ -468,7 +462,6 @@ def process_files(files_data):
             text_content.append(f"--- File: {file_name} ---\n{file_data['content']}")
             continue
 
-    # Combine extracted text content from text files
     combined_text = "\n\n".join(text_content) if text_content else None
     
     return combined_text, images, audio, videos, other_files
@@ -518,7 +511,6 @@ def on_send_message(data: str):
             return
         isolated_assistant.message_id = message_id
         
-        # --- MODIFIED: Pass the files data directly to the updated process_files ---
         file_content, images, audio, videos, other_files = process_files(files)
         
         combined_message = f"{message}\n\n{file_content}" if file_content else message
@@ -528,7 +520,7 @@ def on_send_message(data: str):
             images=images or None, 
             audio=audio or None, 
             videos=videos or None,
-            files=other_files or None # Pass other files to the agent
+            files=other_files or None
         )
     except Exception as e:
         logger.error(f"Error in message handler: {e}\n{traceback.format_exc()}")

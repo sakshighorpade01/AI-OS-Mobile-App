@@ -448,7 +448,7 @@ def process_files(files_data):
                 if file_type.startswith('image/'):
                     images.append(Image(content=file_bytes))
                 elif file_type.startswith('audio/'):
-                    audio.append(Audio(content=file_bytes))
+                    audio.append(Audio(content=file_bytes, format=file_type))
                 elif file_type.startswith('video/'):
                     videos.append(Video(content=file_bytes))
                 else:

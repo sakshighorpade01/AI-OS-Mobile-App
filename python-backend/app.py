@@ -403,17 +403,23 @@ def generate_upload_url():
     if not file_name:
         return jsonify({"error": "fileName is required"}), 400
 
-    # Construct the path within the bucket using the user's ID for security
     file_path = f"{user.id}/{file_name}"
     
     try:
+        # This call succeeds and returns an object with the upload details.
+        upload_details = supabase_client.storage.from_('media-uploads').create_signed_upload_url(file_path)
+        
         # --- FIX ---
-        # Use `create_signed_upload_url` for uploads instead of `create_signed_url`.
-        # This is the correct function to generate a URL for uploading a new file.
-        signed_url_response = supabase_client.storage.from_('media-uploads').create_signed_upload_url(file_path)
+        # Manually create a standard Python dictionary from the response object.
+        # This ensures it gets correctly serialized to JSON for the frontend.
+        response_data = {
+            "signedURL": upload_details['signedURL'],
+            "path": upload_details['path'],
+            "token": upload_details['token']
+        }
         # --- END FIX ---
         
-        return jsonify(signed_url_response), 200
+        return jsonify(response_data), 200
         
     except Exception as e:
         logger.error(f"Failed to create signed URL for user {user.id}: {e}\n{traceback.format_exc()}")

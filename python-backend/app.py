@@ -407,10 +407,12 @@ def generate_upload_url():
     file_path = f"{user.id}/{file_name}"
     
     try:
-        # Generate a pre-signed URL that is valid for 60 seconds for uploading
-        signed_url_response = supabase_client.storage.from_('media-uploads').create_signed_url(file_path, 60)
+        # --- FIX ---
+        # Use `create_signed_upload_url` for uploads instead of `create_signed_url`.
+        # This is the correct function to generate a URL for uploading a new file.
+        signed_url_response = supabase_client.storage.from_('media-uploads').create_signed_upload_url(file_path)
+        # --- END FIX ---
         
-        # The response from the Supabase client already contains the signed URL
         return jsonify(signed_url_response), 200
         
     except Exception as e:

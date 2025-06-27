@@ -19,7 +19,7 @@ from deepsearch import get_deepsearch
 from supabase_client import supabase_client
 
 from agno.agent import Agent
-from agno.media import Image, Audio, Video
+from agno.media import Image, Audio, Video, File # Make sure File is imported
 from gotrue.errors import AuthApiError
 
 load_dotenv()
@@ -72,8 +72,6 @@ oauth.register(
     client_kwargs={
         'scope': 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/drive',
         'access_type': 'offline',
-        # This is the crucial parameter. It forces Google to show the consent screen
-        # every time, which is necessary to guarantee a refresh token is issued.
         'prompt': 'consent'
     }
 )
@@ -85,8 +83,8 @@ class IsolatedAssistant:
         self.message_id = None
         self.current_response_content = ""
 
-    def run_safely(self, agent: Agent, message: str, user, context=None, images=None, audio=None, videos=None):
-        def _run_agent(agent, message, user, context, images, audio, videos):
+    def run_safely(self, agent: Agent, message: str, user, context=None, images=None, audio=None, videos=None, files=None):
+        def _run_agent(agent, message, user, context, images, audio, videos, files):
             try:
                 if context:
                     complete_message = f"Previous conversation context:\n{context}\n\nCurrent message: {message}"
@@ -106,6 +104,8 @@ class IsolatedAssistant:
                     supported_params['audio'] = audio
                 if 'videos' in params and videos:
                     supported_params['videos'] = videos
+                if 'files' in params and files:
+                    supported_params['files'] = files
 
                 logger.info(f"Calling agent.run for user {user.id} with params: {list(supported_params.keys())}")
                 
@@ -145,7 +145,7 @@ class IsolatedAssistant:
                 }, room=self.sid)
                 socketio.emit("error", {"message": "Session reset required", "reset": True}, room=self.sid)
 
-        eventlet.spawn(_run_agent, agent, message, user, context, images, audio, videos)
+        eventlet.spawn(_run_agent, agent, message, user, context, images, audio, videos, files)
     
     def _save_conversation_turn(self, user_message):
         try:
@@ -190,7 +190,7 @@ class ConnectionManager:
         logger.info(f"Creating new session for user: {user_id}")
         config['enable_github'] = True 
         config['enable_google_email'] = True
-        config['enable_google_drive'] = True # Prepare for next step
+        config['enable_google_drive'] = True
 
         if is_deepsearch:
             agent = get_deepsearch(user_id=user_id, **config)
@@ -380,21 +380,42 @@ def get_user_sessions():
         return jsonify({"error": error[0]}), error[1]
 
     try:
-        # Query the database for the user's sessions
         response = supabase_client.from_('ai_os_sessions') \
             .select('session_id, created_at, memory') \
             .eq('user_id', str(user.id)) \
             .order('created_at', desc=True) \
             .limit(50) \
             .execute()
-
-        # The response from Supabase is already in a serializable format
         return jsonify(response.data), 200
-
     except Exception as e:
         logger.error(f"Failed to get sessions for user {user.id}: {e}")
         return jsonify({"error": "Failed to retrieve session history"}), 500
-# --- END NEW ENDPOINT ---
+
+# --- NEW ENDPOINT FOR GENERATING PRE-SIGNED UPLOAD URLS ---
+@app.route('/api/generate-upload-url', methods=['POST'])
+def generate_upload_url():
+    user, error = get_user_from_token(request)
+    if error:
+        return jsonify({"error": error[0]}), error[1]
+
+    data = request.get_json()
+    file_name = data.get('fileName')
+    if not file_name:
+        return jsonify({"error": "fileName is required"}), 400
+
+    # Construct the path within the bucket using the user's ID for security
+    file_path = f"{user.id}/{file_name}"
+    
+    try:
+        # Generate a pre-signed URL that is valid for 60 seconds for uploading
+        signed_url_response = supabase_client.storage.from_('media-uploads').create_signed_url(file_path, 60)
+        
+        # The response from the Supabase client already contains the signed URL
+        return jsonify(signed_url_response), 200
+        
+    except Exception as e:
+        logger.error(f"Failed to create signed URL for user {user.id}: {e}\n{traceback.format_exc()}")
+        return jsonify({"error": "Could not create signed URL"}), 500
 
 @socketio.on("connect")
 def on_connect():
@@ -408,33 +429,43 @@ def on_disconnect():
     logger.info(f"Client disconnected: {sid}")
     connection_manager.remove_session(sid)
 
-def process_files(files):
-    images, audio, videos, text_content = [], [], [], []
-    logger.info(f"Processing {len(files)} files")
-    for file_data in files:
-        file_path, file_type, file_name, is_text, file_content = file_data.get('path'), file_data.get('type', ''), file_data.get('name', 'unnamed_file'), file_data.get('isText', False), file_data.get('content')
-        if not file_path and not (is_text and file_content): continue
-        if is_text and file_content:
-            text_content.append(f"--- File: {file_name} ---\n{file_content}")
+# --- MODIFIED FUNCTION TO HANDLE URLS INSTEAD OF FILEPATHS ---
+def process_files(files_data):
+    images, audio, videos, other_files, text_content = [], [], [], [], []
+    logger.info(f"Processing {len(files_data)} files")
+
+    for file_data in files_data:
+        file_name = file_data.get('name', 'unnamed_file')
+        file_type = file_data.get('type', '')
+        
+        # --- NEW LOGIC ---
+        # If the file has a URL, it's a media file uploaded to cloud storage.
+        if 'url' in file_data:
+            file_url = file_data['url']
+            try:
+                if file_type.startswith('image/'):
+                    images.append(Image(url=file_url))
+                elif file_type.startswith('audio/'):
+                    audio.append(Audio(url=file_url))
+                elif file_type.startswith('video/'):
+                    videos.append(Video(url=file_url))
+                else:
+                    # Handle other file types like PDF, DOCX etc. via URL
+                    other_files.append(File(url=file_url, mime_type=file_type))
+            except Exception as e:
+                logger.error(f"Error processing file from URL {file_url}: {str(e)}")
             continue
-        try:
-            path_obj = Path(file_path)
-            file_path = str(path_obj.absolute().resolve())
-            if not path_obj.exists():
-                logger.warning(f"File does not exist at path: {file_path}")
-                continue
-        except Exception as e:
-            logger.error(f"Path normalization error for {file_path}: {str(e)}")
+
+        # --- EXISTING LOGIC for text files sent with content ---
+        if file_data.get('isText') and 'content' in file_data:
+            text_content.append(f"--- File: {file_name} ---\n{file_data['content']}")
             continue
-        try:
-            if file_type.startswith('image/'): images.append(Image(filepath=file_path))
-            elif file_type.startswith('audio/'): audio.append(Audio(filepath=file_path))
-            elif file_type.startswith('video/'): videos.append(Video(filepath=file_path))
-            elif file_type.startswith('text/') or file_type == 'application/json':
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f: text_content.append(f"--- File: {file_name} ---\n{f.read()}")
-            else: text_content.append(f"--- File: {file_name} (attached at path: {file_path}) ---")
-        except Exception as e: logger.error(f"Error processing file {file_path}: {str(e)}")
-    return "\n\n".join(text_content) if text_content else None, images, audio, videos
+
+    # Combine extracted text content from text files
+    combined_text = "\n\n".join(text_content) if text_content else None
+    
+    return combined_text, images, audio, videos, other_files
+
 
 @socketio.on("send_message")
 def on_send_message(data: str):
@@ -479,11 +510,18 @@ def on_send_message(data: str):
             connection_manager.terminate_session(sid)
             return
         isolated_assistant.message_id = message_id
-        file_content, images, audio, videos = process_files(files)
+        
+        # --- MODIFIED: Pass the files data directly to the updated process_files ---
+        file_content, images, audio, videos, other_files = process_files(files)
+        
         combined_message = f"{message}\n\n{file_content}" if file_content else message
+        
         isolated_assistant.run_safely(
             agent, combined_message, user=user, context=context,
-            images=images or None, audio=audio or None, videos=videos or None
+            images=images or None, 
+            audio=audio or None, 
+            videos=videos or None,
+            files=other_files or None # Pass other files to the agent
         )
     except Exception as e:
         logger.error(f"Error in message handler: {e}\n{traceback.format_exc()}")

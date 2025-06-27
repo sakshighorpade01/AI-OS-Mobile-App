@@ -406,16 +406,15 @@ def generate_upload_url():
     file_path = f"{user.id}/{file_name}"
     
     try:
-        # This call succeeds and returns an object with the upload details.
         upload_details = supabase_client.storage.from_('media-uploads').create_signed_upload_url(file_path)
         
         # --- FIX ---
-        # Manually create a standard Python dictionary from the response object.
-        # This ensures it gets correctly serialized to JSON for the frontend.
+        # The key from the Python library is 'signed_url' (snake_case).
+        # We must access it with that name. We then create a new dictionary
+        # with the key 'signedURL' (camelCase) because that is what the frontend JS expects.
         response_data = {
-            "signedURL": upload_details['signedURL'],
-            "path": upload_details['path'],
-            "token": upload_details['token']
+            "signedURL": upload_details['signed_url'],
+            "path": upload_details['path']
         }
         # --- END FIX ---
         

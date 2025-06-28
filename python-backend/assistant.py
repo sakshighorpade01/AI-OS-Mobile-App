@@ -286,6 +286,8 @@ def get_llm_os(
             "**Response Guidelines:**",
             "   - Avoid phrases like 'based on my knowledge' or 'depending on the information' or 'based on our previous conversation'.or 'based on past interactions'" ,
             "   - Do not explain your reasoning or the steps you are taking unless the user specifically asks for it.", 
+            "**Memory Usage:**",
+            "   - The `get_chat_history` tool should be used if the user explicitly asks you to summarize or reference your conversation.",
             "**Important Notes:**",
             "   - You have access to long-term memory. Use the `search_knowledge_base` tool to search your memory for relevant information.",
             "   - Do not explain what you're going to do - just use the appropriate tool or delegate the task right away.",

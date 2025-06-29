@@ -303,6 +303,7 @@ def get_llm_os(
         memory=memory,
         enable_user_memories=use_memory,
         enable_session_summaries=use_memory,
+        stream_intermediate_steps=True,
         # Add selected tools to the LLM OS
         tools=tools,
         # Add selected team members to the LLM OS

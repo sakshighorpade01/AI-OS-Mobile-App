@@ -1,3 +1,4 @@
+
 # app.py (Final, Definitive, and Corrected Version)
 
 import os
@@ -19,9 +20,9 @@ from deepsearch import get_deepsearch
 from supabase_client import supabase_client
 
 from agno.agent import Agent
-from agno.media import Image, Audio, Video, File # Make sure File is imported
-from gotrue.errors import AuthApiError
+from agno.media import Image, Audio, Video, File
 from agno.run.response import RunEvent
+from gotrue.errors import AuthApiError
 
 load_dotenv()
 
@@ -68,7 +69,7 @@ oauth.register(
     authorize_params=None,
     access_token_url='https://accounts.google.com/o/oauth2/token',
     access_token_params=None,
-    refresh_token_url=None, # Authlib handles this automatically
+    refresh_token_url=None,
     api_base_url='https://www.googleapis.com/oauth2/v1/',
     client_kwargs={
         'scope': 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/drive',
@@ -76,7 +77,6 @@ oauth.register(
         'prompt': 'consent'
     }
 )
-
 
 class IsolatedAssistant:
     def __init__(self, sid):
@@ -97,31 +97,51 @@ class IsolatedAssistant:
                 supported_params = {
                     'message': complete_message,
                     'stream': True,
+                    'stream_intermediate_steps': True, # <-- MODIFICATION: Enable intermediate steps
                     'user_id': str(user.id)
                 }
-                if 'images' in params and images:
-                    supported_params['images'] = images
-                if 'audio' in params and audio:
-                    supported_params['audio'] = audio
-                if 'videos' in params and videos:
-                    supported_params['videos'] = videos
-                if 'files' in params and files:
-                    supported_params['files'] = files
+                if 'images' in params and images: supported_params['images'] = images
+                if 'audio' in params and audio: supported_params['audio'] = audio
+                if 'videos' in params and videos: supported_params['videos'] = videos
+                if 'files' in params and files: supported_params['files'] = files
 
                 logger.info(f"Calling agent.run for user {user.id} with params: {list(supported_params.keys())}")
                 
                 self.current_response_content = ""
                 
+                # --- MODIFIED STREAMING LOGIC ---
                 for chunk in agent.run(**supported_params):
-                    if chunk and hasattr(chunk, 'event') and chunk.event == RunEvent.run_response_content.value and chunk.content:
-                        eventlet.sleep(0)
+                    if not chunk or not hasattr(chunk, 'event'):
+                        continue
+
+                    eventlet.sleep(0)
+                    
+                    # Handle final response content
+                    if chunk.event == RunEvent.run_response_content.value and chunk.content:
                         self.current_response_content += chunk.content
                         socketio.emit("response", {
                             "content": chunk.content,
                             "streaming": True,
                             "id": self.message_id,
                         }, room=self.sid)
+                    
+                    # Handle tool call start
+                    elif chunk.event == RunEvent.tool_call_started.value and hasattr(chunk, 'tool'):
+                        socketio.emit("agent_step", {
+                            "type": "tool_start",
+                            "name": chunk.tool.tool_name,
+                            "id": self.message_id
+                        }, room=self.sid)
 
+                    # Handle tool call completion
+                    elif chunk.event == RunEvent.tool_call_completed.value and hasattr(chunk, 'tool'):
+                        socketio.emit("agent_step", {
+                            "type": "tool_end",
+                            "name": chunk.tool.tool_name,
+                            "id": self.message_id
+                        }, room=self.sid)
+
+                # --- END OF MODIFIED LOGIC ---
 
                 socketio.emit("response", {
                     "content": "",
@@ -428,7 +448,6 @@ def on_disconnect():
     logger.info(f"Client disconnected: {sid}")
     connection_manager.remove_session(sid)
 
-# --- MODIFIED FUNCTION (FINAL, DEFINITIVE VERSION) ---
 def process_files(files_data):
     images, audio, videos, other_files, text_content = [], [], [], [], []
     logger.info(f"Processing {len(files_data)} files")
@@ -437,16 +456,11 @@ def process_files(files_data):
         file_name = file_data.get('name', 'unnamed_file')
         file_type = file_data.get('type', '')
         
-        # --- NEW LOGIC ---
-        # If the file has a path, it's a media file in our private Supabase bucket.
-        # The backend must now download its content.
         if 'path' in file_data:
             file_path_in_bucket = file_data['path']
             try:
-                # Download the file content from the private bucket
                 file_bytes = supabase_client.storage.from_('media-uploads').download(file_path_in_bucket)
                 
-                # Pass the raw binary content to the Agno media object
                 if file_type.startswith('image/'):
                     images.append(Image(content=file_bytes))
                 elif file_type.startswith('audio/'):
@@ -459,7 +473,6 @@ def process_files(files_data):
                 logger.error(f"Error downloading file from Supabase Storage at path {file_path_in_bucket}: {str(e)}")
             continue
 
-        # --- EXISTING LOGIC for text files sent with content ---
         if file_data.get('isText') and 'content' in file_data:
             text_content.append(f"--- File: {file_name} ---\n{file_data['content']}")
             continue
@@ -467,7 +480,6 @@ def process_files(files_data):
     combined_text = "\n\n".join(text_content) if text_content else None
     
     return combined_text, images, audio, videos, other_files
-
 
 @socketio.on("send_message")
 def on_send_message(data: str):

@@ -21,6 +21,7 @@ from supabase_client import supabase_client
 from agno.agent import Agent
 from agno.media import Image, Audio, Video, File # Make sure File is imported
 from gotrue.errors import AuthApiError
+from agno.run.response import RunEvent
 
 load_dotenv()
 
@@ -112,7 +113,7 @@ class IsolatedAssistant:
                 self.current_response_content = ""
                 
                 for chunk in agent.run(**supported_params):
-                    if chunk and chunk.event == RunEvent.run_response_content.value and chunk.content:
+                    if chunk and hasattr(chunk, 'event') and chunk.event == RunEvent.run_response_content.value and chunk.content:
                         eventlet.sleep(0)
                         self.current_response_content += chunk.content
                         socketio.emit("response", {

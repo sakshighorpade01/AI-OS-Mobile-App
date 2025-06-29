@@ -1773,3 +1773,107 @@ a:hover {
     background-color: rgba(60, 80, 220, 0.15); /* Faint blue glow */
     border-color: var(--primary-700);
 }
+
+/* ================================================================= */
+/* AGENT THINKING STEPS UI (Add to the end of chat.css)              */
+/* ================================================================= */
+
+/* Main container for the thinking steps, appears above the message content */
+.thinking-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(var(--accent-color-rgb), 0.05);
+    border-radius: 16px 16px 0 0;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* The container that holds the list of individual steps */
+.thinking-steps-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 150px; /* Limit height to prevent excessive growth */
+    transition: max-height 0.4s ease-in-out, opacity 0.3s ease, margin-bottom 0.4s ease;
+    opacity: 1;
+}
+
+/* Individual step item (e.g., "Using google_search...") */
+.thinking-step {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    animation: fadeIn 0.3s ease forwards;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Icon for a step that is in progress */
+.step-icon {
+    font-size: 0.8rem;
+    color: var(--accent-color);
+    animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Icon for a completed step */
+.step-icon-done {
+    font-size: 0.8rem;
+    color: var(--success-500);
+}
+
+/* Text of the step */
+.step-text {
+    font-weight: 500;
+}
+
+/* --- State change when the response is complete --- */
+
+/* Modifier class added to the indicator when the stream is done */
+.thinking-indicator.steps-done .thinking-steps-container {
+    max-height: 0;
+    opacity: 0;
+    margin-bottom: -10px; /* Helps with the collapse animation */
+    pointer-events: none;
+}
+
+/* Add a summary title that appears after steps are done */
+.thinking-indicator.steps-done::after {
+    content: 'Assistant'; /* Default text */
+    position: absolute;
+    top: 10px;
+    left: 16px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    opacity: 0;
+    animation: fadeIn 0.5s ease 0.3s forwards;
+}
+
+/* Adjust the top margin of the main message content based on the indicator */
+.message-bot .thinking-indicator + .message-content {
+    margin-top: 45px; /* Initial space for the indicator */
+    transition: margin-top 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.message-bot .thinking-indicator.steps-done + .message-content {
+    margin-top: 0; /* Collapse the margin when steps are done */
+}
+
+.message-bot .thinking-indicator.steps-done {
+    padding: 0;
+    border-bottom: none;
+}

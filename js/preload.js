@@ -9,11 +9,11 @@ const validSendChannels = [
     'minimize-window',
     'toggle-maximize-window',
     'close-window',
-    'open-webview', 
-    'send-message', 
-    'webview-navigate', 
-    'close-webview', 
-    'resize-webview', 
+    'open-webview',
+    'send-message',
+    'webview-navigate',
+    'close-webview',
+    'resize-webview',
     'drag-webview',
     'check-socket-connection',
     'restart-python-bridge',
@@ -31,14 +31,15 @@ const validSendChannels = [
 ];
 
 const validReceiveChannels = [
-    'chat-response', 
-    'socket-error', 
+    'chat-response',
+    'socket-error',
     'socket-status',
     'socket-connection-status',
-    'webview-created', 
-    'webview-closed', 
-    'webview-navigation-updated', 
-    'webview-page-loaded', 
+    'agent-step', 
+    'webview-created',
+    'webview-closed',
+    'webview-navigation-updated',
+    'webview-page-loaded',
     'webview-content-captured',
     'window-state-changed',
     // Browse AI related channels
@@ -90,7 +91,7 @@ contextBridge.exposeInMainWorld(
                 }
             }
         },
-        
+
         // File system operations
         fs: {
             // Synchronous operations
@@ -109,7 +110,7 @@ contextBridge.exposeInMainWorld(
                     size: stat.size
                 };
             },
-            
+
             // Promise-based operations
             promises: {
                 readFile: async (path, options) => await fs.promises.readFile(path, options),
@@ -128,7 +129,7 @@ contextBridge.exposeInMainWorld(
                 }
             }
         },
-        
+
         // Path operations
         path: {
             join: (...paths) => path.join(...paths),
@@ -138,12 +139,12 @@ contextBridge.exposeInMainWorld(
             resolve: (...paths) => path.resolve(...paths),
             isAbsolute: (path) => path.isAbsolute(path)
         },
-        
+
         // Child process operations
         childProcess: {
             spawn: (command, args, options) => {
                 const childProcess = spawn(command, args, options);
-                
+
                 // Return a simplified API that works across contextBridge
                 return {
                     pid: childProcess.pid,
@@ -174,7 +175,7 @@ contextBridge.exposeInMainWorld(
                 };
             }
         },
-        
+
         // Auth service
         auth: {
             init: async () => await authService.init(),

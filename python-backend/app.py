@@ -517,7 +517,7 @@ def on_send_message(data: str):
             )
         else:
             agent = session["agent"]
-        message_id = str(uuid.uuid4())
+        message_id = data.get("id") or str(uuid.uuid4())
         isolated_assistant = connection_manager.isolated_assistants.get(sid)
         if not isolated_assistant:
             emit("error", {"message": "Session error. Starting new chat...", "reset": True}, room=sid)

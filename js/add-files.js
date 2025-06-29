@@ -120,7 +120,6 @@ class FileAttachmentHandler {
 
             this.attachedFiles.push(placeholderFileObject);
             this.renderFilePreview();
-            this.toggleSidebar(true);
 
             if (isMedia) {
                 try {

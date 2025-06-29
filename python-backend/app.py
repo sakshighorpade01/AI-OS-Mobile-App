@@ -112,7 +112,7 @@ class IsolatedAssistant:
                 self.current_response_content = ""
                 
                 for chunk in agent.run(**supported_params):
-                    if chunk and chunk.content:
+                    if chunk and chunk.event == RunEvent.run_response_content.value and chunk.content:
                         eventlet.sleep(0)
                         self.current_response_content += chunk.content
                         socketio.emit("response", {
@@ -120,6 +120,7 @@ class IsolatedAssistant:
                             "streaming": True,
                             "id": self.message_id,
                         }, room=self.sid)
+
 
                 socketio.emit("response", {
                     "content": "",

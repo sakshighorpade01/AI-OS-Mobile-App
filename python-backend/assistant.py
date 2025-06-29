@@ -32,6 +32,7 @@ from agno.models.google import Gemini
 from typing import List, Optional
 from agno.memory.v2.db.postgres import PostgresMemoryDb
 from agno.storage.postgres import PostgresStorage
+from sandbox_tools import SandboxTools
 
     
 def get_llm_os(
@@ -138,18 +139,11 @@ def get_llm_os(
             "Use the internet search tool to find current information from the internet. Always include sources at the end of your response."
         )
 
-    if shell_tools:
-        shell_tool = ShellTools()
-        tools.append(shell_tool)
-        extra_instructions.append(
-            "Use the shell_tools for system and file operations. Example: run_shell_command(args='ls -la') for directory contents"
-        )
-
     team: List[Agent] = []
     if coding_assistant:
         _coding_assistant = Agent(
             name="Coding Assistant",
-            tools=[PythonTools()],
+            tools=[SandboxTools()],
             role="Coding agent",
             instructions=["Please proceed as an expert developer with the following approach:",
                            " - Deep Analysis:",
@@ -161,9 +155,11 @@ def get_llm_os(
                            " - Root Cause Analysis: List all underlying factors and causes contributing to the problem.",
                            " - Solution Strategy:",
                            " - Propose Solutions: List potential fixes and approaches to resolve the identified issue.",
-                           " - Comprehensive Explanation: Offer a one-paragraph reasoning summarizing the overall analysis without jumping to conclusions."
+                           " - Comprehensive Explanation: Offer a one-paragraph reasoning summarizing the overall analysis without jumping to conclusions.",
+                           "To write and run code, first write the code to a file using",
+                           "then run it with execute_shell_command(command='python3 file.py')"
                         ],
-            description="You can write code to fulfill users' requests",
+            description="You can write and run code to fulfill users' requests",
             model=Gemini(id="gemini-2.5-flash"),
             debug_mode=debug_mode
         )

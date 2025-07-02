@@ -1,0 +1,166 @@
+<div id="chat-container" class="chat-container hidden">
+    <div class="chat-window">
+        <div class="chat-messages" id="chat-messages">
+        </div>
+        <div class="context-active-indicator">
+            <i class="fas fa-layer-group"></i>
+            <span class="context-label">Context</span>
+            <span class="context-badge"></span>
+        </div>
+        <div class="chat-tools">
+            <button class="tool-btn" data-tool="memory">
+                <i class="fa-solid fa-brain"></i>
+            </button>
+            <div class="tool-btn" data-tool="tools">
+                <i class="fas fa-wrench"></i>
+                <div class="tools-menu">
+                    <div class="tool-item">
+                        <input type="checkbox" id="ai_os" />
+                        <label for="ai_os">
+                            <i class="fa-solid fa-atom"></i>
+                            AI-OS
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <button class="tool-btn" data-tool="context">
+                <i class="fa-solid fa-network-wired"></i>
+            </button>
+            <button class="tool-btn" data-tool="tasks">  <!-- Tasks Button -->
+                <i class="fa-solid fa-list-check"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="floating-input-container" class="floating-input-container hidden">
+    <button class="add-btn">
+        <i class="fas fa-plus"></i>
+    </button>
+    <input type="file" id="file-input" style="display: none;" multiple />
+    <button id="attach-file-btn" class="attach-btn">
+        <i class="fas fa-paperclip"></i>
+    </button>
+    <textarea 
+        id="floating-input" 
+        class="floating-input" 
+        placeholder="Type your message..."
+        rows="1"
+    ></textarea>
+    <button id="send-message" class="send-btn">
+        <i class="fas fa-paper-plane"></i>
+    </button>
+</div>
+
+<!-- ... (The rest of your chat.html - context window, templates, etc.) ... -->
+
+<div id="context-window" class="context-window hidden">
+    <div class="context-header">
+        <div class="header-left">
+            <h2>Chat Sessions</h2>
+            <button class="sync-context-btn" title="Refresh Sessions">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+        <div class="header-right">
+            <button class="close-context-btn">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    <div class="context-content">
+    </div>
+</div>
+
+<div id="selected-context-viewer" class="selected-context-viewer">
+    <div class="context-viewer-header">
+        <h3>Selected Context</h3>
+        <button class="close-viewer-btn">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="context-viewer-tabs">
+        <button class="viewer-tab active" data-tab="context">
+            <i class="fas fa-network-wired"></i>
+            <span>Sessions</span>
+        </button>
+        <button class="viewer-tab" data-tab="files">
+            <i class="fas fa-paperclip"></i>
+            <span>Files</span>
+        </button>
+    </div>
+    <div class="context-viewer-content">
+        <div class="tab-content active" id="context-tab">
+            <div class="context-preview-content"></div>
+        </div>
+        <div class="tab-content" id="files-tab">
+            <div class="files-preview-content"></div>
+        </div>
+    </div>
+</div>
+
+<template id="session-detail-template">
+    <div class="session-details-view">
+        <div class="session-header">
+            <button class="back-button">
+                <i class="fas fa-arrow-left"></i>
+                Back
+            </button>
+            <h3></h3>
+        </div>
+        <div class="conversation-history">
+            <div class="conversation-header">
+                <h3>Conversation History</h3>
+            </div>
+            <div class="conversation-messages">
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="session-item-template">
+    <div class="session-item">
+        <div class="session-select">
+            <input type="checkbox" class="session-checkbox" />
+        </div>
+        <div class="session-content">
+            <h3></h3>
+            <div class="session-meta">
+                <div class="meta-item">
+                    <i class="far fa-clock"></i>
+                    <span class="session-date"></span>
+                </div>
+                <div class="meta-item">
+                    <i class="far fa-comments"></i>
+                    <span class="message-count"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="selection-controls-template">
+    <div class="selection-controls">
+        <div class="selection-actions hidden">
+            <span class="selected-count">0 selected</span>
+            <button class="use-selected-btn">Use Selected</button>
+            <button class="clear-selection-btn">Clear</button>
+        </div>
+    </div>
+</template>
+
+<div id="file-preview-sidebar" class="file-preview-sidebar">
+    <div class="file-preview-header">
+        <div class="file-preview-title">
+            Attached Files <span class="file-count">0</span>
+        </div>
+        <button class="close-preview-btn preview-toggle">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="file-preview-content">
+        <!-- File preview items will be dynamically added here -->
+    </div>
+</div>
+
+<div class="notification-container"></div>

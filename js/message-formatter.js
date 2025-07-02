@@ -1,20 +1,22 @@
 import { artifactHandler } from './artifact-handler.js';
+
 class MessageFormatter {
     constructor() {
         this.pendingContent = new Map();
         
-        // Initialize Mermaid with default configuration
-        mermaid.initialize({
-            startOnLoad: true,
-            theme: document.body.classList.contains('dark-mode') ? 'dark' : 'default',
-            securityLevel: 'loose',
-            fontFamily: 'inherit'
-        });
+        // FIX: Access mermaid from the global window object
+        if (window.mermaid) {
+            window.mermaid.initialize({
+                startOnLoad: true,
+                theme: document.body.classList.contains('dark-mode') ? 'dark' : 'default',
+                securityLevel: 'loose',
+                fontFamily: 'inherit'
+            });
+            this.setupMermaidThemeObserver();
+        } else {
+            console.error("Mermaid library not found. Diagrams will not be rendered.");
+        }
 
-        // Set up theme observer for Mermaid
-        this.setupMermaidThemeObserver();
-
-        // Configure marked options
         marked.setOptions({
             breaks: true,
             gfm: true,
@@ -30,10 +32,10 @@ class MessageFormatter {
             }
         });
 
-        // Set up custom renderer
         const renderer = {
             code: (code, language) => {
                 if (language === 'mermaid') {
+                    // No need to check for window.mermaid here, as it's handled in the formatting functions
                     const artifactId = artifactHandler.showArtifact(code, 'mermaid');
                     return `<button class="artifact-reference" data-artifact-id="${artifactId}">
                         <i class="fas fa-diagram-project"></i>
@@ -64,30 +66,23 @@ class MessageFormatter {
     }
 
     setupMermaidThemeObserver() {
-        // Create MutationObserver to handle theme changes
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-                    // Update Mermaid theme based on dark mode
                     const isDarkMode = mutation.target.classList.contains('dark-mode');
-                    mermaid.initialize({ 
-                        theme: isDarkMode ? 'dark' : 'default'
-                    });
-
-                    // Re-render existing Mermaid diagrams
-                    if (mutation.target.querySelectorAll('.mermaid').length > 0) {
-                        mermaid.init(undefined, mutation.target.querySelectorAll('.mermaid'));
+                    // FIX: Access mermaid from the global window object
+                    if (window.mermaid) {
+                        window.mermaid.initialize({ 
+                            theme: isDarkMode ? 'dark' : 'default'
+                        });
+                        if (document.querySelectorAll('.mermaid').length > 0) {
+                            window.mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+                        }
                     }
                 }
             });
         });
-
-        // Start observing the body element for class changes
-        observer.observe(document.body, {
-            attributes: true,
-            attributeFilter: ['class'],
-            subtree: true
-        });
+        observer.observe(document.body, { attributes: true });
     }
 
     formatStreaming(content, messageId) {
@@ -96,14 +91,13 @@ class MessageFormatter {
         }
 
         this.pendingContent.set(messageId, this.pendingContent.get(messageId) + content);
-
         const formattedContent = this.format(this.pendingContent.get(messageId));
 
-        // Initialize any new Mermaid diagrams after formatting
         setTimeout(() => {
             const mermaidDiagrams = document.querySelectorAll('.mermaid:not([data-processed="true"])');
-            if (mermaidDiagrams.length > 0) {
-                mermaid.init(undefined, mermaidDiagrams);
+            // FIX: Access mermaid from the global window object
+            if (window.mermaid && mermaidDiagrams.length > 0) {
+                window.mermaid.init(undefined, mermaidDiagrams);
             }
         }, 0);
 
@@ -112,12 +106,7 @@ class MessageFormatter {
 
     format(content) {
         if (!content) return '';
-
-        const cleanContent = DOMPurify.sanitize(content, {
-            ADD_TAGS: ['div', 'span', 'pre', 'code', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
-            ADD_ATTR: ['class', 'id']
-        });
-
+        const cleanContent = DOMPurify.sanitize(content);
         return marked.parse(cleanContent);
     }
 

@@ -5,6 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI-OS Desktop</title>
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/assets/icon.png" type="image/png">
+    <link rel="apple-touch-icon" href="/assets/icon.png">
+
     <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/chat.css">
@@ -21,12 +26,12 @@
 
 <body class="dark-mode">
     <div class="app-container">
-        <!-- App Components -->
+        <!-- App Components will be loaded here -->
         <div id="aios-container"></div>
         <div id="chat-root"></div>
         <div id="to-do-list-root"></div>
 
-        <!-- Taskbar -->
+        <!-- Desktop Taskbar -->
         <div class="taskbar">
             <div class="taskbar-icons">
                 <button id="app-icon" class="taskbar-icon" aria-label="AIOS Settings" title="AI-OS Settings">
@@ -41,11 +46,12 @@
             </div>
         </div>
 
-        <!-- Window Controls -->
+        <!-- FIX: Restored the Window Controls block -->
         <div class="window-controls">
             <button id="theme-toggle" class="theme-toggle window-control-btn" aria-label="Toggle Theme" title="Toggle Theme">
                 <i class="fas fa-moon"></i>
             </button>
+            <!-- These buttons are for layout purposes in the PWA -->
             <button id="minimize-window" class="window-control-btn" aria-label="Minimize Window" title="Minimize">
                 <i class="fas fa-minus"></i>
             </button>
@@ -62,8 +68,8 @@
     <div class="notification-container"></div>
 
     <!-- Scripts -->
-    <script src="js/renderer.js"></script>
-    <!-- External Libraries -->
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.2.4/mermaid.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
@@ -73,28 +79,65 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/turndown/7.1.2/turndown.min.js"></script>
-    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     
     <!-- Application Scripts -->
     <script type="module" src="js/message-formatter.js"></script>
     <script type="module" src="js/chat.js"></script>
-    <script src="js/aios.js"></script>
-    <script src="js/to-do-list.js"></script>
+    <script type="module" src="js/aios.js"></script>
+    <script type="module" src="js/to-do-list.js"></script>
     
-    <script>
-        // Initialize highlight.js
-        hljs.configure({
-            cssSelector: 'pre code',
-            ignoreUnescapedHTML: true,
-            languages: ['javascript', 'python', 'bash', 'json', 'html', 'css']
-        });
+    <!-- Initialization Script -->
+    <script type="module">
+        import { AIOS } from './js/aios.js';
+        import { chatModule } from './js/chat.js';
+        import { ToDoList } from './js/to-do-list.js';
 
-        // Initialize mermaid
-        mermaid.initialize({
-            startOnLoad: true,
-            theme: document.body.classList.contains('dark-mode') ? 'dark' : 'default'
+        if (window.mermaid) {
+            window.mermaid.initialize({
+                startOnLoad: true,
+                theme: document.body.classList.contains('dark-mode') ? 'dark' : 'default'
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const loadModuleHTML = async (name, containerId) => {
+                try {
+                    const response = await fetch(`${name}.html`);
+                    if (!response.ok) throw new Error(`Failed to load ${name}.html`);
+                    document.getElementById(containerId).innerHTML = await response.text();
+                } catch (error) {
+                    console.error(`Error loading component ${name}:`, error);
+                }
+            };
+
+            await Promise.all([
+                loadModuleHTML('aios', 'aios-container'),
+                loadModuleHTML('chat', 'chat-root'),
+                loadModuleHTML('to-do-list', 'to-do-list-root')
+            ]);
+
+            window.aios = new AIOS();
+            await window.aios.init();
+
+            window.chat = chatModule;
+            window.chat.init();
+
+            window.todo = new ToDoList();
+            await window.todo.init();
+            
+            document.getElementById('app-icon').addEventListener('click', () => window.aios.toggleWindow());
+            document.getElementById('chat-icon').addEventListener('click', () => window.chat.toggleWindow());
+            document.getElementById('to-do-list-icon').addEventListener('click', () => window.todo.toggleWindow());
+
+            // The theme toggle listener is still here and will now work correctly
+            document.getElementById('theme-toggle').addEventListener('click', () => {
+                 document.body.classList.toggle('dark-mode');
+                 const isDarkMode = document.body.classList.contains('dark-mode');
+                 document.querySelector('#theme-toggle i').className = isDarkMode ? 'fas fa-sun' : 'fas fa-moon';
+            });
+            
+            window.chat.toggleWindow();
         });
     </script>
 </body>
-
 </html>

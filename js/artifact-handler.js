@@ -1,4 +1,3 @@
-// artifact-handler.js
 class ArtifactHandler {
     constructor() {
         this.artifacts = new Map();
@@ -10,7 +9,7 @@ class ArtifactHandler {
         const container = document.createElement('div');
         container.id = 'artifact-container';
         container.className = 'artifact-container hidden';
-        
+
         container.innerHTML = `
             <div class="artifact-window">
                 <div class="artifact-header">
@@ -30,23 +29,11 @@ class ArtifactHandler {
                 <div class="artifact-content"></div>
             </div>
         `;
-        
         document.body.appendChild(container);
-        
-        // Close button handler
-        container.querySelector('.close-artifact-btn').addEventListener('click', () => {
-            this.hideArtifact();
-        });
 
-        // Copy button handler
-        container.querySelector('.copy-artifact-btn').addEventListener('click', () => {
-            this.copyArtifactContent();
-        });
-
-        // Download button handler
-        container.querySelector('.download-artifact-btn').addEventListener('click', () => {
-            this.downloadArtifact();
-        });
+        container.querySelector('.close-artifact-btn').addEventListener('click', () => this.hideArtifact());
+        container.querySelector('.copy-artifact-btn').addEventListener('click', () => this.copyArtifactContent());
+        container.querySelector('.download-artifact-btn').addEventListener('click', () => this.downloadArtifact());
     }
 
     createArtifact(content, type) {
@@ -60,11 +47,9 @@ class ArtifactHandler {
         const contentDiv = container.querySelector('.artifact-content');
         const chatContainer = document.querySelector('.chat-container');
         const inputContainer = document.querySelector('.floating-input-container');
-        
-        // Clear previous content
+
         contentDiv.innerHTML = '';
-        
-        // Add new content based on type
+
         if (type === 'mermaid') {
             const mermaidDiv = document.createElement('div');
             mermaidDiv.className = 'mermaid';
@@ -72,7 +57,6 @@ class ArtifactHandler {
             contentDiv.appendChild(mermaidDiv);
             mermaid.init(undefined, [mermaidDiv]);
 
-            // Add zoom controls for Mermaid diagrams
             const zoomControls = document.createElement('div');
             zoomControls.className = 'mermaid-controls';
             zoomControls.innerHTML = `
@@ -82,12 +66,10 @@ class ArtifactHandler {
             `;
             contentDiv.appendChild(zoomControls);
 
-            // Initialize zoom state
+            let currentZoom = 1;
             mermaidDiv.style.transform = 'scale(1)';
             mermaidDiv.style.transformOrigin = 'center center';
 
-            // Add zoom event handlers
-            let currentZoom = 1;
             zoomControls.querySelector('.zoom-in-btn').addEventListener('click', () => {
                 currentZoom = Math.min(currentZoom + 0.1, 2);
                 mermaidDiv.style.transform = `scale(${currentZoom})`;
@@ -101,7 +83,6 @@ class ArtifactHandler {
                 mermaidDiv.style.transform = 'scale(1)';
             });
         } else {
-            // For code blocks
             const pre = document.createElement('pre');
             const code = document.createElement('code');
             code.className = `language-${type}`;
@@ -110,11 +91,10 @@ class ArtifactHandler {
             contentDiv.appendChild(pre);
             hljs.highlightElement(code);
         }
-        
-        // Show artifact and adjust chat position
+
         container.classList.remove('hidden');
-        chatContainer.classList.add('with-artifact');
-        inputContainer.classList.add('with-artifact');
+        chatContainer?.classList.add('with-artifact');
+        inputContainer?.classList.add('with-artifact');
 
         return artifactId || this.createArtifact(content, type);
     }
@@ -123,10 +103,9 @@ class ArtifactHandler {
         const container = document.getElementById('artifact-container');
         const chatContainer = document.querySelector('.chat-container');
         const inputContainer = document.querySelector('.floating-input-container');
-        
         container.classList.add('hidden');
-        chatContainer.classList.remove('with-artifact');
-        inputContainer.classList.remove('with-artifact');
+        chatContainer?.classList.remove('with-artifact');
+        inputContainer?.classList.remove('with-artifact');
     }
 
     reopenArtifact(artifactId) {
@@ -172,82 +151,87 @@ class ArtifactHandler {
             content = code.textContent;
             const language = code.className.replace('language-', '');
             extension = this.getFileExtension(language);
-            suggestedName = `code${extension}`;
-            
-            // Set appropriate MIME type based on extension
-            if (extension === '.js') mimeType = 'application/javascript';
-            else if (extension === '.html') mimeType = 'text/html';
-            else if (extension === '.css') mimeType = 'text/css';
-            else if (extension === '.json') mimeType = 'application/json';
-            else if (extension === '.py') mimeType = 'text/x-python';
+            suggestedName = `code`;
+            mimeType = this.getMimeType(extension);
         }
 
         if (!content) return;
 
-        try {
-            // Use the exposed ipcRenderer from preload.js
-            // Request the main process to show a save dialog
-            const result = await window.electron.ipcRenderer.invoke('show-save-dialog', {
-                title: 'Save File',
-                defaultPath: suggestedName + extension,
-                filters: [{
-                    name: 'All Files',
-                    extensions: [extension.substring(1)] // Remove the dot
-                }]
-            });
-            
-            if (result.canceled || !result.filePath) return;
-            
-            // Save the file using the main process
-            const success = await window.electron.ipcRenderer.invoke('save-file', {
-                filePath: result.filePath,
-                content: content
-            });
-            
-            if (success) {
-                this.showNotification('File saved successfully', 'success');
-            } else {
-                this.showNotification('Failed to save file', 'error');
+        if (window.electron?.ipcRenderer) {
+            // Electron save
+            try {
+                const result = await window.electron.ipcRenderer.invoke('show-save-dialog', {
+                    title: 'Save File',
+                    defaultPath: suggestedName + extension,
+                    filters: [{ name: 'All Files', extensions: [extension.slice(1)] }]
+                });
+
+                if (result.canceled || !result.filePath) return;
+
+                const success = await window.electron.ipcRenderer.invoke('save-file', {
+                    filePath: result.filePath,
+                    content: content
+                });
+
+                this.showNotification(success ? 'File saved successfully' : 'Failed to save file', success ? 'success' : 'error');
+            } catch (error) {
+                console.error('Electron Save Error:', error);
+                this.showNotification('Error: ' + error.message, 'error');
             }
-        } catch (error) {
-            console.error('Error saving file:', error);
-            this.showNotification('Error: ' + error.message, 'error');
+        } else {
+            // Browser-compatible download
+            try {
+                const blob = new Blob([content], { type: mimeType });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = suggestedName + extension;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                this.showNotification('File download started', 'success');
+            } catch (error) {
+                console.error('Browser Save Error:', error);
+                this.showNotification('Error: ' + error.message, 'error');
+            }
         }
     }
 
     getFileExtension(language) {
-        const extensions = {
-            javascript: '.js',
-            python: '.py',
-            html: '.html',
-            css: '.css',
-            json: '.json',
-            typescript: '.ts',
-            java: '.java',
-            cpp: '.cpp',
-            c: '.c',
-            ruby: '.rb',
-            php: '.php',
-            go: '.go',
-            rust: '.rs',
-            swift: '.swift',
-            kotlin: '.kt',
+        const map = {
+            javascript: '.js', python: '.py', html: '.html', css: '.css', json: '.json',
+            typescript: '.ts', java: '.java', cpp: '.cpp', c: '.c', ruby: '.rb',
+            php: '.php', go: '.go', rust: '.rs', swift: '.swift', kotlin: '.kt',
             plaintext: '.txt'
         };
-        return extensions[language] || '.txt';
+        return map[language] || '.txt';
+    }
+
+    getMimeType(extension) {
+        const map = {
+            '.js': 'application/javascript',
+            '.py': 'text/x-python',
+            '.html': 'text/html',
+            '.css': 'text/css',
+            '.json': 'application/json',
+            '.ts': 'application/typescript',
+            '.txt': 'text/plain',
+            '.mmd': 'text/plain',
+            '.cpp': 'text/x-c++src',
+            '.c': 'text/x-c',
+            '.java': 'text/x-java-source'
+        };
+        return map[extension] || 'text/plain';
     }
 
     showNotification(message, type = 'info') {
         const notification = document.createElement('div');
         notification.className = `artifact-notification ${type}`;
         notification.textContent = message;
-        
+
         document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.classList.add('show');
-        }, 100);
-        
+        setTimeout(() => notification.classList.add('show'), 100);
         setTimeout(() => {
             notification.classList.remove('show');
             setTimeout(() => notification.remove(), 300);

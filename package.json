@@ -4,7 +4,7 @@
   "description": "Aetheria ai Desktop Assistant: An AI-Powered Desktop Application",
   "main": "js/main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "http-server . -p 3000 -c-1",
     "pack": "electron-builder --dir",
     "dist": "electron-builder"
   },
@@ -84,6 +84,7 @@
   },
   "devDependencies": {
     "electron": "^29.4.6",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "http-server": "^14.1.1"
   }
 }

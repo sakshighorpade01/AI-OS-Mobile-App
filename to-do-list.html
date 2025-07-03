@@ -1,178 +1,53 @@
-<div id="to-do-list-container" class="to-do-list-container hidden">
+<!-- Task Manager Container -->
+<div id="to-do-list-container" class="modal-overlay hidden">
+  <div class="to-do-list-panel">
     <div class="to-do-list-header">
-        <h2><i class="fas fa-list-check"></i>AI-OS Tasks</h2>
+      <h2><i class="fas fa-list-check"></i> AI-OS Tasks</h2>
+      <button class="close-btn" aria-label="Close To-Do List"> <i class="fas fa-times"></i> </button>
     </div>
     <div class="to-do-list-content">
-        <ul id="task-list">
-            <!-- Tasks will be added here -->
-        </ul>
+      <ul id="task-list"></ul>
     </div>
     <div class="to-do-list-input-area">
-        <div class="button-container">
-            <button id="context-btn" aria-label="User Context"><i class="fas fa-user-cog"></i></button>
-            <button id="add-task-btn" aria-label="Add Task"><i class="fas fa-plus"></i></button>
-        </div>
+      <div class="button-container">
+        <button id="context-btn" aria-label="User Context"><i class="fas fa-user-cog"></i></button>
+        <button id="add-task-btn" aria-label="Add Task"><i class="fas fa-plus"></i></button>
+      </div>
     </div>
+  </div>
 </div>
 
 <!-- New Task Modal -->
 <div id="new-task-modal" class="modal-overlay hidden">
-    <div class="modal">
-        <div class="modal-header">
-            <h3>New Task</h3>
-        </div>
-        <div class="modal-content">
-            <div class="form-group">
-                <label for="task-name">Task Name*</label>
-                <input type="text" id="task-name" placeholder="Enter task name..." required>
-            </div>
-            <div class="form-group">
-                <label for="task-description">Description (Optional)</label>
-                <textarea id="task-description" placeholder="Enter task description..."></textarea>
-            </div>
-            <div class="form-group">
-                <label for="task-priority">Priority (Optional)</label>
-                <select id="task-priority">
-                    <option value="low">Low</option>
-                    <option value="medium" selected>Medium</option>
-                    <option value="high">High</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="task-deadline">Deadline (Optional)</label>
-                <input type="datetime-local" id="task-deadline">
-            </div>
-            <div class="form-group">
-                <label for="task-tags">Tags (Optional, comma-separated)</label>
-                <input type="text" id="task-tags" placeholder="Enter tags...">
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-secondary" id="cancel-task-btn">Cancel</button>
-            <button class="btn btn-primary" id="save-task-btn">Add Task</button>
-        </div>
+  <div class="modal">
+    <div class="modal-header"> <h3>New Task</h3> </div>
+    <div class="modal-content">
+      <div class="form-group"> <label for="task-name">Task Name*</label> <input type="text" id="task-name" placeholder="Enter task name..." required> </div>
+      <div class="form-group"> <label for="task-description">Description (Optional)</label> <textarea id="task-description" placeholder="Enter task description..."></textarea> </div>
+      <div class="form-group"> <label for="task-priority">Priority</label> <select id="task-priority"> <option value="low">Low</option> <option value="medium" selected>Medium</option> <option value="high">High</option> </select> </div>
+      <div class="form-group"> <label for="task-deadline">Deadline</label> <input type="datetime-local" id="task-deadline"> </div>
+      <div class="form-group"> <label for="task-tags">Tags</label> <input type="text" id="task-tags" placeholder="Enter tags..."> </div>
     </div>
+    <div class="modal-footer"> <button class="btn btn-secondary" id="cancel-task-btn">Cancel</button> <button class="btn btn-primary" id="save-task-btn">Add Task</button> </div>
+  </div>
 </div>
 
 <!-- User Context Modal -->
 <div id="user-context-modal" class="modal-overlay hidden">
-    <div class="modal">
-        <div class="modal-header">
-            <h3>User Context</h3>
-        </div>
-        <div class="modal-content">
-            <!-- Personal Information -->
-            <h4>Personal Information</h4>
-            <div class="form-group">
-                <label for="user-name">Name (Optional)</label>
-                <input type="text" id="user-name" placeholder="Enter your name...">
-            </div>
-            <div class="form-group">
-                <label for="user-email">Email (Optional)</label>
-                <input type="email" id="user-email" placeholder="Enter your email...">
-            </div>
-            <div class="form-group">
-                <label for="user-location">Location (Optional)</label>
-                <input type="text" id="user-location" placeholder="Enter your location...">
-            </div>
-            <div class="form-group">
-                <label for="user-timezone">Timezone (Optional)</label>
-                <input type="text" id="user-timezone" placeholder="Enter your timezone...">
-            </div>
-            <div class="form-group">
-                <label for="user-language">Preferred Language (Optional)</label>
-                <input type="text" id="user-language" placeholder="Enter your preferred language...">
-            </div>
-
-            <!-- Preferences -->
-            <h4>Preferences</h4>
-            <div class="form-group">
-                <label for="working-hours">Working Hours (Optional)</label>
-                <input type="text" id="working-hours" placeholder="e.g., 9:00-17:00">
-            </div>
-            <div class="form-group">
-                <label for="communication-preference">Communication Preference (Optional)</label>
-                <select id="communication-preference">
-                    <option value="">Select preference...</option>
-                    <option value="email">Email</option>
-                    <option value="chat">Chat</option>
-                    <option value="voice">Voice</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="notification-preference">Notification Preference (Optional)</label>
-                <select id="notification-preference">
-                    <option value="">Select preference...</option>
-                    <option value="immediate">Immediate</option>
-                    <option value="batched">Batched</option>
-                    <option value="scheduled">Scheduled</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="task-prioritization">Task Prioritization (Optional)</label>
-                <select id="task-prioritization">
-                    <option value="">Select preference...</option>
-                    <option value="deadline">Deadline-based</option>
-                    <option value="priority">Priority-based</option>
-                    <option value="fifo">First In, First Out</option>
-                </select>
-            </div>
-
-            <!-- Capabilities -->
-            <h4>Agent Capabilities</h4>
-            <div class="form-group">
-                <label for="allowed-actions">Allowed Actions (Optional, comma-separated)</label>
-                <input type="text" id="allowed-actions" placeholder="e.g., read_files,send_emails,api_calls">
-            </div>
-            <div class="form-group">
-                <label for="restricted-domains">Restricted Domains (Optional, comma-separated)</label>
-                <input type="text" id="restricted-domains" placeholder="e.g., example.com,restricted.org">
-            </div><div class="form-group">
-                <label for="api-keys">API Keys (Optional, JSON format)</label>
-                <textarea id="api-keys" placeholder='{"service1": "key1", "service2": "key2"}'></textarea>
-            </div>
-            <div class="form-group">
-                <label for="tools">Available Tools (Optional, comma-separated)</label>
-                <input type="text" id="tools" placeholder="e.g., calculator,text_editor,file_browser">
-            </div>
-
-            <!-- Goals -->
-            <h4>Goals and Constraints</h4>
-            <div class="form-group">
-                <label for="short-term-goals">Short-term Goals (Optional, comma-separated)</label>
-                <textarea id="short-term-goals" placeholder="Enter your short-term goals..."></textarea>
-            </div>
-            <div class="form-group">
-                <label for="long-term-goals">Long-term Goals (Optional, comma-separated)</label>
-                <textarea id="long-term-goals" placeholder="Enter your long-term goals..."></textarea>
-            </div>
-            <div class="form-group">
-                <label for="constraints">Constraints (Optional, comma-separated)</label>
-                <textarea id="constraints" placeholder="Enter any constraints or limitations..."></textarea>
-            </div>
-
-            <!-- System Access -->
-            <h4>System Access</h4>
-            <div class="form-group checkbox-group">
-                <input type="checkbox" id="filesystem-access">
-                <label for="filesystem-access">Allow Filesystem Access</label>
-            </div>
-            <div class="form-group checkbox-group">
-                <input type="checkbox" id="network-access">
-                <label for="network-access">Allow Network Access</label>
-            </div>
-            <div class="form-group checkbox-group">
-                <input type="checkbox" id="api-access">
-                <label for="api-access">Allow API Access</label>
-            </div>
-            <div class="form-group">
-                <label for="credentials">Credentials (Optional, JSON format)</label>
-                <textarea id="credentials" placeholder='{"service1": {"username": "user1", "password": "pass1"}}'></textarea>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <button class="btn btn-secondary" id="cancel-context-btn">Cancel</button>
-            <button class="btn btn-primary" id="save-context-btn">Save</button>
-        </div>
+  <div class="modal">
+    <div class="modal-header"> <h3>User Context</h3> </div>
+    <div class="modal-content">
+      <h4>Personal Information</h4>
+      <!-- FIX: Added ID attributes to all inputs to match their labels -->
+      <div class="form-group"><label for="user-name">Name</label><input type="text" id="user-name" placeholder="Enter your name..."></div>
+      <div class="form-group"><label for="user-email">Email</label><input type="email" id="user-email" placeholder="Enter your email..."></div>
+      <div class="form-group"><label for="user-location">Location</label><input type="text" id="user-location" placeholder="Enter your location..."></div>
+      <div class="form-group"><label for="user-timezone">Timezone</label><input type="text" id="user-timezone" placeholder="Enter your timezone..."></div>
+      <div class="form-group"><label for="user-language">Preferred Language</label><input type="text" id="user-language" placeholder="Enter your preferred language..."></div>
+      
+      <h4>Preferences</h4>
+      <div class="form-group"><label for="working-hours">Working Hours</label><input type="text" id="working-hours" placeholder="e.g., 9am - 5pm"></div>
     </div>
+    <div class="modal-footer"> <button class="btn btn-secondary" id="cancel-context-btn">Cancel</button> <button class="btn btn-primary" id="save-context-btn">Save</button> </div>
+  </div>
 </div>

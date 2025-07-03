@@ -1,143 +1,170 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI-OS Desktop</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>AI-OS Mobile</title>
 
-    <link rel="manifest" href="/manifest.json">
-    <link rel="icon" href="/assets/icon.png?v=2" type="image/png">
-    <link rel="apple-touch-icon" href="/assets/icon.png?v=2">
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" href="/assets/icon.png?v=2" type="image/png" />
+  <link rel="apple-touch-icon" href="/assets/icon.png?v=2" />
 
-    <link rel="stylesheet" href="css/design-system.css">
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="css/chat.css">
-    <link rel="stylesheet" href="css/to-do-list.css">
-    <link rel="stylesheet" href="css/artifact-ui.css">
-    <link rel="stylesheet" href="css/aios.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- CSS -->
+  <link rel="stylesheet" href="css/design-system.css" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/chat.css" />
+  <link rel="stylesheet" href="css/to-do-list.css" />
+  <link rel="stylesheet" href="css/artifact-ui.css" />
+  <link rel="stylesheet" href="css/aios.css" />
+  <link rel="stylesheet" href="css/mobile.css" />
+  <link rel="stylesheet" href="css/modals.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" />
+
+  <!-- Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 
 <body class="dark-mode">
-    <div class="app-container">
-        <!-- App Components will be loaded here -->
-        <div id="aios-container"></div>
-        <div id="chat-root"></div>
-        <div id="to-do-list-root"></div>
-
-        <!-- Desktop Taskbar -->
-        <div class="taskbar">
-            <div class="taskbar-icons">
-                <button id="app-icon" class="taskbar-icon" aria-label="AIOS Settings" title="AI-OS Settings">
-                    <i class="fa-solid fa-atom"></i>
-                </button>
-                <button id="chat-icon" class="taskbar-icon" aria-label="Open Chat" title="Chat">
-                    <i class="fa-regular fa-comment-dots"></i>
-                </button>
-                <button id="to-do-list-icon" class="taskbar-icon" aria-label="Open To-Do List" title="Tasks">
-                    <i class="fa-solid fa-list-check"></i>
-                </button>
-            </div>
-        </div>
-
-        <!-- FIX: Restored the Window Controls block -->
-        <div class="window-controls">
-            <button id="theme-toggle" class="theme-toggle window-control-btn" aria-label="Toggle Theme" title="Toggle Theme">
-                <i class="fas fa-moon"></i>
-            </button>
-            <!-- These buttons are for layout purposes in the PWA -->
-            <button id="minimize-window" class="window-control-btn" aria-label="Minimize Window" title="Minimize">
-                <i class="fas fa-minus"></i>
-            </button>
-            <button id="resize-window" class="window-control-btn" aria-label="Resize Window" title="Maximize">
-                <i class="fas fa-expand"></i>
-            </button>
-            <button id="close-window" class="window-control-btn" aria-label="Close Window" title="Close">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <div id="sidebar-overlay"></div>
+    <div id="sidebar-container">
+      <div id="aios-root"></div>
     </div>
 
-    <!-- System Notifications -->
-    <div class="notification-container"></div>
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <button id="new-chat-btn" class="top-bar-btn"><i class="fas fa-plus"></i> New Chat</button>
+      <h1 class="top-bar-title">Chat</h1>
+      <button id="hamburger-btn" class="top-bar-btn"><i class="fas fa-bars"></i></button>
+    </div>
 
-    <!-- Scripts -->
-    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.2.4/mermaid.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/turndown/7.1.2/turndown.min.js"></script>
-    
-    <!-- Application Scripts -->
-    <script type="module" src="js/message-formatter.js"></script>
-    <script type="module" src="js/chat.js"></script>
-    <script type="module" src="js/aios.js"></script>
-    <script type="module" src="js/to-do-list.js"></script>
-    
-    <!-- Initialization Script -->
-    <script type="module">
-        import { AIOS } from './js/aios.js';
-        import { chatModule } from './js/chat.js';
-        import { ToDoList } from './js/to-do-list.js';
+    <!-- Main Content -->
+    <div class="main-content">
+      <div id="chat-root"></div>
+    </div>
 
-        if (window.mermaid) {
-            window.mermaid.initialize({
-                startOnLoad: true,
-                theme: document.body.classList.contains('dark-mode') ? 'dark' : 'default'
-            });
+    <!-- Bottom UI Area -->
+    <div id="bottom-ui-container">
+      <!-- Floating Input Field (on top of nav) -->
+      <div class="floating-input-wrapper">
+        <div class="floating-input-container">
+          <button id="attach-file-btn" class="input-action-btn circular-btn">
+            <i class="fas fa-paperclip"></i>
+          </button>
+          <textarea id="floating-input" class="floating-input" placeholder="Hello" rows="1"></textarea>
+          <button id="send-message" class="input-action-btn circular-btn">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+        <input type="file" id="file-input" style="display: none;" multiple />
+      </div>
+
+      <!-- Bottom Action Bar -->
+      <div class="bottom-nav">
+        <button class="bottom-nav-btn" data-action="memory" title="Memory"><i class="fa-solid fa-brain"></i></button>
+        <button class="bottom-nav-btn" data-action="tools" title="Tools"><i class="fas fa-wrench"></i></button>
+        <button class="bottom-nav-btn" data-action="context" title="Sessions"><i class="fa-solid fa-network-wired"></i></button>
+        <button class="bottom-nav-btn" data-action="tasks" title="Tasks"><i class="fa-solid fa-list-check"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modals / Dynamic Roots -->
+  <div id="to-do-list-root"></div>
+  <div id="context-root"></div>
+  <div class="notification-container"></div>
+
+  <!-- === Main Application Script === -->
+  <script type="module">
+    import { AIOS } from './js/aios.js';
+    import { chatModule } from './js/chat.js';
+    import { ToDoList } from './js/to-do-list.js';
+    import ContextHandler from './js/context-handler.js';
+    import FileAttachmentHandler from './js/add-files.js';
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      console.log("DOM fully loaded. Initializing AI-OS...");
+
+      const loadModuleHTML = async (name, containerId) => {
+        try {
+          const response = await fetch(`${name}.html`);
+          if (!response.ok) throw new Error(`Failed to load ${name}.html: ${response.statusText}`);
+          document.getElementById(containerId).innerHTML = await response.text();
+        } catch (error) {
+          console.error(`Error loading component ${name}:`, error);
         }
+      };
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            const loadModuleHTML = async (name, containerId) => {
-                try {
-                    const response = await fetch(`${name}.html`);
-                    if (!response.ok) throw new Error(`Failed to load ${name}.html`);
-                    document.getElementById(containerId).innerHTML = await response.text();
-                } catch (error) {
-                    console.error(`Error loading component ${name}:`, error);
-                }
-            };
+      await Promise.all([
+        loadModuleHTML('aios', 'aios-root'),
+        loadModuleHTML('chat', 'context-root'),
+        loadModuleHTML('to-do-list', 'to-do-list-root')
+      ]);
 
-            await Promise.all([
-                loadModuleHTML('aios', 'aios-container'),
-                loadModuleHTML('chat', 'chat-root'),
-                loadModuleHTML('to-do-list', 'to-do-list-root')
-            ]);
+      const chatContainer = document.getElementById('chat-container');
+      if (chatContainer) {
+        document.getElementById('chat-root').appendChild(chatContainer);
+      }
 
-            window.aios = new AIOS();
-            await window.aios.init();
+      window.aios = new AIOS();
+      await window.aios.init();
 
-            window.chat = chatModule;
-            window.chat.init();
+      window.contextHandler = new ContextHandler();
+      window.contextHandler.initializeElements();
+      window.contextHandler.bindEvents();
 
-            window.todo = new ToDoList();
-            await window.todo.init();
-            
-            document.getElementById('app-icon').addEventListener('click', () => window.aios.toggleWindow());
-            document.getElementById('chat-icon').addEventListener('click', () => window.chat.toggleWindow());
-            document.getElementById('to-do-list-icon').addEventListener('click', () => window.todo.toggleWindow());
+      window.fileAttachmentHandler = new FileAttachmentHandler();
 
-            // The theme toggle listener is still here and will now work correctly
-            document.getElementById('theme-toggle').addEventListener('click', () => {
-                 document.body.classList.toggle('dark-mode');
-                 const isDarkMode = document.body.classList.contains('dark-mode');
-                 document.querySelector('#theme-toggle i').className = isDarkMode ? 'fas fa-sun' : 'fas fa-moon';
-            });
-            
-            window.chat.toggleWindow();
+      window.chat = chatModule;
+      window.chat.init(window.contextHandler, window.fileAttachmentHandler);
+
+      window.todo = new ToDoList();
+      await window.todo.init();
+
+      bindUIEvents();
+      console.log("AI-OS Initialization Complete.");
+    });
+
+    function bindUIEvents() {
+      const hamburgerBtn = document.getElementById('hamburger-btn');
+      const newChatBtn = document.getElementById('new-chat-btn');
+      const bottomNavBtns = document.querySelectorAll('.bottom-nav-btn');
+      const sendBtn = document.getElementById('send-message');
+      const input = document.getElementById('floating-input');
+
+      hamburgerBtn.addEventListener('click', () => window.aios.openSidebar());
+      newChatBtn.addEventListener('click', () => window.chat.clearChat());
+
+      bottomNavBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const action = btn.dataset.action;
+          switch (action) {
+            case 'tasks': window.todo.toggleWindow(true); break;
+            case 'context': window.contextHandler.toggleWindow(true); break;
+            default: alert(`${action} functionality coming soon!`); break;
+          }
         });
-    </script>
+      });
+
+      sendBtn.addEventListener('click', () => window.chat.handleSendMessage());
+      input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          window.chat.handleSendMessage();
+        }
+      });
+      input.addEventListener('input', () => {
+        input.style.height = 'auto';
+        input.style.height = `${input.scrollHeight}px`;
+      });
+    }
+  </script>
 </body>
 </html>

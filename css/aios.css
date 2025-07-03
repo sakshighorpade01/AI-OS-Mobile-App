@@ -1,52 +1,50 @@
+/* The main container is no longer a floating window, but the content of the sidebar */
 .floating-window {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 800px;
-    max-width: 90%;
-    height: 600px;
-    max-height: 90vh;
+    width: 100%;
+    height: 100%;
     background-color: var(--bg-color);
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     z-index: 1000;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    transition: all 0.3s ease;
+    /* Removed fixed positioning, transform, shadow, radius etc. */
 }
 
 .window-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px 20px;
-    background-color: var(--header-bg);
+    padding: 1rem 1.25rem;
+    background-color: var(--elevated-bg);
     border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
 }
 
 .window-title {
-    font-size: 18px;
+    font-size: 1.125rem;
     font-weight: 600;
     color: var(--text-color);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
 }
 
-.close-btn {
+.back-button {
     background: none;
     border: none;
-    color: var(--text-muted);
+    color: var(--text-secondary);
     cursor: pointer;
-    font-size: 16px;
-    padding: 4px 8px;
+    font-size: 1.125rem;
+    padding: 0.25rem 0.5rem;
     border-radius: 4px;
     transition: all 0.2s ease;
 }
 
-.close-btn:hover {
+.back-button:hover {
     color: var(--text-color);
     background-color: var(--hover-bg);
 }
+
 
 .window-content {
     flex: 1;
@@ -54,38 +52,42 @@
     padding: 0;
 }
 
-/* Split Layout */
+/* Split Layout for mobile can be simplified */
 .split-layout {
     display: flex;
+    flex-direction: column; /* Stack vertically on mobile */
     height: 100%;
 }
 
-/* Left Sidebar */
+/* Sidebar Tabs */
 .tabs-sidebar {
-    width: 200px;
+    width: 100%;
     background-color: var(--sidebar-bg);
-    border-right: 1px solid var(--border-color);
-    padding: 20px 0;
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.5rem 0;
+    display: flex;
+    overflow-x: auto; /* Allow horizontal scroll for tabs if they overflow */
 }
 
 .tab-btn {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    width: 100%;
-    padding: 12px 20px;
+    justify-content: center;
+    padding: 0.75rem 1rem;
     background: none;
     border: none;
-    text-align: left;
-    font-size: 14px;
+    font-size: 0.75rem;
     color: var(--text-muted);
     cursor: pointer;
     transition: all 0.2s ease;
+    flex-shrink: 0;
+    gap: 0.25rem;
 }
 
 .tab-btn i {
-    margin-right: 12px;
-    width: 16px;
-    text-align: center;
+    margin-right: 0;
+    font-size: 1.25rem;
 }
 
 .tab-btn:hover {
@@ -94,12 +96,13 @@
 }
 
 .tab-btn.active {
-    background-color: var(--active-bg);
+    background-color: transparent;
     color: var(--accent-color);
     font-weight: 500;
+    border-bottom: 2px solid var(--accent-color);
 }
 
-/* Right Content Area */
+/* Content Area */
 .tab-content-area {
     flex: 1;
     padding: 20px;
@@ -134,7 +137,8 @@
 }
 
 .form-group input,
-.form-group textarea {
+.form-group textarea,
+.form-group select {
     width: 100%;
     padding: 10px 12px;
     border: 1px solid var(--border-color);
@@ -146,7 +150,8 @@
 }
 
 .form-group input:focus,
-.form-group textarea:focus {
+.form-group textarea:focus,
+.form-group select:focus {
     border-color: var(--accent-color);
     outline: none;
 }
@@ -162,176 +167,67 @@
     justify-content: flex-end;
 }
 
-.primary {
-    background-color: var(--accent-color);
-    color: white;
+
+/* --- Theme Selector Styles (FIX) --- */
+/* This was the missing CSS for the theme settings tab. */
+
+.theme-selector {
+    display: flex;
+    gap: 1rem;
+    padding: 0.5rem;
+    background-color: var(--input-bg);
+    border-radius: 0.75rem;
+    border: 1px solid var(--border-color);
 }
 
-.secondary {
-    background-color: var(--secondary-btn-bg);
-    color: var(--text-color);
-}
-
-.danger {
-    background-color: var(--danger-color);
-    color: white;
-}
-
-button.primary:hover {
-    background-color: var(--accent-hover);
-}
-
-button.secondary:hover {
-    background-color: var(--secondary-btn-hover);
-}
-
-button.danger:hover {
-    background-color: var(--danger-hover);
-}
-
-.save-btn,
-.submit-btn,
-.action-btn,
-.auth-btn {
-    padding: 8px 16px;
-    border: none;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.action-btn {
+.theme-option {
+    flex: 1;
     display: flex;
     align-items: center;
-    margin-right: 10px;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    border: none;
+    background-color: transparent;
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
 }
 
-.action-btn i {
-    margin-right: 8px;
-}
-
-.account-actions {
-    display: flex;
-    margin-top: 20px;
-}
-
-.email-display {
-    padding: 10px;
-    background-color: var(--input-bg);
-    border-radius: 6px;
-    font-size: 14px;
+.theme-option:hover {
+    background-color: var(--hover-bg);
     color: var(--text-color);
 }
 
-/* About Section */
-.about-content {
-    color: var(--text-color);
-}
-
-.version {
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 10px;
-}
-
-.description {
-    line-height: 1.6;
-    margin-bottom: 20px;
-}
-
-.about-links {
-    display: flex;
-    flex-wrap: wrap;
-}
-
-.link {
+/* Style for the currently active theme button */
+.theme-option.active {
+    background-color: var(--card-bg);
     color: var(--accent-color);
-    text-decoration: none;
-    margin-right: 20px;
-    margin-bottom: 10px;
+    box-shadow: var(--shadow-sm);
 }
 
-.link:hover {
-    text-decoration: underline;
-}
 
-/* Upload Section */
-.upload-container {
-    border: 1px dashed var(--border-color);
-    border-radius: 6px;
-    padding: 15px;
-    text-align: center;
-    background-color: var(--input-bg);
-}
+/* --- Account Tab Specific Styles (FIX) --- */
 
-.file-hint {
-    margin-top: 8px;
-    font-size: 12px;
-    color: var(--text-muted);
-}
-
-.screenshot-preview {
-    margin-top: 10px;
-    text-align: center;
-}
-
-.screenshot-preview img {
-    max-width: 100%;
-    border-radius: 12px;
-    border: 1px solid var(--border-color);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-/* Notification */
-.notification {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 12px 24px;
-    border-radius: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-    z-index: 10000;
-    opacity: 0;
-    transition: opacity 0.3s;
-}
-
-.notification.success {
-    background-color: #4CAF50;
-    color: white;
-}
-
-.notification.error {
-    background-color: #f44336;
-    color: white;
-}
-
-/* Hidden State */
-.hidden {
-    display: none;
-}
-
-/* Auth specific styles */
-.auth-state {
-    width: 100%;
-}
-
+/* Styles for the Login/Sign Up tabs themselves */
 .auth-tabs {
     display: flex;
-    margin-bottom: 20px;
     border-bottom: 1px solid var(--border-color);
+    margin-bottom: 1.5rem;
 }
 
 .auth-tab-btn {
-    padding: 10px 20px;
-    background: none;
+    flex: 1;
+    padding: 0.75rem;
     border: none;
-    border-bottom: 2px solid transparent;
-    color: var(--text-muted);
-    font-size: 14px;
-    font-weight: 500;
+    background: none;
+    color: var(--text-secondary);
+    font-size: var(--text-base);
     cursor: pointer;
+    border-bottom: 2px solid transparent;
     transition: all 0.2s ease;
 }
 
@@ -344,144 +240,31 @@ button.danger:hover {
     border-bottom-color: var(--accent-color);
 }
 
+/* This is the crucial fix: Hide auth forms by default. */
 .auth-form {
     display: none;
-    max-width: 400px;
 }
 
+/* Show only the auth form that has the .active class. */
 .auth-form.active {
     display: block;
 }
 
+/* Styling for error messages */
 .auth-error {
-    color: var(--danger-color);
-    font-size: 14px;
-    margin-top: 10px;
-    min-height: 20px;
+    color: var(--error-500);
+    font-size: var(--text-sm);
+    margin-top: -0.5rem;
+    margin-bottom: 1rem;
+    min-height: 1.2em;
 }
 
-/* Integrations Section */
-.integrations-section {
-    margin-top: 24px;
-    padding: 20px;
-    background-color: var(--input-bg);
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-}
-
-.section-subheading {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text-color);
-    margin-bottom: 16px;
-}
-
-.integration-item {
+/* Styling for the logged-in action buttons */
+.account-actions {
+    margin-top: 2rem;
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--border-color);
+    flex-direction: column;
+    gap: 0.75rem;
 }
 
-.integration-item:last-child {
-    border-bottom: none;
-}
-
-.integration-info {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.integration-info i {
-    font-size: 20px;
-    color: var(--text-color);
-}
-
-.integration-info span {
-    font-size: 14px;
-    color: var(--text-color);
-}
-
-.connect-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.connect-btn:hover {
-    background-color: var(--hover-bg);
-    border-color: var(--accent-color);
-}
-
-.connect-btn[data-action="connect"] {
-    color: var(--accent-color);
-}
-
-.connect-btn[data-action="connect"] .icon-connected {
-    display: none;
-}
-
-.connect-btn[data-action="disconnect"] {
-    background-color: var(--success-light);
-    border-color: var(--success-color);
-    color: var(--success-color);
-}
-
-.connect-btn[data-action="disconnect"] .icon-connect {
-    display: none;
-}
-
-.connect-btn[data-action="disconnect"] .icon-connected {
-    display: inline;
-}
-
-/* Media Queries */
-@media (max-width: 768px) {
-    .floating-window {
-        width: 95%;
-        height: 90vh;
-    }
-
-    .split-layout {
-        flex-direction: column;
-    }
-
-    .tabs-sidebar {
-        width: 100%;
-        padding: 16px 0;
-        border-right: none;
-        border-bottom: 1px solid var(--border-color);
-    }
-
-    .tab-content-area {
-        padding: 24px;
-    }
-
-    .window-title {
-        font-size: 20px;
-    }
-
-    .tab-heading {
-        font-size: 24px;
-        margin-bottom: 24px;
-    }
-}
-
-.user-info-display {
-    padding: 10px;
-    background-color: var(--input-bg);
-    border-radius: 6px;
-    font-size: 14px;
-    color: var(--text-color);
-}
+/* Other specific styles from aios.css can remain */

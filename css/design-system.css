@@ -581,3 +581,60 @@ textarea.input {
 .w-full { width: 100%; }
 .h-full { height: 100%; }
 .inset-0 { top: 0; right: 0; bottom: 0; left: 0; } 
+
+
+
+/* --- Button Variants --- */
+/* ... Existing styles remain unchanged ... */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  font-weight: var(--font-medium);
+  font-size: var(--text-sm);
+  padding: 0.5rem 1rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: none;
+  gap: 0.5rem;
+}
+
+.btn-primary {
+  background-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-secondary {
+  background-color: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+}
+
+.btn-secondary:hover {
+  background-color: var(--neutral-300);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.dark-mode .btn-secondary:hover {
+  background-color: var(--neutral-600);
+}
+
+/* ✅ New Danger Variant */
+.btn-danger {
+  background-color: var(--error-500);
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: var(--error-700);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}

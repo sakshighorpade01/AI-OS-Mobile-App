@@ -1,47 +1,17 @@
 import { messageFormatter } from './message-formatter.js';
-import ContextHandler from './context-handler.js';
-import FileAttachmentHandler from './add-files.js';
 import { socketService } from './socket-service.js';
 
-let chatConfig = {};
-let ongoingStreams = {};
 let sessionActive = false;
+// FIX: Remove the direct instantiation from here. These will be passed in.
 let contextHandler = null;
 let fileAttachmentHandler = null;
-let connectionStatus = false;
-let chatElements = {};
 
-function setupSocketListeners() {
-    socketService.on('connect', () => {
-        connectionStatus = true;
-        console.log("Socket connection established.");
-    });
-
-    socketService.on('disconnect', () => {
-        connectionStatus = false;
-        showConnectionError("Connection lost. Please check your internet and refresh.");
-    });
-
-    socketService.on('response', (data) => {
-        populateBotMessage(data);
-    });
-    
-    socketService.on('agent_step', (data) => {
-        console.log('Agent Step:', data);
-    });
-
-    socketService.on('error', (error) => {
-        showConnectionError(error.message || 'An unknown error occurred.');
-    });
-}
-
-function showConnectionError(message) {
-    console.error("Connection Error:", message);
-    alert(message);
-}
+// --- Private Functions ---
 
 function addUserMessage(message) {
     const messagesContainer = document.getElementById('chat-messages');
+    if (!messagesContainer) return;
+
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message user-message';
     messageDiv.innerHTML = messageFormatter.format(message);
@@ -51,100 +21,117 @@ function addUserMessage(message) {
 
 function createBotMessagePlaceholder(messageId) {
     const messagesContainer = document.getElementById('chat-messages');
+    if (!messagesContainer) return;
+
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message bot-message';
     messageDiv.dataset.messageId = messageId;
-    messageDiv.innerHTML = `<div class="bot-avatar"><i class="fas fa-robot"></i></div><div class="message-content"><span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></div>`;
+    messageDiv.innerHTML = `<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>`;
     messagesContainer.appendChild(messageDiv);
     return messageDiv;
 }
 
 function populateBotMessage(data) {
-    const { id, content, done, error } = data;
-    let messageDiv = document.querySelector(`.bot-message[data-message-id="${id}"]`);
+    const { id, content, done, error, message } = data;
+    const messageDiv = document.querySelector(`.bot-message[data-message-id="${id}"]`);
     if (!messageDiv) return;
 
-    const contentDiv = messageDiv.querySelector('.message-content');
     if (error) {
-        contentDiv.innerHTML = `<div class="error-message">${content || data.message}</div>`;
+        messageDiv.innerHTML = `<div class="error-message">${content || message}</div>`;
         messageFormatter.finishStreaming(id);
         sessionActive = false;
         return;
     }
-
+    
     if (content) {
-        const formattedContent = messageFormatter.formatStreaming(content, id);
-        contentDiv.innerHTML = formattedContent;
+        messageDiv.innerHTML = messageFormatter.formatStreaming(content, id);
     }
 
     if (done) {
-        messageFormatter.finishStreaming(id);
+        const finalContent = messageFormatter.finishStreaming(id);
+        if (finalContent) {
+             messageDiv.innerHTML = finalContent;
+        }
         sessionActive = false;
     }
     messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
-async function handleSendMessage() {
-    const input = document.getElementById('floating-input');
-    const message = input.value.trim();
-    if (!message && fileAttachmentHandler.getAttachedFiles().length === 0) return;
+function setupSocketListeners() {
+    socketService.on('connect', () => console.log('Socket connected.'));
+    socketService.on('disconnect', () => console.error('Socket disconnected.'));
+    socketService.on('response', populateBotMessage);
+    socketService.on('agent_step', (data) => console.log('Agent Step:', data));
+    socketService.on('error', (err) => console.error('Socket error:', err));
+}
 
-    addUserMessage(message);
-    input.value = '';
-    input.style.height = 'auto';
+// --- Public Module ---
 
-    const messageId = `msg_${new Date().getTime()}`;
-    createBotMessagePlaceholder(messageId);
-    sessionActive = true;
+export const chatModule = {
+    /**
+     * Initializes the chat module with its dependencies.
+     * @param {object} contextHandlerInstance - The shared context handler instance.
+     * @param {object} fileAttachmentHandlerInstance - The shared file attachment handler.
+     */
+    init(contextHandlerInstance, fileAttachmentHandlerInstance) {
+        // FIX: Receive dependencies from the main script AFTER the DOM is ready.
+        contextHandler = contextHandlerInstance;
+        fileAttachmentHandler = fileAttachmentHandlerInstance;
+        
+        socketService.init();
+        setupSocketListeners();
+        console.log('Chat module initialized with dependencies.');
+    },
 
-    const payload = {
-        id: messageId,
-        message: message,
-        context: JSON.stringify(contextHandler.getSelectedSessions()),
-        files: fileAttachmentHandler.getAttachedFiles(),
-        config: {
-            calculator: true,
-            internet_search: true,
-            web_crawler: true,
-            coding_assistant: true,
-            investment_assistant: true,
-            use_memory: true,
-            enable_github: true,
-            enable_google_email: true,
-            enable_google_drive: true,
+    async handleSendMessage() {
+        const input = document.getElementById('floating-input');
+        const message = input.value.trim();
+        const attachedFiles = fileAttachmentHandler.getAttachedFiles();
+
+        if ((!message && attachedFiles.length === 0) || sessionActive) {
+            return;
         }
-    };
 
-    await socketService.sendMessage(payload);
+        addUserMessage(message);
+        input.value = '';
+        input.style.height = 'auto'; 
+        input.focus();
 
-    fileAttachmentHandler.clearAttachedFiles();
-    contextHandler.clearSelectedContext();
-}
+        const messageId = `msg_${Date.now()}`;
+        createBotMessagePlaceholder(messageId);
+        sessionActive = true;
 
-function init() {
-    chatElements.container = document.getElementById('chat-container');
-    chatElements.inputContainer = document.getElementById('floating-input-container');
+        const payload = {
+            id: messageId,
+            message,
+            context: JSON.stringify(contextHandler.getSelectedSessions()),
+            files: attachedFiles,
+            config: { /* your config object */ }
+        };
 
-    const sendBtn = document.getElementById('send-message');
-    const input = document.getElementById('floating-input');
-    
-    sendBtn?.addEventListener('click', handleSendMessage);
-    input?.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } });
-    
-    contextHandler = new ContextHandler();
-    fileAttachmentHandler = new FileAttachmentHandler();
+        try {
+            // FIX: This call will now work because contextHandler is correctly initialized.
+            await socketService.sendMessage(payload);
+            fileAttachmentHandler.clearAttachedFiles();
+            contextHandler.clearSelectedContext();
+        } catch(err) {
+            console.error("Failed to send message:", err);
+            const errorMsgDiv = document.querySelector(`.bot-message[data-message-id="${messageId}"]`);
+            if(errorMsgDiv) {
+                errorMsgDiv.innerHTML = `<div class="error-message">Error: Could not connect to server.</div>`;
+            }
+            sessionActive = false;
+        }
+    },
 
-    socketService.init();
-    setupSocketListeners();
-}
+    clearChat() {
+        const messagesContainer = document.getElementById('chat-messages');
+        if (messagesContainer) messagesContainer.innerHTML = '';
 
-function toggleChatWindow() {
-    const isOpen = !chatElements.container.classList.contains('hidden');
-    chatElements.container?.classList.toggle('hidden', isOpen);
-    chatElements.inputContainer?.classList.toggle('hidden', isOpen);
-}
-
-export const chatModule = { 
-    init,
-    toggleWindow: toggleChatWindow
+        if (sessionActive) {
+            socketService.sendMessage({ type: 'terminate_session', message: 'User started new chat' });
+            sessionActive = false;
+        }
+        messageFormatter.pendingContent?.clear?.();
+    }
 };

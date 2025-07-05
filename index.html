@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" />
 
-  <!-- Libraries -->
+  <!-- JS Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -52,8 +52,30 @@
 
     <!-- Bottom UI Area -->
     <div id="bottom-ui-container">
-      <!-- Floating Input Field (on top of nav) -->
+
+      <!-- === TOOLS MENU (with checkbox icons) === -->
+      <div id="tools-menu" class="hidden">
+        <button class="tool-option active" data-agent="aios">
+          <span class="checkbox-icon">
+            <i class="fas fa-check-square icon-checked"></i>
+            <i class="far fa-square icon-unchecked"></i>
+          </span>
+          <i class="fas fa-atom icon-main"></i>
+          <span>AI-OS</span>
+        </button>
+        <button class="tool-option" data-agent="deepsearch">
+          <span class="checkbox-icon">
+            <i class="fas fa-check-square icon-checked"></i>
+            <i class="far fa-square icon-unchecked"></i>
+          </span>
+          <i class="fas fa-search-plus icon-main"></i>
+          <span>DeepSearch</span>
+        </button>
+      </div>
+
+      <!-- Floating Input Field -->
       <div class="floating-input-wrapper">
+        <div id="file-previews-container"></div>
         <div class="floating-input-container">
           <button id="attach-file-btn" class="input-action-btn circular-btn">
             <i class="fas fa-paperclip"></i>
@@ -66,7 +88,7 @@
         <input type="file" id="file-input" style="display: none;" multiple />
       </div>
 
-      <!-- Bottom Action Bar -->
+      <!-- Bottom Navigation -->
       <div class="bottom-nav">
         <button class="bottom-nav-btn" data-action="memory" title="Memory"><i class="fa-solid fa-brain"></i></button>
         <button class="bottom-nav-btn" data-action="tools" title="Tools"><i class="fas fa-wrench"></i></button>
@@ -76,12 +98,12 @@
     </div>
   </div>
 
-  <!-- Modals / Dynamic Roots -->
+  <!-- Modals -->
   <div id="to-do-list-root"></div>
   <div id="context-root"></div>
   <div class="notification-container"></div>
 
-  <!-- === Main Application Script === -->
+  <!-- Application Logic -->
   <script type="module">
     import { AIOS } from './js/aios.js';
     import { chatModule } from './js/chat.js';
@@ -90,8 +112,6 @@
     import FileAttachmentHandler from './js/add-files.js';
 
     document.addEventListener('DOMContentLoaded', async () => {
-      console.log("DOM fully loaded. Initializing AI-OS...");
-
       const loadModuleHTML = async (name, containerId) => {
         try {
           const response = await fetch(`${name}.html`);
@@ -121,7 +141,6 @@
       window.contextHandler.bindEvents();
 
       window.fileAttachmentHandler = new FileAttachmentHandler();
-
       window.chat = chatModule;
       window.chat.init(window.contextHandler, window.fileAttachmentHandler);
 
@@ -133,33 +152,85 @@
     });
 
     function bindUIEvents() {
+      let isMemoryEnabled = false;
+      let selectedAgentType = 'aios';
+
       const hamburgerBtn = document.getElementById('hamburger-btn');
       const newChatBtn = document.getElementById('new-chat-btn');
       const bottomNavBtns = document.querySelectorAll('.bottom-nav-btn');
       const sendBtn = document.getElementById('send-message');
       const input = document.getElementById('floating-input');
+      const attachBtn = document.getElementById('attach-file-btn');
+      const fileInput = document.getElementById('file-input');
+
+      const toolsMenu = document.getElementById('tools-menu');
+      const toolOptions = document.querySelectorAll('.tool-option');
 
       hamburgerBtn.addEventListener('click', () => window.aios.openSidebar());
       newChatBtn.addEventListener('click', () => window.chat.clearChat());
+      attachBtn.addEventListener('click', () => fileInput.click());
 
       bottomNavBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
           const action = btn.dataset.action;
-          switch (action) {
-            case 'tasks': window.todo.toggleWindow(true); break;
-            case 'context': window.contextHandler.toggleWindow(true); break;
-            default: alert(`${action} functionality coming soon!`); break;
+
+          if (action === 'memory') {
+            isMemoryEnabled = !isMemoryEnabled;
+            btn.classList.toggle('active', isMemoryEnabled);
+            return;
+          }
+
+          const wasActive = btn.classList.contains('active');
+          closeAllModalsAndMenus();
+
+          if (!wasActive) {
+            btn.classList.add('active');
+            switch (action) {
+              case 'tasks': window.todo.toggleWindow(true, btn); break;
+              case 'context': window.contextHandler.toggleWindow(true, btn); break;
+              case 'tools': toolsMenu.classList.remove('hidden'); break;
+            }
           }
         });
       });
 
-      sendBtn.addEventListener('click', () => window.chat.handleSendMessage());
+      toolOptions.forEach(option => {
+        option.addEventListener('click', () => {
+          selectedAgentType = option.dataset.agent;
+          toolOptions.forEach(o => o.classList.remove('active'));
+          option.classList.add('active');
+          window.chat.showNotification(`Agent set to ${selectedAgentType.toUpperCase()}`, 'info');
+          closeAllModalsAndMenus();
+        });
+      });
+
+      function closeAllModalsAndMenus() {
+        toolsMenu.classList.add('hidden');
+        window.todo.toggleWindow(false);
+        window.contextHandler.toggleWindow(false);
+        bottomNavBtns.forEach(b => {
+          if (b.dataset.action !== 'memory') b.classList.remove('active');
+        });
+      }
+
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#bottom-ui-container')) {
+          closeAllModalsAndMenus();
+        }
+      });
+
+      sendBtn.addEventListener('click', () => {
+        window.chat.handleSendMessage(isMemoryEnabled, selectedAgentType);
+      });
+
       input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
-          window.chat.handleSendMessage();
+          window.chat.handleSendMessage(isMemoryEnabled, selectedAgentType);
         }
       });
+
       input.addEventListener('input', () => {
         input.style.height = 'auto';
         input.style.height = `${input.scrollHeight}px`;

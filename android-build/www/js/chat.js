@@ -2,7 +2,6 @@ import { messageFormatter } from './message-formatter.js';
 import { socketService } from './socket-service.js';
 
 let sessionActive = false;
-// FIX: Remove the direct instantiation from here. These will be passed in.
 let contextHandler = null;
 let fileAttachmentHandler = null;
 
@@ -42,7 +41,7 @@ function populateBotMessage(data) {
         sessionActive = false;
         return;
     }
-    
+
     if (content) {
         messageDiv.innerHTML = messageFormatter.formatStreaming(content, id);
     }
@@ -50,10 +49,11 @@ function populateBotMessage(data) {
     if (done) {
         const finalContent = messageFormatter.finishStreaming(id);
         if (finalContent) {
-             messageDiv.innerHTML = finalContent;
+            messageDiv.innerHTML = finalContent;
         }
         sessionActive = false;
     }
+
     messageDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
 
@@ -69,69 +69,121 @@ function setupSocketListeners() {
 
 export const chatModule = {
     /**
-     * Initializes the chat module with its dependencies.
-     * @param {object} contextHandlerInstance - The shared context handler instance.
-     * @param {object} fileAttachmentHandlerInstance - The shared file attachment handler.
+     * Initializes the chat module with external dependencies.
+     * @param {object} contextHandlerInstance
+     * @param {object} fileAttachmentHandlerInstance
      */
     init(contextHandlerInstance, fileAttachmentHandlerInstance) {
-        // FIX: Receive dependencies from the main script AFTER the DOM is ready.
         contextHandler = contextHandlerInstance;
         fileAttachmentHandler = fileAttachmentHandlerInstance;
-        
+
         socketService.init();
         setupSocketListeners();
+
         console.log('Chat module initialized with dependencies.');
     },
 
-    async handleSendMessage() {
+    /**
+     * Sends a message with context, files, and config options.
+     * @param {boolean} isMemoryEnabled
+     * @param {string} agentType - either 'aios' or 'deepsearch'
+     */
+    async handleSendMessage(isMemoryEnabled = false, agentType = 'aios') {
         const input = document.getElementById('floating-input');
         const message = input.value.trim();
         const attachedFiles = fileAttachmentHandler.getAttachedFiles();
 
-        if ((!message && attachedFiles.length === 0) || sessionActive) {
-            return;
-        }
+        if ((!message && attachedFiles.length === 0) || sessionActive) return;
 
         addUserMessage(message);
         input.value = '';
-        input.style.height = 'auto'; 
+        input.style.height = 'auto';
         input.focus();
 
         const messageId = `msg_${Date.now()}`;
         createBotMessagePlaceholder(messageId);
-        sessionActive = true;
 
         const payload = {
             id: messageId,
             message,
             context: JSON.stringify(contextHandler.getSelectedSessions()),
             files: attachedFiles,
-            config: { /* your config object */ }
+            config: {}
         };
 
+        if (!sessionActive) {
+            payload.config = {
+                calculator: true,
+                internet_search: true,
+                web_crawler: true,
+                coding_assistant: true,
+                investment_assistant: true,
+                enable_github: true,
+                enable_google_email: true,
+                enable_google_drive: true,
+                use_memory: isMemoryEnabled,
+                is_deepsearch: agentType === 'deepsearch'
+            };
+        }
+
+        sessionActive = true;
+
         try {
-            // FIX: This call will now work because contextHandler is correctly initialized.
             await socketService.sendMessage(payload);
             fileAttachmentHandler.clearAttachedFiles();
             contextHandler.clearSelectedContext();
-        } catch(err) {
+        } catch (err) {
             console.error("Failed to send message:", err);
             const errorMsgDiv = document.querySelector(`.bot-message[data-message-id="${messageId}"]`);
-            if(errorMsgDiv) {
+            if (errorMsgDiv) {
                 errorMsgDiv.innerHTML = `<div class="error-message">Error: Could not connect to server.</div>`;
             }
             sessionActive = false;
         }
     },
 
+    /**
+     * Clears the chat messages and resets the session.
+     */
     clearChat() {
         const messagesContainer = document.getElementById('chat-messages');
-        if (messagesContainer) messagesContainer.innerHTML = '';
+        // === REVERT TO THIS SIMPLER VERSION ===
+        if (messagesContainer) {
+            messagesContainer.innerHTML = '';
+        }
+        // ======================================
 
         if (sessionActive) {
             socketService.sendMessage({ type: 'terminate_session', message: 'User started new chat' });
             sessionActive = false;
         }
+
         messageFormatter.pendingContent?.clear?.();
+    },
+
+    /**
+     * Displays a toast notification.
+     * @param {string} message 
+     * @param {'info'|'error'|'success'} type 
+     */
+    showNotification(message, type = 'info') {
+        const container = document.querySelector('.notification-container');
+        if (!container) return;
+
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.textContent = message;
+        container.appendChild(notification);
+
+        setTimeout(() => {
+            notification.style.transform = 'translateY(0)';
+            notification.style.opacity = '1';
+        }, 10);
+
+        setTimeout(() => {
+            notification.style.transform = 'translateY(20px)';
+            notification.style.opacity = '0';
+            notification.addEventListener('transitionend', () => notification.remove());
+        }, 3000);
     }
 };

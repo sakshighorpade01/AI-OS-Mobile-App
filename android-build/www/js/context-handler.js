@@ -1,95 +1,117 @@
-// js/context-handler.js
 import { supabase } from './supabase-client.js';
+import { messageFormatter } from './message-formatter.js';
+
+const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname.startsWith('192.168');
+const BACKEND_URL = IS_LOCAL ? 'https://ai-os-yjbb.onrender.com' : '';
 
 class ContextHandler {
     constructor() {
         this.loadedSessions = [];
         this.selectedContextSessions = [];
         this.elements = {};
+        this.triggerButton = null;
     }
 
     initializeElements() {
         this.elements.contextWindow = document.getElementById('context-window');
         if (!this.elements.contextWindow) return;
 
+        this.elements.panel = this.elements.contextWindow.querySelector('.context-window-panel'); // NEW
         this.elements.closeContextBtn = this.elements.contextWindow.querySelector('.close-context-btn');
         this.elements.syncBtn = this.elements.contextWindow.querySelector('.sync-context-btn');
         this.elements.sessionsContainer = this.elements.contextWindow.querySelector('.context-content');
+        this.elements.listView = document.getElementById('context-list-view');
+        this.elements.detailView = document.getElementById('context-detail-view');
         this.elements.contextBtn = document.querySelector('[data-tool="context"]');
     }
 
     bindEvents() {
         if (!this.elements.contextWindow) return;
 
-        // Button that opens the context window (tool-btn)
-        this.elements.contextBtn?.addEventListener('click', () => this.toggleWindow(true));
+        // Click background to close modal
+        this.elements.contextWindow.addEventListener('click', () => this.toggleWindow(false));
 
-        // Modal close logic
+        // Stop clicks inside the panel from bubbling to modal background
+        this.elements.panel?.addEventListener('click', (e) => e.stopPropagation());
+
         this.elements.closeContextBtn?.addEventListener('click', () => this.toggleWindow(false));
-        this.elements.contextWindow.addEventListener('click', (e) => {
-            if (e.target === this.elements.contextWindow) {
-                this.toggleWindow(false);
-            }
-        });
-
-        // Sync/reload sessions
         this.elements.syncBtn?.addEventListener('click', (e) => {
             e.preventDefault();
             this.loadSessions();
         });
 
-        // Checkbox selection handler
         this.elements.sessionsContainer?.addEventListener('change', (e) => {
             if (e.target.matches('.session-checkbox')) {
                 const sessionItem = e.target.closest('.session-item');
-                if (sessionItem) {
-                    sessionItem.classList.toggle('selected', e.target.checked);
-                }
+                if (sessionItem) sessionItem.classList.toggle('selected', e.target.checked);
                 this.updateSelectionUI();
             }
         });
     }
 
-    toggleWindow(show) {
-        if (this.elements.contextWindow) {
-            this.elements.contextWindow.classList.toggle('hidden', !show);
-            if (show) this.loadSessions();
+    toggleWindow(show, buttonElement = null) {
+        if (!this.elements.contextWindow) return;
+
+        if (show && buttonElement) {
+            this.triggerButton = buttonElement;
+        }
+
+        this.elements.contextWindow.classList.toggle('hidden', !show);
+
+        if (!show && this.triggerButton) {
+            this.triggerButton.classList.remove('active');
+            this.triggerButton = null;
+        }
+
+        if (show) {
+            this.showSessionList(this.loadedSessions); // Reset view
+            this.loadSessions();
         }
     }
 
     async loadSessions() {
-        if (!this.elements.sessionsContainer) return;
+        if (!this.elements.listView) return;
 
-        this.elements.sessionsContainer.innerHTML = '<div class="session-item-loading">Loading sessions...</div>';
+        this.elements.listView.innerHTML = '<div class="session-item-loading">Loading sessions...</div>';
 
+        await supabase.auth.refreshSession();
         const { data: { session }, error } = await supabase.auth.getSession();
+
         if (error || !session) {
-            this.elements.sessionsContainer.innerHTML = '<div class="empty-state">Please log in to view chat history.</div>';
+            this.elements.listView.innerHTML = '<div class="empty-state">Please log in to view chat history.</div>';
             return;
         }
 
         try {
-            const response = await fetch('https://ai-os-yjbb.onrender.com/api/sessions', {
+            const response = await fetch(`${BACKEND_URL}/api/sessions`, {
                 headers: { 'Authorization': `Bearer ${session.access_token}` }
             });
 
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error(`HTTP error! status: ${response.status}`, errorText);
+                throw new Error(`Failed to load sessions. Server responded with status ${response.status}.`);
+            }
+
             const sessions = await response.json();
             this.loadedSessions = sessions;
-
             this.showSessionList(sessions);
         } catch (err) {
             console.error('Error loading sessions:', err);
-            this.elements.sessionsContainer.innerHTML = `<div class="empty-state">Error loading sessions: ${err.message}</div>`;
+            this.elements.listView.innerHTML = `<div class="empty-state">${err.message}</div>`;
         }
     }
 
     showSessionList(sessions) {
-        this.elements.sessionsContainer.innerHTML = '';
-        this.elements.sessionsContainer.style.display = 'grid';
+        if (!this.elements.listView || !this.elements.detailView) return;
+
+        this.elements.listView.classList.remove('hidden');
+        this.elements.detailView.classList.add('hidden');
+
+        this.elements.listView.innerHTML = '';
 
         if (sessions.length === 0) {
-            this.elements.sessionsContainer.innerHTML = '<div class="empty-state">No sessions found.</div>';
+            this.elements.listView.innerHTML = '<div class="empty-state">No sessions found.</div>';
             return;
         }
 
@@ -107,12 +129,12 @@ class ContextHandler {
                 <button class="use-selected-btn">Use Selected</button>
                 <button class="clear-selection-btn">Clear</button>
             </div>`;
-        this.elements.sessionsContainer.appendChild(selectionHeader);
+        this.elements.listView.appendChild(selectionHeader);
     }
 
     renderSessionItems(sessions) {
-        sessions.forEach(sessionData => {
-            this.elements.sessionsContainer.appendChild(this.createSessionItem(sessionData));
+        sessions.forEach(session => {
+            this.elements.listView.appendChild(this.createSessionItem(session));
         });
     }
 
@@ -171,8 +193,8 @@ class ContextHandler {
     }
 
     initializeSelectionControls() {
-        const useSelectedBtn = this.elements.sessionsContainer.querySelector('.use-selected-btn');
-        const clearBtn = this.elements.sessionsContainer.querySelector('.clear-selection-btn');
+        const useSelectedBtn = this.elements.listView.querySelector('.use-selected-btn');
+        const clearBtn = this.elements.listView.querySelector('.clear-selection-btn');
 
         useSelectedBtn?.addEventListener('click', () => {
             const selectedData = this.getSelectedSessionsData();
@@ -187,10 +209,10 @@ class ContextHandler {
     }
 
     updateSelectionUI() {
-        const selectionActions = this.elements.sessionsContainer.querySelector('.selection-actions');
+        const selectionActions = this.elements.listView.querySelector('.selection-actions');
         if (!selectionActions) return;
 
-        const selectedCount = this.elements.sessionsContainer.querySelectorAll('.session-checkbox:checked').length;
+        const selectedCount = this.elements.listView.querySelectorAll('.session-checkbox:checked').length;
         selectionActions.classList.toggle('hidden', selectedCount === 0);
 
         if (selectedCount > 0) {
@@ -200,8 +222,8 @@ class ContextHandler {
 
     getSelectedSessionsData() {
         const selectedIds = new Set();
-        this.elements.sessionsContainer.querySelectorAll('.session-checkbox:checked').forEach(checkbox => {
-            selectedIds.add(checkbox.closest('.session-item').dataset.sessionId);
+        this.elements.listView.querySelectorAll('.session-checkbox:checked').forEach(cb => {
+            selectedIds.add(cb.closest('.session-item').dataset.sessionId);
         });
 
         return this.loadedSessions
@@ -216,38 +238,52 @@ class ContextHandler {
 
     showSessionDetails(sessionId) {
         const session = this.loadedSessions.find(s => s.session_id === sessionId);
-        if (!session) {
+        if (!session || !this.elements.detailView) {
             this.showNotification('Could not find session details.', 'error');
             return;
         }
 
         const template = document.getElementById('session-detail-template');
-        if (!template) {
-            console.error('Session detail template not found!');
-            return;
-        }
+        if (!template) return;
 
         const view = template.content.cloneNode(true);
-        view.querySelector('h3').textContent = `Session ${session.session_id.substring(0, 8)}...`;
+
+        const titleElement = view.querySelector('.session-header h3');
+        if (titleElement) {
+            const firstUserRun = session.memory.runs.find(run => run.role === 'user' && run.content.trim() !== '');
+            let sessionName = `Session ${session.session_id.substring(0, 8)}...`;
+            if (firstUserRun) {
+                sessionName = firstUserRun.content.split('\n')[0].trim().substring(0, 45) + '...';
+            }
+            titleElement.textContent = sessionName;
+        }
 
         const conversationContainer = view.querySelector('.conversation-messages');
+        if (!conversationContainer) return;
+
         session.memory.runs.forEach(run => {
             const msgDiv = document.createElement('div');
-            msgDiv.className = `message-block ${run.role}`;
-            msgDiv.innerHTML = `<strong>${run.role}</strong>: ${run.content}`;
+            msgDiv.className = `message-block role-${run.role}`;
+            const formattedContent = messageFormatter.format(run.content);
+            msgDiv.innerHTML = `
+                <strong class="message-role">${run.role.toUpperCase()}</strong>
+                <div class="message-content-history">${formattedContent}</div>
+            `;
             conversationContainer.appendChild(msgDiv);
         });
 
-        this.elements.sessionsContainer.innerHTML = '';
-        this.elements.sessionsContainer.appendChild(view);
+        this.elements.detailView.innerHTML = '';
+        this.elements.detailView.appendChild(view);
+        this.elements.listView.classList.add('hidden');
+        this.elements.detailView.classList.remove('hidden');
 
-        const backButton = this.elements.sessionsContainer.querySelector('.back-button');
+        const backButton = this.elements.detailView.querySelector('.back-button');
         backButton?.addEventListener('click', () => this.showSessionList(this.loadedSessions));
     }
 
     clearSelectedContext() {
-        this.elements.sessionsContainer?.querySelectorAll('.session-checkbox:checked').forEach(cb => cb.checked = false);
-        this.elements.sessionsContainer?.querySelectorAll('.session-item.selected').forEach(item => item.classList.remove('selected'));
+        this.elements.listView?.querySelectorAll('.session-checkbox:checked').forEach(cb => cb.checked = false);
+        this.elements.listView?.querySelectorAll('.session-item.selected').forEach(item => item.classList.remove('selected'));
         this.selectedContextSessions = [];
         this.updateSelectionUI();
     }

@@ -1,5 +1,8 @@
 import { supabase } from './supabase-client.js';
 
+const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname.startsWith('192.168');
+const BACKEND_URL = IS_LOCAL ? 'https://ai-os-yjbb.onrender.com' : '';
+
 export class AIOS {
     constructor() {
         this.initialized = false;
@@ -12,7 +15,7 @@ export class AIOS {
 
         this.cacheElements();
         this.setupEventListeners();
-        this.updateThemeUI(); // 🎨 Apply theme on first load
+        this.updateThemeUI();
 
         await this.updateAuthUI();
         this.initialized = true;
@@ -20,19 +23,14 @@ export class AIOS {
 
     cacheElements() {
         this.elements = {
-            // Sidebar and Overlay
             sidebar: document.getElementById('sidebar-container'),
             overlay: document.getElementById('sidebar-overlay'),
-
-            // Settings Panel
             settingsView: document.getElementById('settings-view'),
             closeBtn: document.getElementById('close-aios'),
 
-            // Tabs
             tabs: document.querySelectorAll('.tab-btn'),
             tabContents: document.querySelectorAll('.tab-content'),
 
-            // Auth
             logoutBtn: document.getElementById('logout-btn'),
             userEmail: document.getElementById('userEmail'),
             userName: document.getElementById('userName'),
@@ -45,22 +43,26 @@ export class AIOS {
             loginError: document.getElementById('login-error'),
             signupError: document.getElementById('signup-error'),
 
-            // 🌗 Theme buttons
             themeOptions: document.querySelectorAll('.theme-option'),
+
+            githubConnectBtn: document.getElementById('connect-github-btn'),
+            googleConnectBtn: document.getElementById('connect-google-btn'),
         };
     }
 
     setupEventListeners() {
-        // --- Sidebar Controls ---
         this.elements.closeBtn?.addEventListener('click', () => this.closeSidebar());
         this.elements.overlay?.addEventListener('click', () => this.closeSidebar());
 
-        // --- Tabs ---
         this.elements.tabs?.forEach(tab => {
-            tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
+            tab.addEventListener('click', () => {
+                this.switchTab(tab.dataset.tab);
+                if (tab.dataset.tab === 'account') {
+                    this.updateIntegrationStatus();
+                }
+            });
         });
 
-        // --- Auth Form Handlers ---
         this.elements.logoutBtn?.addEventListener('click', () => this.handleLogout());
 
         this.elements.loginForm?.addEventListener('submit', (e) => {
@@ -73,63 +75,65 @@ export class AIOS {
             this.handleSignup();
         });
 
-        this.elements.authTabs?.forEach(tab => {
-            tab.addEventListener('click', () => this.switchAuthTab(tab.dataset.authTab));
-        });
+        this.elements.authTabs?.forEach(tab =>
+            tab.addEventListener('click', () => this.switchAuthTab(tab.dataset.authTab))
+        );
 
-        // 🌗 Theme Toggle
-        this.elements.themeOptions?.forEach(option => {
+        this.elements.themeOptions?.forEach(option =>
             option.addEventListener('click', () => {
                 const theme = option.dataset.theme;
                 this.setTheme(theme);
-            });
-        });
+            })
+        );
 
-        // 🔐 Listen to Supabase auth changes
+        this.elements.githubConnectBtn?.addEventListener('click', (e) => this.handleIntegrationClick(e));
+        this.elements.googleConnectBtn?.addEventListener('click', (e) => this.handleIntegrationClick(e));
+
         supabase.auth.onAuthStateChange((_event, session) => {
             this.updateAuthUI(session?.user);
         });
     }
 
-    // 🌗 Set body class for selected theme
     setTheme(theme) {
         document.body.classList.remove('light-mode', 'dark-mode');
         document.body.classList.add(`${theme}-mode`);
         this.updateThemeUI();
     }
 
-    // 🌗 Highlight active theme button
     updateThemeUI() {
-        const isDarkMode = document.body.classList.contains('dark-mode');
-        this.elements.themeOptions?.forEach(option => {
+        const isDark = document.body.classList.contains('dark-mode');
+        this.elements.themeOptions.forEach(option => {
             const theme = option.dataset.theme;
-            const isActive = (isDarkMode && theme === 'dark') || (!isDarkMode && theme === 'light');
-            option.classList.toggle('active', isActive);
+            const active = (isDark && theme === 'dark') || (!isDark && theme === 'light');
+            option.classList.toggle('active', active);
         });
     }
 
-    // 🔄 Switch between tabs
     switchTab(tabName) {
-        this.elements.tabs?.forEach(tab =>
+        this.elements.tabs.forEach(tab =>
             tab.classList.toggle('active', tab.dataset.tab === tabName)
         );
-        this.elements.tabContents?.forEach(content =>
+        this.elements.tabContents.forEach(content =>
             content.classList.toggle('active', content.id === `${tabName}-tab`)
         );
     }
 
-    // 🔁 Switch between login/signup
     switchAuthTab(tabName) {
-        this.elements.authTabs?.forEach(tab =>
+        this.elements.authTabs.forEach(tab =>
             tab.classList.toggle('active', tab.dataset.authTab === tabName)
         );
-        this.elements.loginForm?.classList.toggle('active', tabName === 'login');
-        this.elements.signupForm?.classList.toggle('active', tabName === 'signup');
+        this.elements.loginForm.classList.toggle('active', tabName === 'login');
+        this.elements.signupForm.classList.toggle('active', tabName === 'signup');
     }
 
     openSidebar() {
         this.elements.sidebar?.classList.add('open');
         this.elements.overlay?.classList.add('open');
+
+        const activeTab = this.elements.tabs ? [...this.elements.tabs].find(t => t.classList.contains('active')) : null;
+        if (activeTab?.dataset.tab === 'account') {
+            this.updateIntegrationStatus();
+        }
     }
 
     closeSidebar() {
@@ -143,7 +147,6 @@ export class AIOS {
         this.elements.loginError.textContent = '';
 
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-
         if (error) {
             this.elements.loginError.textContent = error.message;
         } else {
@@ -157,10 +160,10 @@ export class AIOS {
         const name = this.elements.signupForm.querySelector('#signupName').value;
         const email = this.elements.signupForm.querySelector('#signupEmail').value;
         const password = this.elements.signupForm.querySelector('#signupPassword').value;
-        const confirmPassword = this.elements.signupForm.querySelector('#confirmPassword').value;
-        this.elements.signupError.textContent = '';
+        const confirm = this.elements.signupForm.querySelector('#confirmPassword').value;
 
-        if (password !== confirmPassword) {
+        this.elements.signupError.textContent = '';
+        if (password !== confirm) {
             this.elements.signupError.textContent = 'Passwords do not match.';
             return;
         }
@@ -168,15 +171,13 @@ export class AIOS {
         const { error } = await supabase.auth.signUp({
             email,
             password,
-            options: {
-                data: { name }
-            }
+            options: { data: { name } }
         });
 
         if (error) {
             this.elements.signupError.textContent = error.message;
         } else {
-            this.showNotification('Signup successful! Please check your email to verify.', 'success');
+            this.showNotification('Signup successful! Check your email.', 'success');
             this.elements.signupForm.reset();
             this.switchAuthTab('login');
         }
@@ -197,6 +198,109 @@ export class AIOS {
         if (isAuthenticated) {
             this.elements.userEmail.textContent = user.email;
             this.elements.userName.textContent = user.user_metadata?.name || 'User';
+            // ❌ Removed updateIntegrationStatus() here to avoid unnecessary calls
+        } else {
+            this.updateIntegrationStatus(); // safe to clear buttons
+        }
+    }
+
+    handleIntegrationClick(event) {
+        const button = event.currentTarget;
+        const provider = button.dataset.provider;
+        const action = button.dataset.action || 'connect';
+
+        if (action === 'connect') {
+            this.handleIntegrationConnect(provider);
+        } else {
+            this.handleIntegrationDisconnect(provider);
+        }
+    }
+
+    async handleIntegrationConnect(provider) {
+        await supabase.auth.refreshSession();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+            alert("You must be logged in to connect an integration.");
+            return;
+        }
+
+        const authUrl = `${BACKEND_URL}/login/${provider}?token=${session.access_token}`;
+        window.open(authUrl, 'authWindow', 'width=600,height=700,scrollbars=yes');
+    }
+
+    async handleIntegrationDisconnect(provider) {
+        if (!confirm(`Are you sure you want to disconnect your ${provider} account?`)) return;
+
+        await supabase.auth.refreshSession();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+            alert("Session expired. Please log in again.");
+            return;
+        }
+
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/integrations/disconnect`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({ service: provider })
+            });
+
+            if (!response.ok) throw new Error('Failed to disconnect.');
+            this.showNotification(`Successfully disconnected from ${provider}.`, 'success');
+            this.updateIntegrationStatus();
+        } catch (error) {
+            this.showNotification(`Error: ${error.message}`, 'error');
+        }
+    }
+
+    async updateIntegrationStatus() {
+        await supabase.auth.refreshSession();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+            this.updateButtonUI(this.elements.githubConnectBtn, false);
+            this.updateButtonUI(this.elements.googleConnectBtn, false);
+            return;
+        }
+
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/integrations`, {
+                headers: { 'Authorization': `Bearer ${session.access_token}` }
+            });
+
+            if (!response.ok) {
+                console.error("Failed to fetch integration status:", response.statusText);
+                return;
+            }
+
+            const { integrations } = await response.json();
+            this.updateButtonUI(this.elements.githubConnectBtn, integrations.includes('github'));
+            this.updateButtonUI(this.elements.googleConnectBtn, integrations.includes('google'));
+        } catch (error) {
+            console.error("Error fetching integration status:", error);
+        }
+    }
+
+    updateButtonUI(button, isConnected) {
+        if (!button) return;
+        const textSpan = button.querySelector('.btn-text');
+        const connectIcon = button.querySelector('.icon-connect');
+        const connectedIcon = button.querySelector('.icon-connected');
+
+        if (isConnected) {
+            button.dataset.action = 'disconnect';
+            textSpan.textContent = 'Disconnect';
+            connectIcon.style.display = 'none';
+            connectedIcon.style.display = 'inline';
+            button.classList.add('connected');
+        } else {
+            button.dataset.action = 'connect';
+            textSpan.textContent = 'Connect';
+            connectIcon.style.display = 'inline';
+            connectedIcon.style.display = 'none';
+            button.classList.remove('connected');
         }
     }
 
@@ -209,11 +313,11 @@ export class AIOS {
         notification.textContent = message;
         container.appendChild(notification);
 
-        // Animate
         setTimeout(() => {
             notification.style.transform = 'translateY(0)';
             notification.style.opacity = '1';
         }, 10);
+
         setTimeout(() => {
             notification.style.transform = 'translateY(20px)';
             notification.style.opacity = '0';

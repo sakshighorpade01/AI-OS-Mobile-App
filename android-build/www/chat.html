@@ -1,11 +1,12 @@
 <!-- Main Chat Container -->
 <div id="chat-container">
     <div class="chat-window">
-        <div class="chat-messages" id="chat-messages"></div>
+        <div class="chat-messages" id="chat-messages">
+        </div>
     </div>
 </div>
 
-<!-- Hidden Button for Programmatic Trigger (still needed for nav toggle logic) -->
+<!-- Hidden Button for Programmatic Trigger -->
 <button class="tool-btn" data-tool="context" style="display: none;">
     <i class="fa-solid fa-network-wired"></i>
 </button>
@@ -26,13 +27,16 @@
                 </button>
             </div>
         </div>
+
+        <!-- === UPDATED: split view containers === -->
         <div class="context-content">
-            <!-- Dynamic session list will be injected here -->
+            <div id="context-list-view"></div>
+            <div id="context-detail-view" class="hidden"></div>
         </div>
     </div>
 </div>
 
-<!-- Selected Context Viewer (Sidebar for context preview and files) -->
+<!-- Selected Context Viewer -->
 <div id="selected-context-viewer" class="selected-context-viewer">
     <div class="context-viewer-header">
         <h3>Selected Context</h3>

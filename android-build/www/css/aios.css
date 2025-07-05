@@ -266,3 +266,86 @@
     flex-direction: column;
     gap: 0.75rem;
 }
+
+/* === NEW STYLES FOR INTEGRATIONS === */
+
+.integrations-section {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+}
+
+.section-subheading {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 16px;
+}
+
+.integration-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.integration-item:last-child {
+    border-bottom: none;
+}
+
+.integration-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.integration-info i {
+    font-size: 20px;
+    color: var(--text-secondary);
+}
+
+.integration-info span {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.connect-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background-color: var(--elevated-bg);
+    color: var(--accent-color);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.connect-btn:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--accent-color);
+}
+
+/* Style for the 'Connected' state */
+.connect-btn.connected {
+    background-color: var(--success-50);
+    border-color: var(--success-500);
+    color: var(--success-700);
+}
+
+.dark-mode .connect-btn.connected {
+    background-color: rgba(16, 185, 129, 0.1);
+    border-color: var(--success-700);
+    color: var(--success-100);
+}
+
+.connect-btn.connected:hover {
+    background-color: var(--error-50);
+    border-color: var(--error-500);
+    color: var(--error-700);
+}

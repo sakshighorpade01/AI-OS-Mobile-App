@@ -1,3 +1,4 @@
+<!-- aios.html -->
 <div id="settings-view" class="floating-window">
   <div class="window-header">
     <div class="window-title">
@@ -105,6 +106,39 @@
               <label for="userEmail">Email ID</label>
               <div class="email-display" id="userEmail">user@example.com</div>
             </div>
+
+            <!-- === NEW INTEGRATIONS SECTION START === -->
+            <div class="integrations-section">
+              <h4 class="section-subheading">Integrations</h4>
+
+              <!-- GitHub Integration Item -->
+              <div class="integration-item">
+                <div class="integration-info">
+                  <i class="fab fa-github"></i>
+                  <span>GitHub</span>
+                </div>
+                <button class="connect-btn" id="connect-github-btn" data-provider="github">
+                  <i class="fas fa-link icon-connect"></i>
+                  <i class="fas fa-check icon-connected" style="display: none;"></i>
+                  <span class="btn-text">Connect</span>
+                </button>
+              </div>
+
+              <!-- Google Integration Item -->
+              <div class="integration-item">
+                <div class="integration-info">
+                  <i class="fab fa-google"></i>
+                  <span>Google</span>
+                </div>
+                <button class="connect-btn" id="connect-google-btn" data-provider="google">
+                  <i class="fas fa-link icon-connect"></i>
+                  <i class="fas fa-check icon-connected" style="display: none;"></i>
+                  <span class="btn-text">Connect</span>
+                </button>
+              </div>
+            </div>
+            <!-- === NEW INTEGRATIONS SECTION END === -->
+
             <div class="account-actions">
               <button class="btn btn-secondary" id="logout-btn" aria-label="Logout">
                 <i class="fas fa-sign-out-alt"></i>

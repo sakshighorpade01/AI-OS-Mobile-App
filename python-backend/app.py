@@ -1,17 +1,18 @@
-
-# app.py (Final, Definitive, and Corrected Version)
+# python-backend/app.py
 
 import os
 import logging
 import json
 import uuid
 import traceback
+import requests
 from pathlib import Path
 from flask import Flask, request, jsonify, redirect, url_for, session
 from flask_socketio import SocketIO, emit
 from dotenv import load_dotenv
 import eventlet
 import datetime
+from typing import Union, Dict, Any
 
 from authlib.integrations.flask_client import OAuth
 
@@ -19,9 +20,12 @@ from assistant import get_llm_os
 from deepsearch import get_deepsearch
 from supabase_client import supabase_client
 
+# --- MODIFICATION: Import all necessary event and response types ---
 from agno.agent import Agent
+from agno.team import Team
 from agno.media import Image, Audio, Video, File
-from agno.run.response import RunEvent
+from agno.run.response import RunEvent, RunResponse
+from agno.run.team import TeamRunEvent, TeamRunResponse
 from gotrue.errors import AuthApiError
 
 load_dotenv()
@@ -82,9 +86,42 @@ class IsolatedAssistant:
     def __init__(self, sid):
         self.sid = sid
         self.message_id = None
-        self.current_response_content = ""
+        self.final_assistant_response = ""
 
-    def run_safely(self, agent: Agent, message: str, user, context=None, images=None, audio=None, videos=None, files=None):
+    # --- MODIFICATION START: This recursive function is the core of the fix ---
+    def _process_and_emit_response(self, response: Union[RunResponse, TeamRunResponse], is_top_level: bool = True):
+        """
+        Recursively processes a response object and emits socket events.
+        This handles the nested structure of team responses.
+        """
+        if not response:
+            return
+
+        owner_name = getattr(response, 'agent_name', None) or getattr(response, 'team_name', None)
+
+        # Aetheria_AI is the top-level coordinator. Only its direct output is the "final answer".
+        # All other content, including from sub-teams or nested agents, is a "log".
+        is_final_content = is_top_level and owner_name == "Aetheria_AI"
+
+        if response.content:
+            socketio.emit("response", {
+                "content": response.content,
+                "streaming": True,
+                "id": self.message_id,
+                "agent_name": owner_name,
+                "team_name": owner_name,
+                # ADD THIS NEW FLAG: True for intermediate steps, False for the final answer.
+                "is_log": not is_final_content,
+            }, room=self.sid)
+
+        # If it's a team response, recursively process each member's response
+        if hasattr(response, 'member_responses') and response.member_responses:
+            for member_response in response.member_responses:
+                # For all nested calls, is_top_level is False.
+                self._process_and_emit_response(member_response, is_top_level=False)
+    # --- MODIFICATION END ---
+
+    def run_safely(self, agent: Union[Agent, Team], message: str, user, context=None, images=None, audio=None, videos=None, files=None):
         def _run_agent(agent, message, user, context, images, audio, videos, files):
             try:
                 if context:
@@ -97,7 +134,7 @@ class IsolatedAssistant:
                 supported_params = {
                     'message': complete_message,
                     'stream': True,
-                    'stream_intermediate_steps': True, # <-- MODIFICATION: Enable intermediate steps
+                    'stream_intermediate_steps': True,
                     'user_id': str(user.id)
                 }
                 if 'images' in params and images: supported_params['images'] = images
@@ -107,41 +144,51 @@ class IsolatedAssistant:
 
                 logger.info(f"Calling agent.run for user {user.id} with params: {list(supported_params.keys())}")
                 
-                self.current_response_content = ""
+                self.final_assistant_response = ""
                 
-                # --- MODIFIED STREAMING LOGIC ---
                 for chunk in agent.run(**supported_params):
                     if not chunk or not hasattr(chunk, 'event'):
                         continue
 
                     eventlet.sleep(0)
                     
-                    # Handle final response content
-                    if chunk.event == RunEvent.run_response_content.value and chunk.content:
-                        self.current_response_content += chunk.content
-                        socketio.emit("response", {
-                            "content": chunk.content,
-                            "streaming": True,
-                            "id": self.message_id,
-                        }, room=self.sid)
-                    
-                    # Handle tool call start
-                    elif chunk.event == RunEvent.tool_call_started.value and hasattr(chunk, 'tool'):
+                    # --- MODIFICATION START: Use the correct event and the recursive handler ---
+                    if (chunk.event == RunEvent.run_response_content.value or
+                        chunk.event == TeamRunEvent.run_response_content.value):
+                        # The initial call is the top level
+                        self._process_and_emit_response(chunk, is_top_level=True)
+                        
+                        # Aggregate the final response for history.
+                        # The final response is the content from the top-level agent "Aetheria_AI"
+                        # that does not have further nested member responses.
+                        owner_name = getattr(chunk, 'agent_name', None) or getattr(chunk, 'team_name', None)
+                        is_final_chunk = owner_name == "Aetheria_AI" and (not hasattr(chunk, 'member_responses') or not chunk.member_responses)
+
+                        if chunk.content and is_final_chunk:
+                            self.final_assistant_response += chunk.content
+                    # --- MODIFICATION END ---
+
+                    elif (chunk.event == RunEvent.tool_call_started.value or
+                          chunk.event == TeamRunEvent.tool_call_started.value) and hasattr(chunk, 'tool'):
                         socketio.emit("agent_step", {
                             "type": "tool_start",
                             "name": chunk.tool.tool_name,
+                            # Get agent/team name from the parent chunk, not the tool object
+                            "agent_name": getattr(chunk, 'agent_name', None),
+                            "team_name": getattr(chunk, 'team_name', None),
                             "id": self.message_id
                         }, room=self.sid)
 
-                    # Handle tool call completion
-                    elif chunk.event == RunEvent.tool_call_completed.value and hasattr(chunk, 'tool'):
+                    elif (chunk.event == RunEvent.tool_call_completed.value or
+                          chunk.event == TeamRunEvent.tool_call_completed.value) and hasattr(chunk, 'tool'):
                         socketio.emit("agent_step", {
                             "type": "tool_end",
                             "name": chunk.tool.tool_name,
+                            # Get agent/team name from the parent chunk, not the tool object
+                            "agent_name": getattr(chunk, 'agent_name', None),
+                            "team_name": getattr(chunk, 'team_name', None),
                             "id": self.message_id
                         }, room=self.sid)
-
-                # --- END OF MODIFIED LOGIC ---
 
                 socketio.emit("response", {
                     "content": "",
@@ -188,7 +235,7 @@ class IsolatedAssistant:
             
             assistant_turn = {
                 "role": "assistant",
-                "content": self.current_response_content,
+                "content": self.final_assistant_response,
                 "timestamp": datetime.datetime.now().isoformat()
             }
             session_info['history'].append(assistant_turn)
@@ -205,7 +252,7 @@ class ConnectionManager:
         self.sessions = {}
         self.isolated_assistants = {}
 
-    def create_session(self, sid: str, user_id: str, config: dict, is_deepsearch: bool = False) -> Agent:
+    def create_session(self, sid: str, user_id: str, config: dict, is_deepsearch: bool = False) -> Union[Agent, Team]:
         if sid in self.sessions:
             self.terminate_session(sid)
 
@@ -214,18 +261,23 @@ class ConnectionManager:
         config['enable_google_email'] = True
         config['enable_google_drive'] = True
 
-        if is_deepsearch:
-            agent = get_deepsearch(user_id=user_id, **config)
-        else:
-            agent = get_llm_os(user_id=user_id, **config)
-
-        self.sessions[sid] = {
-            "agent": agent, 
+        session_info = {
+            "agent": None,
             "config": config,
             "history": [],
             "user_id": user_id,
-            "created_at": datetime.datetime.now().isoformat()
+            "created_at": datetime.datetime.now().isoformat(),
+            "sandbox_ids": set(),
+            "active_sandbox_id": None
         }
+        
+        if is_deepsearch:
+            agent = get_deepsearch(user_id=user_id, session_info=session_info, **config)
+        else:
+            agent = get_llm_os(user_id=user_id, session_info=session_info, **config)
+
+        session_info["agent"] = agent
+        self.sessions[sid] = session_info
         
         self.isolated_assistants[sid] = IsolatedAssistant(sid)
         logger.info(f"Created session {sid} for user {user_id} with config {config}")
@@ -233,19 +285,32 @@ class ConnectionManager:
 
     def terminate_session(self, sid):
         if sid in self.sessions:
-            session_info = self.sessions.get(sid)
+            session_info = self.sessions.pop(sid)
             if not session_info: return
+            
             agent = session_info.get("agent")
             history = session_info.get("history", [])
             user_id = session_info.get("user_id")
+
+            sandbox_ids_to_clean = session_info.get("sandbox_ids", set())
+            if sandbox_ids_to_clean:
+                logger.info(f"Cleaning up {len(sandbox_ids_to_clean)} sandbox sessions for SID {sid}.")
+                sandbox_api_url = os.getenv("SANDBOX_API_URL")
+                for sandbox_id in sandbox_ids_to_clean:
+                    try:
+                        requests.delete(f"{sandbox_api_url}/sessions/{sandbox_id}", timeout=10)
+                        logger.info(f"Successfully terminated sandbox {sandbox_id}.")
+                    except requests.RequestException as e:
+                        logger.error(f"Failed to clean up sandbox {sandbox_id}: {e}")
 
             if agent and hasattr(agent, 'session_metrics') and agent.session_metrics:
                 try:
                     final_metrics = agent.session_metrics
                     input_tokens, output_tokens = final_metrics.input_tokens, final_metrics.output_tokens
                     if input_tokens > 0 or output_tokens > 0:
+                        user_id_str = str(agent.user_id) if hasattr(agent, 'user_id') else user_id
                         supabase_client.from_('request_logs').insert({
-                            'user_id': str(agent.user_id), 'input_tokens': input_tokens, 'output_tokens': output_tokens
+                            'user_id': user_id_str, 'input_tokens': input_tokens, 'output_tokens': output_tokens
                         }).execute()
                 except Exception as e:
                     logger.error(f"Failed to log usage metrics for session {sid} on termination: {e}\n{traceback.format_exc()}")
@@ -267,7 +332,6 @@ class ConnectionManager:
                 except Exception as e:
                     logger.error(f"Failed to save conversation history for SID {sid}: {e}\n{traceback.format_exc()}")
             
-            del self.sessions[sid]
             if sid in self.isolated_assistants:
                 self.isolated_assistants[sid].terminate()
                 del self.isolated_assistants[sid]
@@ -509,14 +573,14 @@ def on_send_message(data: str):
             connection_manager.terminate_session(sid)
             emit("status", {"message": "Session terminated"}, room=sid)
             return
-        session = connection_manager.get_session(sid)
-        if not session:
+        session_data = connection_manager.get_session(sid)
+        if not session_data:
             config = data.get("config", {})
             agent = connection_manager.create_session(
                 sid, user_id=str(user.id), config=config, is_deepsearch=is_deepsearch
             )
         else:
-            agent = session["agent"]
+            agent = session_data["agent"]
         message_id = data.get("id") or str(uuid.uuid4())
         isolated_assistant = connection_manager.isolated_assistants.get(sid)
         if not isolated_assistant:

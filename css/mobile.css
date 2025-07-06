@@ -107,11 +107,10 @@ body, html {
 .main-content {
     flex-grow: 1;
     overflow-y: auto;
-    padding: 0;
+    position: relative;
 }
 
-/* Layout containers */
-#chat-root, .chat-container, .chat-window {
+#chat-root {
     height: 100%;
 }
 
@@ -119,21 +118,13 @@ body, html {
 .chat-messages {
     display: flex;
     flex-direction: column;
-    width: 100%; /* This is the critical fix */
+    width: 100%;
     max-width: 800px;
     margin: 0 auto;
-    padding: 2rem 1rem;
-    gap: 1.5rem;
+    padding: 1rem;
+    padding-bottom: 10rem; /* Extra padding at the bottom */
+    gap: 1rem;
 }
-
-/* Spacer that fills remaining space (used before bottom input) */
-.chat-spacer {
-    flex-grow: 1;
-}
-
-/* --- Message Bubbles (REMOVED) --- */
-/* All message bubble styles are now handled exclusively by chat.css to prevent conflicts. */
-
 
 /* --- Bottom UI --- */
 #bottom-ui-container {
@@ -292,7 +283,135 @@ body, html {
     to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes messageIn {
-    from { opacity: 0; transform: translateY(5px); }
-    to { opacity: 1; transform: translateY(0); }
+/* css/mobile.css */
+/* Add these new rules to the END of your existing mobile.css file */
+
+/* --- Updated File Preview Item Layout --- */
+.file-preview-item {
+    display: grid;
+    grid-template-columns: 1fr auto auto; /* Name | Actions | Status */
+    align-items: center;
+    gap: 8px;
+    background-color: var(--elevated-bg);
+    padding: 8px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    font-size: 0.9rem;
+    animation: fadeIn 0.3s ease;
+}
+
+.file-preview-item .file-name {
+    flex-grow: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-secondary);
+}
+
+.file-preview-item .file-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.file-preview-item .preview-file-btn,
+.file-preview-item .remove-file-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.file-preview-item .preview-file-btn:hover {
+    background-color: var(--hover-bg);
+    color: var(--accent-color);
+}
+
+.file-preview-item .remove-file-btn {
+    font-size: 1.5rem;
+}
+
+.file-preview-item .remove-file-btn:hover {
+    background-color: var(--hover-bg);
+    color: var(--error-500);
+}
+
+.file-preview-item .file-status {
+    width: 20px;
+    text-align: center;
+}
+
+.file-preview-item .file-status .success-icon { color: var(--success-500); }
+.file-preview-item .file-status .error-icon { color: var(--error-500); }
+
+/* --- File Preview Modal --- */
+#file-preview-modal {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(5px);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.preview-modal-content {
+    position: relative;
+    background-color: var(--elevated-bg);
+    border-radius: 1rem;
+    box-shadow: var(--shadow-xl);
+    padding: 1rem;
+    max-width: 90vw;
+    max-height: 90vh;
+}
+
+.close-preview-btn {
+    position: absolute;
+    top: -15px;
+    right: -15px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background-color: white;
+    color: black;
+    font-size: 1.5rem;
+    font-weight: bold;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: var(--shadow-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#preview-content-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#preview-content-area img,
+#preview-content-area video {
+    max-width: 85vw;
+    max-height: 80vh;
+    border-radius: 0.5rem;
+    object-fit: contain;
+}
+
+#preview-content-area audio {
+    width: 100%;
+    min-width: 300px;
 }

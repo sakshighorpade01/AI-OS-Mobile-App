@@ -103,6 +103,14 @@
   <div id="context-root"></div>
   <div class="notification-container"></div>
 
+  <!-- === NEW: Add the File Preview Modal === -->
+  <div id="file-preview-modal" class="modal-overlay hidden">
+    <div class="preview-modal-content">
+      <button class="close-preview-btn">×</button>
+      <div id="preview-content-area"></div>
+    </div>
+  </div>
+
   <!-- Application Logic -->
   <script type="module">
     import { AIOS } from './js/aios.js';
@@ -160,16 +168,13 @@
       const bottomNavBtns = document.querySelectorAll('.bottom-nav-btn');
       const sendBtn = document.getElementById('send-message');
       const input = document.getElementById('floating-input');
-      const attachBtn = document.getElementById('attach-file-btn');
-      const fileInput = document.getElementById('file-input');
-
+      
       const toolsMenu = document.getElementById('tools-menu');
       const toolOptions = document.querySelectorAll('.tool-option');
 
       hamburgerBtn.addEventListener('click', () => window.aios.openSidebar());
       newChatBtn.addEventListener('click', () => window.chat.clearChat());
-      attachBtn.addEventListener('click', () => fileInput.click());
-
+      
       bottomNavBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -178,6 +183,7 @@
           if (action === 'memory') {
             isMemoryEnabled = !isMemoryEnabled;
             btn.classList.toggle('active', isMemoryEnabled);
+            window.chat.showNotification(`Memory is now ${isMemoryEnabled ? 'ON' : 'OFF'}`, 'info');
             return;
           }
 
@@ -197,10 +203,14 @@
 
       toolOptions.forEach(option => {
         option.addEventListener('click', () => {
-          selectedAgentType = option.dataset.agent;
-          toolOptions.forEach(o => o.classList.remove('active'));
-          option.classList.add('active');
-          window.chat.showNotification(`Agent set to ${selectedAgentType.toUpperCase()}`, 'info');
+          const newAgentType = option.dataset.agent;
+          if (newAgentType !== selectedAgentType) {
+            selectedAgentType = newAgentType;
+            toolOptions.forEach(o => o.classList.remove('active'));
+            option.classList.add('active');
+            window.chat.clearChat(); 
+            window.chat.showNotification(`Agent switched to ${selectedAgentType.toUpperCase()}. New chat started.`, 'info');
+          }
           closeAllModalsAndMenus();
         });
       });

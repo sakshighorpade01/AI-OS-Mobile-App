@@ -1,26 +1,21 @@
-import { supabase } from './supabase-client.js';
+// js/add-files.js (Corrected with Preview Fix)
 
-const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname.startsWith('192.168');
-const BACKEND_URL = IS_LOCAL ? 'https://ai-os-yjbb.onrender.com' : '';
+import { supabase } from './supabase-client.js';
+import { chatModule } from './chat.js';
+
+const API_PROXY_URL = ''; // Use Vercel proxy
 
 class FileAttachmentHandler {
   constructor() {
-    // Supported file types including audio and video
     this.supportedFileTypes = {
-      // Text files
       'txt': 'text/plain', 'js': 'text/javascript', 'py': 'text/x-python', 'html': 'text/html',
       'css': 'text/css', 'json': 'application/json', 'c': 'text/x-c',
-      // Document files
       'pdf': 'application/pdf',
       'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      // Image files
       'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'gif': 'image/gif',
-      // Audio files
       'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg', 'm4a': 'audio/mp4',
-      // Video files
       'mp4': 'video/mp4', 'webm': 'video/webm', 'mov': 'video/quicktime', 'avi': 'video/x-msvideo'
     };
-
     this.maxFileSize = 10 * 1024 * 1024; // 10MB
     this.attachedFiles = [];
     this.initialize();
@@ -30,6 +25,10 @@ class FileAttachmentHandler {
     this.attachButton = document.getElementById('attach-file-btn');
     this.fileInput = document.getElementById('file-input');
     this.previewsContainer = document.getElementById('file-previews-container');
+    
+    this.previewModal = document.getElementById('file-preview-modal');
+    this.previewContentArea = document.getElementById('preview-content-area');
+    this.closePreviewBtn = this.previewModal?.querySelector('.close-preview-btn');
 
     this.attachButton?.addEventListener('click', (event) => {
       event.preventDefault();
@@ -38,6 +37,13 @@ class FileAttachmentHandler {
 
     this.fileInput?.addEventListener('change', (event) => {
       this.handleFileSelection(event);
+    });
+    
+    this.closePreviewBtn?.addEventListener('click', () => this.hidePreview());
+    this.previewModal?.addEventListener('click', (e) => {
+        if (e.target === this.previewModal) {
+            this.hidePreview();
+        }
     });
   }
 
@@ -48,22 +54,19 @@ class FileAttachmentHandler {
       throw new Error("User not authenticated. Please log in again.");
     }
 
-    const response = await fetch(`${BACKEND_URL}/api/generate-upload-url`, {
+    const response = await fetch(`${API_PROXY_URL}/api/generate-upload-url`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
       body: JSON.stringify({ fileName: file.name })
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error || 'Could not get an upload URL from the server.');
+      throw new Error(errorData.error || 'Could not get an upload URL.');
     }
 
     const { signedURL, path } = await response.json();
-    if (!signedURL) throw new Error('The server did not return a valid signed URL.');
+    if (!signedURL) throw new Error('Server did not return a valid signed URL.');
 
     const uploadResponse = await fetch(signedURL, {
       method: 'PUT',
@@ -71,30 +74,26 @@ class FileAttachmentHandler {
       body: file
     });
 
-    if (!uploadResponse.ok) {
-      throw new Error('File upload to cloud storage failed.');
-    }
-
+    if (!uploadResponse.ok) throw new Error('File upload to cloud storage failed.');
     return path;
   }
 
   async handleFileSelection(event) {
     const files = Array.from(event.target.files);
     if (files.length + this.attachedFiles.length > 10) {
-      alert("You can attach a maximum of 10 files.");
+      chatModule.showNotification("You can attach a maximum of 10 files.", "warning");
       return;
     }
 
     for (const file of files) {
       if (file.size > this.maxFileSize) {
-        alert(`File too large: ${file.name}`);
+        chatModule.showNotification(`File too large: ${file.name}`, "warning");
         continue;
       }
 
       const fileIndex = this.attachedFiles.length;
       const ext = file.name.split('.').pop().toLowerCase();
-      const isText = file.type.startsWith('text/') ||
-                     this.supportedFileTypes[ext] === 'text/plain';
+      const isText = file.type.startsWith('text/') || this.supportedFileTypes[ext] === 'text/plain';
 
       const fileObject = {
         id: `file_${Date.now()}_${fileIndex}`,
@@ -103,10 +102,11 @@ class FileAttachmentHandler {
         status: 'uploading',
         isText,
         file,
+        previewUrl: isText ? null : URL.createObjectURL(file)
       };
 
       this.attachedFiles.push(fileObject);
-      this.renderPreviews(); // initial state
+      this.renderPreviews();
 
       try {
         if (fileObject.isText) {
@@ -118,11 +118,11 @@ class FileAttachmentHandler {
       } catch (error) {
         console.error(`Failed to process ${file.name}:`, error);
         fileObject.status = 'failed';
+        chatModule.showNotification(`Upload failed for ${file.name}: ${error.message}`, "error");
       }
 
-      this.renderPreviews(); // updated state
+      this.renderPreviews();
     }
-
     this.fileInput.value = '';
   }
 
@@ -151,11 +151,19 @@ class FileAttachmentHandler {
       } else {
         statusIcon = '<i class="fas fa-check-circle success-icon"></i>';
       }
+      
+      let previewButton = '';
+      if (!fileObject.isText && fileObject.status === 'completed') {
+          previewButton = `<button class="preview-file-btn" data-index="${index}" title="Preview File"><i class="fas fa-eye"></i></button>`;
+      }
 
       previewElement.innerHTML = `
         <span class="file-name">${fileObject.name}</span>
+        <div class="file-actions">
+          ${previewButton}
+          <button class="remove-file-btn" data-index="${index}" title="Remove File">×</button>
+        </div>
         <span class="file-status">${statusIcon}</span>
-        <button class="remove-file-btn" data-index="${index}">×</button>
       `;
 
       this.previewsContainer.appendChild(previewElement);
@@ -167,9 +175,50 @@ class FileAttachmentHandler {
         this.removeFile(indexToRemove);
       });
     });
+    
+    this.previewsContainer.querySelectorAll('.preview-file-btn').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const indexToPreview = parseInt(e.currentTarget.dataset.index, 10);
+            this.showPreview(indexToPreview);
+        });
+    });
+  }
+
+  showPreview(index) {
+      const fileObject = this.attachedFiles[index];
+      // The previewUrl should always be valid here now
+      if (!fileObject || !fileObject.previewUrl || !this.previewModal) return;
+
+      let contentHTML = '';
+      if (fileObject.type.startsWith('image/')) {
+          contentHTML = `<img src="${fileObject.previewUrl}" alt="Preview of ${fileObject.name}">`;
+      } else if (fileObject.type.startsWith('video/')) {
+          contentHTML = `<video src="${fileObject.previewUrl}" controls autoplay></video>`;
+      } else if (fileObject.type.startsWith('audio/')) {
+          contentHTML = `<audio src="${fileObject.previewUrl}" controls autoplay></audio>`;
+      } else if (fileObject.type === 'application/pdf') {
+          contentHTML = `<iframe class="pdf-preview" src="${fileObject.previewUrl}"></iframe>`;
+      } else {
+          contentHTML = `<p>Preview is not available for this file type.</p>`;
+      }
+
+      this.previewContentArea.innerHTML = contentHTML;
+      this.previewModal.classList.remove('hidden');
+  }
+
+  hidePreview() {
+      if (!this.previewModal) return;
+      this.previewModal.classList.add('hidden');
+      // --- FIX: DO NOT revoke the URL here. Only clear the HTML. ---
+      this.previewContentArea.innerHTML = '';
   }
 
   removeFile(index) {
+    // --- FIX: Revoke the URL when the file is permanently removed. ---
+    const fileToRemove = this.attachedFiles[index];
+    if (fileToRemove && fileToRemove.previewUrl) {
+        URL.revokeObjectURL(fileToRemove.previewUrl);
+    }
     this.attachedFiles.splice(index, 1);
     this.renderPreviews();
   }
@@ -179,6 +228,12 @@ class FileAttachmentHandler {
   }
 
   clearAttachedFiles() {
+    // --- FIX: Revoke all URLs when clearing all attachments. ---
+    this.attachedFiles.forEach(file => {
+        if (file.previewUrl) {
+            URL.revokeObjectURL(file.previewUrl);
+        }
+    });
     this.attachedFiles = [];
     this.renderPreviews();
   }

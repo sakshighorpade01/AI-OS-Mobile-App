@@ -1,11 +1,13 @@
-// This service replaces the need for python-bridge.js and ipcRenderer for chat.
+// js/socket-service.js (Updated)
+
+// This service manages the WebSocket connection to the backend.
 import { supabase } from './supabase-client.js';
 
-// The backend URL from your config.js, hardcoded for simplicity in PWA
-const BACKEND_URL = 'https://ai-os-yjbb.onrender.com'; 
+// The backend URL is centralized here.
+const BACKEND_URL = 'https://ai-os-yjbb.onrender.com';
 let socket = null;
 
-// Store callbacks for different events
+// Store callbacks for different events.
 const eventListeners = {
     'response': [],
     'agent_step': [],
@@ -39,52 +41,76 @@ function emitEvent(eventName, data) {
 }
 
 export const socketService = {
+    /**
+     * Initializes the socket connection if it doesn't already exist.
+     */
     init: () => {
-        if (socket && socket.connected) {
+        // Prevent creating a new socket if one already exists or is connecting.
+        if (socket) {
             return;
         }
+        
+        console.log("Initializing socket connection...");
         // The 'io' function is available globally from the script in index.html
         socket = io(BACKEND_URL, {
             transports: ['websocket'],
             reconnection: true,
+            reconnectionDelay: 2000,
+            reconnectionAttempts: 5
         });
         setupSocketHandlers();
     },
 
+    /**
+     * Sends a message payload to the backend.
+     * @param {object} messagePayload - The data to send.
+     * @throws {Error} If the socket is not connected or the user is not authenticated.
+     */
     sendMessage: async (messagePayload) => {
         if (!socket || !socket.connected) {
             console.error('Socket not connected. Cannot send message.');
-            alert('Not connected to the server. Please refresh and try again.');
-            return;
+            // Throw an error instead of using alert, so the UI can handle it gracefully.
+            throw new Error('Not connected to the server. Please wait or refresh.');
         }
 
-        // Get the access token from Supabase to authenticate the request
+        // Get the access token from Supabase to authenticate the request.
+        await supabase.auth.refreshSession(); // Ensure the token is fresh
         const { data: { session } } = await supabase.auth.getSession();
+        
         if (!session) {
-            alert('You are not logged in. Please log in to chat.');
-            return;
+            console.error('User is not authenticated.');
+            // Throw an error for the UI to handle.
+            throw new Error('You are not logged in. Please log in to chat.');
         }
         
-        // Add the access token to the payload
+        // Add the access token to the payload.
         const authenticatedPayload = {
             ...messagePayload,
             accessToken: session.access_token
         };
         
-        // The backend expects a JSON string
+        // The backend expects the entire payload to be a single JSON string.
         socket.emit('send_message', JSON.stringify(authenticatedPayload));
     },
 
-    // Function to allow other modules to listen for events
+    /**
+     * Allows other modules to register a callback for a specific socket event.
+     * @param {string} eventName - The name of the event (e.g., 'response', 'error').
+     * @param {function} callback - The function to call when the event occurs.
+     */
     on: (eventName, callback) => {
         if (eventListeners[eventName]) {
             eventListeners[eventName].push(callback);
         }
     },
 
+    /**
+     * Disconnects the socket if it's currently connected.
+     */
     disconnect: () => {
         if (socket) {
             socket.disconnect();
+            socket = null;
         }
     }
 };

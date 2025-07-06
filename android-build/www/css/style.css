@@ -14,11 +14,6 @@ body {
         radial-gradient(circle at 25% 25%, rgba(99, 102, 241, 0.05) 0%, transparent 40%),
         radial-gradient(circle at 75% 75%, rgba(99, 102, 241, 0.05) 0%, transparent 40%);
     background-attachment: fixed;
-    /*
-     *  REMOVED THE FOLLOWING CONFLICTING LINES:
-     *  display: grid;
-     *  place-items: center;
-     */
 }
 
 /* --- Globally Used Styles (Notifications, etc.) --- */
@@ -62,6 +57,14 @@ body {
     display: flex;
     align-items: flex-start;
     gap: 0.75rem;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.3s ease-in-out;
+}
+
+.notification.show {
+    opacity: 1;
+    transform: translateY(0);
 }
 
 .notification.error { border-left-color: var(--error-500); }

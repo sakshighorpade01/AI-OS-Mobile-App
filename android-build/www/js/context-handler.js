@@ -1,8 +1,10 @@
+// js/context-handler.js (Corrected)
+
 import { supabase } from './supabase-client.js';
 import { messageFormatter } from './message-formatter.js';
 
-const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname.startsWith('192.168');
-const BACKEND_URL = IS_LOCAL ? 'https://ai-os-yjbb.onrender.com' : '';
+// --- FIX: Use a relative path to trigger the Vercel proxy ---
+const API_PROXY_URL = '';
 
 class ContextHandler {
     constructor() {
@@ -16,7 +18,7 @@ class ContextHandler {
         this.elements.contextWindow = document.getElementById('context-window');
         if (!this.elements.contextWindow) return;
 
-        this.elements.panel = this.elements.contextWindow.querySelector('.context-window-panel'); // NEW
+        this.elements.panel = this.elements.contextWindow.querySelector('.context-window-panel');
         this.elements.closeContextBtn = this.elements.contextWindow.querySelector('.close-context-btn');
         this.elements.syncBtn = this.elements.contextWindow.querySelector('.sync-context-btn');
         this.elements.sessionsContainer = this.elements.contextWindow.querySelector('.context-content');
@@ -28,12 +30,8 @@ class ContextHandler {
     bindEvents() {
         if (!this.elements.contextWindow) return;
 
-        // Click background to close modal
         this.elements.contextWindow.addEventListener('click', () => this.toggleWindow(false));
-
-        // Stop clicks inside the panel from bubbling to modal background
         this.elements.panel?.addEventListener('click', (e) => e.stopPropagation());
-
         this.elements.closeContextBtn?.addEventListener('click', () => this.toggleWindow(false));
         this.elements.syncBtn?.addEventListener('click', (e) => {
             e.preventDefault();
@@ -64,7 +62,7 @@ class ContextHandler {
         }
 
         if (show) {
-            this.showSessionList(this.loadedSessions); // Reset view
+            this.showSessionList(this.loadedSessions);
             this.loadSessions();
         }
     }
@@ -83,7 +81,8 @@ class ContextHandler {
         }
 
         try {
-            const response = await fetch(`${BACKEND_URL}/api/sessions`, {
+            // --- FIX: Use the proxy URL for the API call ---
+            const response = await fetch(`${API_PROXY_URL}/api/sessions`, {
                 headers: { 'Authorization': `Bearer ${session.access_token}` }
             });
 
@@ -102,15 +101,15 @@ class ContextHandler {
         }
     }
 
+    // ... (the rest of the file is identical and does not need to be changed)
     showSessionList(sessions) {
         if (!this.elements.listView || !this.elements.detailView) return;
 
         this.elements.listView.classList.remove('hidden');
         this.elements.detailView.classList.add('hidden');
-
         this.elements.listView.innerHTML = '';
 
-        if (sessions.length === 0) {
+        if (!sessions || sessions.length === 0) {
             this.elements.listView.innerHTML = '<div class="empty-state">No sessions found.</div>';
             return;
         }
@@ -145,7 +144,7 @@ class ContextHandler {
 
         let sessionName = `Session ${session.session_id.substring(0, 8)}...`;
         if (session.memory?.runs?.length > 0) {
-            const firstUserRun = session.memory.runs.find(run => run.role === 'user' && run.content.trim() !== '');
+            const firstUserRun = session.memory.runs.find(run => run.role === 'user' && run.content && run.content.trim() !== '');
             if (firstUserRun) {
                 let title = firstUserRun.content.split('\n')[0].trim();
                 if (title.length > 45) title = title.substring(0, 45) + '...';
@@ -223,7 +222,10 @@ class ContextHandler {
     getSelectedSessionsData() {
         const selectedIds = new Set();
         this.elements.listView.querySelectorAll('.session-checkbox:checked').forEach(cb => {
-            selectedIds.add(cb.closest('.session-item').dataset.sessionId);
+            const sessionItem = cb.closest('.session-item');
+            if (sessionItem) {
+                selectedIds.add(sessionItem.dataset.sessionId);
+            }
         });
 
         return this.loadedSessions
@@ -250,7 +252,7 @@ class ContextHandler {
 
         const titleElement = view.querySelector('.session-header h3');
         if (titleElement) {
-            const firstUserRun = session.memory.runs.find(run => run.role === 'user' && run.content.trim() !== '');
+            const firstUserRun = session.memory.runs.find(run => run.role === 'user' && run.content && run.content.trim() !== '');
             let sessionName = `Session ${session.session_id.substring(0, 8)}...`;
             if (firstUserRun) {
                 sessionName = firstUserRun.content.split('\n')[0].trim().substring(0, 45) + '...';
@@ -264,7 +266,7 @@ class ContextHandler {
         session.memory.runs.forEach(run => {
             const msgDiv = document.createElement('div');
             msgDiv.className = `message-block role-${run.role}`;
-            const formattedContent = messageFormatter.format(run.content);
+            const formattedContent = messageFormatter.format(run.content || '');
             msgDiv.innerHTML = `
                 <strong class="message-role">${run.role.toUpperCase()}</strong>
                 <div class="message-content-history">${formattedContent}</div>
@@ -289,10 +291,13 @@ class ContextHandler {
     }
 
     showNotification(message, type = 'info', duration = 3000) {
+        const container = document.querySelector('.notification-container');
+        if (!container) return;
+
         const notification = document.createElement('div');
         notification.className = `notification notification-${type}`;
         notification.textContent = message;
-        document.body.appendChild(notification);
+        container.appendChild(notification);
 
         setTimeout(() => notification.classList.add('show'), 10);
         setTimeout(() => {

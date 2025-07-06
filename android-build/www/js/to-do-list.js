@@ -1,3 +1,5 @@
+// js/to-do-list.js (Updated)
+
 export class ToDoList {
     constructor() {
         this.tasks = [];
@@ -43,22 +45,15 @@ export class ToDoList {
         this.elements.saveTaskBtn?.addEventListener('click', () => this.saveNewTask());
         this.elements.cancelTaskBtn?.addEventListener('click', () => {
             this.closeNewTaskModal();
-            this.toggleWindow(false);
         });
 
         this.elements.contextBtn?.addEventListener('click', () => this.openUserContextModal());
         this.elements.saveContextBtn?.addEventListener('click', () => this.saveUserContext());
         this.elements.cancelContextBtn?.addEventListener('click', () => {
             this.closeUserContextModal();
-            this.toggleWindow(false);
         });
     }
 
-    /**
-     * Toggle the to-do list panel visibility.
-     * @param {boolean} show - Whether to show or hide the panel.
-     * @param {HTMLElement|null} buttonElement - Optional: the button that opened the panel.
-     */
     toggleWindow(show, buttonElement = null) {
         if (!this.elements.container) return;
 
@@ -80,8 +75,6 @@ export class ToDoList {
 
     closeNewTaskModal() {
         this.elements.newTaskModal?.classList.add('hidden');
-
-        // Reset all fields inside the modal
         const form = this.elements.newTaskModal?.querySelector('.modal-content');
         if (form) {
             form.querySelectorAll('input, textarea, select').forEach(el => {
@@ -92,8 +85,18 @@ export class ToDoList {
     }
 
     async loadData() {
-        const data = localStorage.getItem('aios_tasks');
-        this.tasks = data ? JSON.parse(data) : [];
+        try {
+            const data = localStorage.getItem('aios_tasks');
+            const parsedData = data ? JSON.parse(data) : [];
+            // Ensure every task has a `tags` array to prevent errors
+            this.tasks = parsedData.map(task => ({
+                ...task,
+                tags: task.tags || [] 
+            }));
+        } catch (e) {
+            console.error("Failed to load tasks from localStorage", e);
+            this.tasks = [];
+        }
     }
 
     saveData() {
@@ -128,7 +131,6 @@ export class ToDoList {
 
     renderTasks() {
         if (!this.elements.taskList) return;
-
         this.elements.taskList.innerHTML = '';
 
         this.tasks.forEach(task => {
@@ -136,6 +138,11 @@ export class ToDoList {
             listItem.dataset.id = task.id;
             listItem.dataset.priority = task.priority;
             if (task.completed) listItem.classList.add('completed');
+
+            // CRITICAL FIX: Ensure task.tags exists before trying to access .length
+            const tagsHTML = (task.tags && task.tags.length) 
+                ? `<div class="task-tags">${task.tags.map(tag => `<span class="task-tag">${tag}</span>`).join(' ')}</div>` 
+                : '';
 
             listItem.innerHTML = `
                 <div class="checkbox-wrapper">
@@ -147,20 +154,18 @@ export class ToDoList {
                 <div class="task-details">
                     <span class="task-text">${task.text}</span>
                     ${task.description ? `<div class="task-description">${task.description}</div>` : ''}
-                    ${task.deadline ? `<div class="task-deadline"><i class="fas fa-clock"></i> ${task.deadline}</div>` : ''}
-                    ${task.tags.length ? `<div class="task-tags">${task.tags.map(tag => `<span class="task-tag">${tag}</span>`).join(' ')}</div>` : ''}
+                    ${task.deadline ? `<div class="task-deadline"><i class="fas fa-clock"></i> ${new Date(task.deadline).toLocaleString()}</div>` : ''}
+                    ${tagsHTML}
                 </div>
                 <div class="button-container">
                     <button class="delete-btn" title="Delete Task"><i class="fas fa-trash-alt"></i></button>
                 </div>
             `;
 
-            // Toggle task completion
             listItem.querySelector('input[type="checkbox"]')?.addEventListener('change', (e) => {
                 this.toggleTaskCompletion(task.id, e.target.checked);
             });
 
-            // Delete task
             listItem.querySelector('.delete-btn')?.addEventListener('click', () => {
                 this.deleteTask(task.id);
             });

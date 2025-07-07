@@ -1,11 +1,19 @@
 /* css/chat.css (Corrected for robust flex alignment) */
 
-/* The parent .chat-messages container should have `display: flex; flex-direction: column;` and `align-items: flex-start;` */
-/* This aligns all bubbles to the left by default. */
-
-/* --- Base class for ALL message bubbles --- */
-.message {
+/* --- NEW: Wrapper for user message and context button --- */
+.message-wrapper {
+    display: flex;
+    flex-direction: column;
     max-width: 85%;
+}
+
+.user-message-wrapper {
+    align-self: flex-end; /* Aligns the whole wrapper to the right */
+    align-items: flex-end; /* Aligns items inside to the right */
+}
+
+/* Base class for ALL message bubbles */
+.message {
     padding: 12px 16px;
     border-radius: 16px;
     line-height: 1.6;
@@ -14,6 +22,8 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     text-align: left;
     animation: messageIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    width: -moz-fit-content;
+    width: fit-content; /* Ensures bubble is only as wide as its content */
 }
 
 @keyframes messageIn {
@@ -21,26 +31,46 @@
     to   { opacity: 1; transform: translateY(0); }
 }
 
-/* --- User Message Styling (aligns to the right) --- */
+/* User Message Styling */
 .user-message {
-    align-self: flex-end; /* ★★★ This is the most reliable way to align a flex item to the right. */
     background-color: var(--message-user-bg);
     color: var(--message-user-text);
-    /* Create the "tail" on the bottom-right */
     border-radius: 16px 16px 0 16px;
+    align-self: flex-end; /* Ensures bubble itself aligns right within its wrapper */
 }
 
-/* --- Bot Message Styling (aligns to the left) --- */
+/* Bot Message Styling */
 .bot-message {
-    /* No 'align-self' is needed; it correctly inherits the parent's 'flex-start' alignment. */
     background-color: var(--message-bot-bg);
     color: var(--message-bot-text);
     border: 1px solid var(--border-color);
-    /* Create the "tail" on the bottom-left */
     border-radius: 16px 16px 16px 0;
+    align-self: flex-start; /* Aligns bot messages to the left */
 }
 
-/* --- Inner Content Formatting (Code, Tables, etc.) --- */
+/* --- NEW: Context button styling --- */
+.user-message-context-button {
+    background-color: var(--elevated-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    border-radius: 12px;
+    margin-top: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.user-message-context-button:hover {
+    background-color: var(--hover-bg);
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+}
+
+/* Inner Content Formatting */
 .bot-message pre,
 .user-message pre {
     background-color: var(--code-bg);
@@ -110,9 +140,9 @@
     margin-top: 10px;
 }
 
-/* --- Responsive Adjustment --- */
+/* Responsive Adjustment */
 @media (max-width: 600px) {
-    .message {
+    .message-wrapper {
         max-width: 90%;
     }
 }

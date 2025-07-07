@@ -51,8 +51,6 @@
 
     <!-- Bottom UI Area -->
     <div id="bottom-ui-container">
-
-      <!-- Tools Menu (Unchanged) -->
       <div id="tools-menu" class="hidden">
         <button class="tool-option active" data-agent="aios">
           <span class="checkbox-icon"><i class="fas fa-check-square icon-checked"></i><i class="far fa-square icon-unchecked"></i></span>
@@ -63,8 +61,6 @@
           <i class="fas fa-search-plus icon-main"></i><span>DeepSearch</span>
         </button>
       </div>
-
-      <!-- Floating Input Field (Unchanged) -->
       <div class="floating-input-wrapper">
         <div id="file-previews-container"></div>
         <div class="floating-input-container">
@@ -74,8 +70,6 @@
         </div>
         <input type="file" id="file-input" style="display: none;" multiple />
       </div>
-
-      <!-- Bottom Navigation -->
       <div class="bottom-nav">
         <button class="bottom-nav-btn" data-action="memory" title="Memory"><i class="fa-solid fa-brain"></i></button>
         <button class="bottom-nav-btn" data-action="tools" title="Tools"><i class="fas fa-wrench"></i></button>
@@ -96,13 +90,186 @@
     </div>
   </div>
 
-  <!-- Application Logic (Unchanged) -->
+  <!-- Context Viewer Modal -->
+  <div id="context-viewer-modal" class="modal-overlay hidden">
+    <div class="context-viewer-panel">
+        <div class="context-viewer-header">
+            <h3>Message Context</h3>
+            <button class="close-viewer-btn">×</button>
+        </div>
+        <div class="context-viewer-tabs">
+            <button class="viewer-tab active" data-tab="sessions">
+                <i class="fas fa-network-wired"></i>
+                <span>Sessions</span>
+            </button>
+            <button class="viewer-tab" data-tab="files">
+                <i class="fas fa-paperclip"></i>
+                <span>Files</span>
+            </button>
+        </div>
+        <div class="context-viewer-content">
+            <div class="viewer-tab-content active" id="sessions-content"></div>
+            <div class="viewer-tab-content" id="files-content"></div>
+        </div>
+    </div>
+  </div>
+
+  <!-- ★★★ NEW: Dedicated Preview Modal for the Context Viewer ★★★ -->
+  <div id="context-viewer-preview-modal" class="modal-overlay hidden">
+    <div class="preview-modal-content">
+      <button class="close-preview-btn">×</button>
+      <div id="context-viewer-preview-area"></div>
+    </div>
+  </div>
+
+
+  <!-- Application Logic -->
   <script type="module">
     import { AIOS } from './js/aios.js';
     import { chatModule } from './js/chat.js';
     import { ToDoList } from './js/to-do-list.js';
     import ContextHandler from './js/context-handler.js';
     import FileAttachmentHandler from './js/add-files.js';
+    import { messageFormatter } from './js/message-formatter.js';
+
+    // ★★★ NEW: Context Viewer Class (Expanded Logic) ★★★
+    class ContextViewer {
+        constructor() {
+            this.modal = document.getElementById('context-viewer-modal');
+            this.closeBtn = this.modal.querySelector('.close-viewer-btn');
+            this.tabs = this.modal.querySelectorAll('.viewer-tab');
+            this.sessionsContent = this.modal.querySelector('#sessions-content');
+            this.filesContent = this.modal.querySelector('#files-content');
+            this.tabContents = this.modal.querySelectorAll('.viewer-tab-content');
+            this.currentContext = {};
+
+            // --- NEW: Preview Modal Elements ---
+            this.previewModal = document.getElementById('context-viewer-preview-modal');
+            this.previewContentArea = this.previewModal.querySelector('#context-viewer-preview-area');
+            this.closePreviewBtn = this.previewModal.querySelector('.close-preview-btn');
+
+            this.bindEvents();
+        }
+
+        bindEvents() {
+            this.closeBtn.addEventListener('click', () => this.hide());
+            this.modal.addEventListener('click', (e) => {
+                if (e.target === this.modal) this.hide();
+            });
+
+            this.tabs.forEach(tab => {
+                tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
+            });
+
+            // --- NEW: Preview Modal Events ---
+            this.closePreviewBtn.addEventListener('click', () => this.hidePreview());
+            this.previewModal.addEventListener('click', (e) => {
+                if (e.target === this.previewModal) this.hidePreview();
+            });
+
+            this.filesContent.addEventListener('click', (e) => {
+                const previewBtn = e.target.closest('.preview-context-file-btn');
+                if (previewBtn) {
+                    const previewUrl = previewBtn.dataset.previewUrl;
+                    const fileType = previewBtn.dataset.fileType;
+                    if (previewUrl) {
+                        this.showPreview(previewUrl, fileType);
+                    } else {
+                        alert('Preview is not available for this file type.');
+                    }
+                }
+            });
+        }
+
+        show(contextData) {
+            this.currentContext = contextData;
+            const { files = [], sessions = [] } = contextData;
+
+            this.renderSessions(sessions);
+            this.renderFiles(files);
+            
+            this.tabs.forEach(tab => {
+                const tabName = tab.dataset.tab;
+                const hasContent = (tabName === 'files' && files.length > 0) || (tabName === 'sessions' && sessions.length > 0);
+                tab.style.display = hasContent ? 'flex' : 'none';
+            });
+
+            if (sessions.length > 0) {
+                this.switchTab('sessions');
+            } else if (files.length > 0) {
+                this.switchTab('files');
+            } else {
+                this.switchTab('sessions');
+            }
+
+            this.modal.classList.remove('hidden');
+        }
+
+        hide() {
+            this.modal.classList.add('hidden');
+        }
+
+        switchTab(tabName) {
+            this.tabs.forEach(tab => tab.classList.toggle('active', tab.dataset.tab === tabName));
+            this.tabContents.forEach(content => content.classList.toggle('active', content.id === `${tabName}-content`));
+        }
+
+        renderFiles(files) {
+            if (files.length === 0) {
+                this.filesContent.innerHTML = '<p class="empty-state">No files were attached.</p>';
+                return;
+            }
+            this.filesContent.innerHTML = files.map((file, index) => `
+                <div class="viewer-file-item">
+                    <i class="fas fa-file"></i>
+                    <span class="item-name">${file.name}</span>
+                    <div class="viewer-file-actions">
+                        <button class="preview-context-file-btn" data-preview-url="${file.previewUrl || ''}" data-file-type="${file.type}" title="Preview File"><i class="fas fa-eye"></i></button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        renderSessions(sessions) {
+            if (sessions.length === 0) {
+                this.sessionsContent.innerHTML = '<p class="empty-state">No sessions were used as context.</p>';
+                return;
+            }
+            this.sessionsContent.innerHTML = sessions.map((session, index) => {
+                const chatHistoryHtml = session.interactions.map(turn => `
+                    <div class="viewer-session-turn">
+                        <strong class="viewer-session-role">${turn.user_input ? 'User' : 'Assistant'}:</strong>
+                        <div class="viewer-session-content">${messageFormatter.format(turn.user_input || turn.llm_output)}</div>
+                    </div>
+                `).join('');
+
+                return `<div class="viewer-session-item">${chatHistoryHtml}</div>`;
+            }).join('<hr class="viewer-divider">');
+        }
+
+        // --- NEW: Preview Logic ---
+        showPreview(url, type) {
+            let contentHTML = '';
+            if (type.startsWith('image/')) {
+                contentHTML = `<img src="${url}" alt="File Preview">`;
+            } else if (type.startsWith('video/')) {
+                contentHTML = `<video src="${url}" controls autoplay></video>`;
+            } else if (type.startsWith('audio/')) {
+                contentHTML = `<audio src="${url}" controls autoplay></audio>`;
+            } else if (type === 'application/pdf') {
+                contentHTML = `<iframe class="pdf-preview" src="${url}"></iframe>`;
+            } else {
+                contentHTML = `<p>Preview is not available for this file type.</p>`;
+            }
+            this.previewContentArea.innerHTML = contentHTML;
+            this.previewModal.classList.remove('hidden');
+        }
+
+        hidePreview() {
+            this.previewModal.classList.add('hidden');
+            this.previewContentArea.innerHTML = '';
+        }
+    }
 
     document.addEventListener('DOMContentLoaded', async () => {
       const loadModuleHTML = async (name, containerId) => {
@@ -134,8 +301,10 @@
       window.contextHandler.bindEvents();
 
       window.fileAttachmentHandler = new FileAttachmentHandler();
+      
+      window.contextViewer = new ContextViewer();
       window.chat = chatModule;
-      window.chat.init(window.contextHandler, window.fileAttachmentHandler);
+      window.chat.init(window.contextHandler, window.fileAttachmentHandler, window.contextViewer);
 
       window.todo = new ToDoList();
       await window.todo.init();

@@ -102,7 +102,8 @@ class FileAttachmentHandler {
         status: 'uploading',
         isText,
         file,
-        previewUrl: isText ? null : URL.createObjectURL(file)
+        // ★★★ FIX: Initialize previewUrl to null. It will be populated below. ★★★
+        previewUrl: null 
       };
 
       this.attachedFiles.push(fileObject);
@@ -113,6 +114,8 @@ class FileAttachmentHandler {
           fileObject.content = await this.readFileAsText(file);
         } else {
           fileObject.path = await this.uploadFileToSupabase(file);
+          // ★★★ FIX: Generate a persistent Base64 Data URL for previewing later. ★★★
+          fileObject.previewUrl = await this.readFileAsDataURL(file);
         }
         fileObject.status = 'completed';
       } catch (error) {
@@ -135,6 +138,16 @@ class FileAttachmentHandler {
     });
   }
 
+  // ★★★ FIX: New function to read file as a Base64 Data URL ★★★
+  readFileAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve(event.target.result);
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+    });
+  }
+
   renderPreviews() {
     if (!this.previewsContainer) return;
     this.previewsContainer.innerHTML = '';
@@ -153,7 +166,8 @@ class FileAttachmentHandler {
       }
       
       let previewButton = '';
-      if (!fileObject.isText && fileObject.status === 'completed') {
+      // Show preview button if a previewUrl exists and the file has completed processing
+      if (fileObject.previewUrl && fileObject.status === 'completed') {
           previewButton = `<button class="preview-file-btn" data-index="${index}" title="Preview File"><i class="fas fa-eye"></i></button>`;
       }
 
@@ -186,7 +200,6 @@ class FileAttachmentHandler {
 
   showPreview(index) {
       const fileObject = this.attachedFiles[index];
-      // The previewUrl should always be valid here now
       if (!fileObject || !fileObject.previewUrl || !this.previewModal) return;
 
       let contentHTML = '';
@@ -209,16 +222,10 @@ class FileAttachmentHandler {
   hidePreview() {
       if (!this.previewModal) return;
       this.previewModal.classList.add('hidden');
-      // --- FIX: DO NOT revoke the URL here. Only clear the HTML. ---
       this.previewContentArea.innerHTML = '';
   }
 
   removeFile(index) {
-    // --- FIX: Revoke the URL when the file is permanently removed. ---
-    const fileToRemove = this.attachedFiles[index];
-    if (fileToRemove && fileToRemove.previewUrl) {
-        URL.revokeObjectURL(fileToRemove.previewUrl);
-    }
     this.attachedFiles.splice(index, 1);
     this.renderPreviews();
   }
@@ -228,12 +235,6 @@ class FileAttachmentHandler {
   }
 
   clearAttachedFiles() {
-    // --- FIX: Revoke all URLs when clearing all attachments. ---
-    this.attachedFiles.forEach(file => {
-        if (file.previewUrl) {
-            URL.revokeObjectURL(file.previewUrl);
-        }
-    });
     this.attachedFiles = [];
     this.renderPreviews();
   }

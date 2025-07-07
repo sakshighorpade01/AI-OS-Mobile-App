@@ -173,7 +173,6 @@ class ContextHandler {
         return `
             <div class="session-select">
                 <input type="checkbox" class="session-checkbox" id="${checkboxId}" />
-                <label for="${checkboxId}" class="checkbox-label"><i class="fas fa-check"></i></label>
             </div>
             <div class="session-content">
                 <h3>${sessionName}</h3>
@@ -265,11 +264,23 @@ class ContextHandler {
 
         session.memory.runs.forEach(run => {
             const msgDiv = document.createElement('div');
-            msgDiv.className = `message-block role-${run.role}`;
-            const formattedContent = messageFormatter.format(run.content || '');
+            msgDiv.className = `conversation-turn role-${run.role}`;
+
+            let contentToFormat = run.content || '';
+
+            // If the role is 'user', clean the content to only show the current message
+            if (run.role === 'user') {
+                const marker = 'Current message:';
+                const index = contentToFormat.lastIndexOf(marker);
+                if (index !== -1) {
+                    contentToFormat = contentToFormat.substring(index + marker.length).trim();
+                }
+            }
+
+            const formattedContent = messageFormatter.format(contentToFormat);
             msgDiv.innerHTML = `
-                <strong class="message-role">${run.role.toUpperCase()}</strong>
-                <div class="message-content-history">${formattedContent}</div>
+                <strong class="conversation-role">${run.role.toUpperCase()}</strong>
+                <div class="conversation-content">${formattedContent}</div>
             `;
             conversationContainer.appendChild(msgDiv);
         });

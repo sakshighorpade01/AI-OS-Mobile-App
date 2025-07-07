@@ -1,4 +1,4 @@
-/* css/mobile.css (Corrected for Full-Width Alignment and UI Consistency) */
+/* css/mobile.css (Updated for seamless background and no borders) */
 
 /* --- Base Layout --- */
 body, html {
@@ -16,25 +16,22 @@ body, html {
     overflow: hidden;
 }
 
-/* --- Top Bar (Transparent & Simplified) --- */
+/* --- Top Bar (Fixed Header) --- */
 .top-bar {
-    position: absolute;
-    top: 0;
-    left: 0;
+    flex-shrink: 0;
     height: 60px;
     width: 100%;
-    background-color: transparent;
-    border-bottom: none;
+    background-color: var(--elevated-bg);
     z-index: 100;
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0 0.75rem;
+    /* ★★★ KEY CHANGE: Border removed for seamless look ★★★ */
+    border-bottom: none;
 }
 
 .top-bar-btn {
-    position: static;
-    transform: none;
     background: none;
     border: none;
     color: var(--text-secondary);
@@ -94,39 +91,31 @@ body, html {
     visibility: visible;
 }
 
-/* --- Main Content --- */
+/* --- Main Content (The Scrollable Area) --- */
 .main-content {
-    flex-grow: 1;
+    flex: 1;
     overflow-y: auto;
-    position: relative;
-    padding-top: 60px;
+    background-color: var(--elevated-bg);
 }
 
-#chat-root,
-.chat-window {
-    height: 100%;
-}
-
-/* --- Chat Messages Container (Full-Width) --- */
+/* --- Chat Messages Container --- */
 .chat-messages {
     display: flex;
     flex-direction: column;
     width: 100%;
-    padding: 1rem;
-    padding-bottom: 6rem;
+    padding: 1rem 1rem;
     gap: 1rem;
+    align-items: flex-start;
 }
 
-/* --- Bottom UI Area --- */
+/* --- Bottom UI Area (Fixed Footer) --- */
 #bottom-ui-container {
-    position: fixed;
-    bottom: 0;
-    left: 0;
+    flex-shrink: 0;
     width: 100%;
     z-index: 100;
-    background-color: transparent;
+    background-color: var(--elevated-bg);
+    /* ★★★ KEY CHANGE: Border removed for seamless look ★★★ */
     border-top: none;
-    padding-top: 0.5rem;
 }
 
 /* --- Bottom Navigation --- */
@@ -175,7 +164,8 @@ body, html {
     min-height: 52px;
     max-height: 200px;
     border-radius: 1.75rem;
-    background-color: transparent;
+    /* ★★★ KEY CHANGE: Background color now matches the rest of the UI panel ★★★ */
+    background-color: var(--elevated-bg);
     border: 1px solid var(--border-color);
     padding: 0.75rem 55px;
     font-size: 1rem;

@@ -3,7 +3,6 @@
 import { supabase } from './supabase-client.js';
 import { messageFormatter } from './message-formatter.js';
 
-// --- FIX: Use a relative path to trigger the Vercel proxy ---
 const API_PROXY_URL = '';
 
 class ContextHandler {
@@ -41,8 +40,10 @@ class ContextHandler {
         this.elements.sessionsContainer?.addEventListener('change', (e) => {
             if (e.target.matches('.session-checkbox')) {
                 const sessionItem = e.target.closest('.session-item');
-                if (sessionItem) sessionItem.classList.toggle('selected', e.target.checked);
-                this.updateSelectionUI();
+                if (sessionItem) {
+                    sessionItem.classList.toggle('selected', e.target.checked);
+                    this.updateSelectionUI();
+                }
             }
         });
     }
@@ -69,7 +70,6 @@ class ContextHandler {
 
     async loadSessions() {
         if (!this.elements.listView) return;
-
         this.elements.listView.innerHTML = '<div class="session-item-loading">Loading sessions...</div>';
 
         await supabase.auth.refreshSession();
@@ -81,14 +81,12 @@ class ContextHandler {
         }
 
         try {
-            // --- FIX: Use the proxy URL for the API call ---
             const response = await fetch(`${API_PROXY_URL}/api/sessions`, {
                 headers: { 'Authorization': `Bearer ${session.access_token}` }
             });
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error(`HTTP error! status: ${response.status}`, errorText);
                 throw new Error(`Failed to load sessions. Server responded with status ${response.status}.`);
             }
 
@@ -101,7 +99,6 @@ class ContextHandler {
         }
     }
 
-    // ... (the rest of the file is identical and does not need to be changed)
     showSessionList(sessions) {
         if (!this.elements.listView || !this.elements.detailView) return;
 
@@ -117,6 +114,7 @@ class ContextHandler {
         this.addSelectionHeader();
         this.renderSessionItems(sessions);
         this.initializeSelectionControls();
+        this.updateSelectionUI();
     }
 
     addSelectionHeader() {
@@ -146,9 +144,16 @@ class ContextHandler {
         if (session.memory?.runs?.length > 0) {
             const firstUserRun = session.memory.runs.find(run => run.role === 'user' && run.content && run.content.trim() !== '');
             if (firstUserRun) {
-                let title = firstUserRun.content.split('\n')[0].trim();
-                if (title.length > 45) title = title.substring(0, 45) + '...';
-                sessionName = title;
+                let rawTitle = firstUserRun.content;
+                const marker = 'Current message:';
+                const index = rawTitle.lastIndexOf(marker);
+                if (index !== -1) {
+                    rawTitle = rawTitle.substring(index + marker.length).trim();
+                }
+                sessionName = rawTitle.split('\n')[0].trim();
+                if (sessionName.length > 45) {
+                    sessionName = sessionName.substring(0, 45) + '...';
+                }
             }
         }
 
@@ -173,6 +178,7 @@ class ContextHandler {
         return `
             <div class="session-select">
                 <input type="checkbox" class="session-checkbox" id="${checkboxId}" />
+                <label for="${checkboxId}" class="custom-checkbox"></label>
             </div>
             <div class="session-content">
                 <h3>${sessionName}</h3>
@@ -199,7 +205,7 @@ class ContextHandler {
             if (selectedData.length > 0) {
                 this.selectedContextSessions = selectedData;
                 this.toggleWindow(false);
-                this.showNotification(`${selectedData.length} sessions selected as context`, 'info');
+                this.showNotification(`${selectedData.length} session(s) selected as context`, 'info');
             }
         });
 
@@ -237,6 +243,7 @@ class ContextHandler {
             }));
     }
 
+    // --- MODIFIED: This function now populates the header again ---
     showSessionDetails(sessionId) {
         const session = this.loadedSessions.find(s => s.session_id === sessionId);
         if (!session || !this.elements.detailView) {
@@ -254,7 +261,16 @@ class ContextHandler {
             const firstUserRun = session.memory.runs.find(run => run.role === 'user' && run.content && run.content.trim() !== '');
             let sessionName = `Session ${session.session_id.substring(0, 8)}...`;
             if (firstUserRun) {
-                sessionName = firstUserRun.content.split('\n')[0].trim().substring(0, 45) + '...';
+                let rawTitle = firstUserRun.content;
+                const marker = 'Current message:';
+                const index = rawTitle.lastIndexOf(marker);
+                if (index !== -1) {
+                    rawTitle = rawTitle.substring(index + marker.length).trim();
+                }
+                sessionName = rawTitle.split('\n')[0].trim();
+                if (sessionName.length > 45) {
+                    sessionName = sessionName.substring(0, 45) + '...';
+                }
             }
             titleElement.textContent = sessionName;
         }
@@ -263,25 +279,23 @@ class ContextHandler {
         if (!conversationContainer) return;
 
         session.memory.runs.forEach(run => {
-            const msgDiv = document.createElement('div');
-            msgDiv.className = `conversation-turn role-${run.role}`;
+            const isUser = run.role === 'user';
+            const content = isUser ? run.content : run.content;
+            
+            if (!content || !content.trim()) return;
 
-            let contentToFormat = run.content || '';
-
-            // If the role is 'user', clean the content to only show the current message
-            if (run.role === 'user') {
+            let messageContent = content;
+            if (isUser) {
                 const marker = 'Current message:';
-                const index = contentToFormat.lastIndexOf(marker);
+                const index = content.lastIndexOf(marker);
                 if (index !== -1) {
-                    contentToFormat = contentToFormat.substring(index + marker.length).trim();
+                    messageContent = content.substring(index + marker.length).trim();
                 }
             }
 
-            const formattedContent = messageFormatter.format(contentToFormat);
-            msgDiv.innerHTML = `
-                <strong class="conversation-role">${run.role.toUpperCase()}</strong>
-                <div class="conversation-content">${formattedContent}</div>
-            `;
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            msgDiv.innerHTML = messageFormatter.format(messageContent);
             conversationContainer.appendChild(msgDiv);
         });
 

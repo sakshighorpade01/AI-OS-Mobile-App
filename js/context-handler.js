@@ -48,6 +48,7 @@ class ContextHandler {
         });
     }
 
+    // --- MODIFIED: Added defensive logic to always reset the view on open ---
     toggleWindow(show, buttonElement = null) {
         if (!this.elements.contextWindow) return;
 
@@ -63,6 +64,9 @@ class ContextHandler {
         }
 
         if (show) {
+            // ★★★ FIX: Force reset the view state every time the window is opened ★★★
+            this.elements.detailView.classList.add('hidden');
+            this.elements.listView.classList.remove('hidden');
             this.showSessionList(this.loadedSessions);
             this.loadSessions();
         }
@@ -99,11 +103,13 @@ class ContextHandler {
         }
     }
 
+    // --- MODIFIED: Added defensive logic to clear detail view ---
     showSessionList(sessions) {
         if (!this.elements.listView || !this.elements.detailView) return;
 
         this.elements.listView.classList.remove('hidden');
         this.elements.detailView.classList.add('hidden');
+        this.elements.detailView.innerHTML = ''; // ★★★ FIX: Clear detail view content
         this.elements.listView.innerHTML = '';
 
         if (!sessions || sessions.length === 0) {
@@ -243,7 +249,6 @@ class ContextHandler {
             }));
     }
 
-    // --- MODIFIED: This function now populates the header again ---
     showSessionDetails(sessionId) {
         const session = this.loadedSessions.find(s => s.session_id === sessionId);
         if (!session || !this.elements.detailView) {

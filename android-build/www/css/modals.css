@@ -137,25 +137,29 @@
     padding: 1rem;
 }
 
+/* ★★★ FINAL AND CORRECTED STYLES FOR THE TOOLS MENU ★★★ */
 #tools-menu {
     position: absolute;
-    bottom: calc(100% - 10px); /* Position above the bottom bar, with a small overlap */
+    bottom: 68px; /* 60px nav height + 8px gap */
     
-    /* This positions the menu relative to the second button from the left */
-    left: 25%; 
-    margin-left: 0.5rem; /* Adjust for gap */
+    /* --- THIS IS THE FIX FOR THE FLICKERING --- */
+    left: 37.5%;          /* Position the left edge at the button's center */
+    margin-left: -100px;  /* Pull it back by half its own width (200px / 2) */
+    /* The transform property is now removed to prevent conflicts */
 
-    width: 200px; /* A fixed width as seen in the screenshot */
+    width: 200px;
     background-color: var(--elevated-bg);
     border-radius: 0.75rem;
     box-shadow: var(--shadow-lg);
     border: 1px solid var(--border-color);
     padding: 0.5rem;
     display: flex;
-    flex-direction: column; /* Stack options vertically */
+    flex-direction: column;
     gap: 0.25rem;
     animation: bounceIn 0.3s ease;
+    z-index: 110; 
 }
+
 
 #tools-menu.hidden {
     display: none;
@@ -199,31 +203,25 @@
 }
 
 /* --- Active State Logic --- */
-
-/* By default, hide the checked icon and show the unchecked one */
 .tool-option .icon-checked { display: none; }
 .tool-option .icon-unchecked { display: inline-block; }
 
-/* When the button is active... */
 .tool-option.active .icon-checked { 
-    display: inline-block; /* Show the checked icon */
-    color: var(--accent-color); /* Make it blue */
+    display: inline-block;
+    color: var(--accent-color);
 }
 .tool-option.active .icon-unchecked { 
-    display: none; /* Hide the unchecked icon */
+    display: none;
 }
-
 .tool-option.active .icon-main {
-    color: var(--accent-color); /* Make the main icon blue */
+    color: var(--accent-color);
 }
-
 .tool-option.active span {
-    color: var(--text-color); /* Make text brighter */
+    color: var(--text-color);
 }
 
 
 /* === NEW STYLES FOR CONVERSATION HISTORY VIEW === */
-
 .session-details-view {
     display: flex;
     flex-direction: column;
@@ -275,9 +273,8 @@
     padding: 1rem;
 }
 
-/* === NEW: Styles for concise conversation history view === */
 .conversation-turn {
-    margin-bottom: 0.25rem; /* Reduced margin */
+    margin-bottom: 0.25rem;
     line-height: 1.6;
 }
 
@@ -307,7 +304,6 @@
     margin-bottom: 0;
 }
 
-/* Ensure any code blocks inside the history are styled correctly */
 .conversation-content pre {
     background-color: var(--bg-color);
     padding: 1rem;
@@ -317,7 +313,6 @@
     margin: 0.5em 0;
 }
 
-/* === MODIFIED: Styles for selection controls === */
 .selection-actions {
     display: flex;
     align-items: center;
@@ -365,8 +360,6 @@
     background-color: var(--hover-bg);
 }
 
-
-/* === Styles for View Switching Inside Modal === */
 #context-list-view.hidden,
 #context-detail-view.hidden {
     display: none;

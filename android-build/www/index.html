@@ -38,10 +38,9 @@
       <div id="aios-root"></div>
     </div>
 
-    <!-- Top Bar -->
+    <!-- Top Bar (Simplified) -->
     <div class="top-bar">
-      <button id="new-chat-btn" class="top-bar-btn"><i class="fas fa-plus"></i> New Chat</button>
-      <h1 class="top-bar-title">Chat</h1>
+      <button id="new-chat-btn" class="top-bar-btn"><i class="fas fa-plus"></i></button>
       <button id="hamburger-btn" class="top-bar-btn"><i class="fas fa-bars"></i></button>
     </div>
 
@@ -53,37 +52,25 @@
     <!-- Bottom UI Area -->
     <div id="bottom-ui-container">
 
-      <!-- === TOOLS MENU (with checkbox icons) === -->
+      <!-- Tools Menu (Unchanged) -->
       <div id="tools-menu" class="hidden">
         <button class="tool-option active" data-agent="aios">
-          <span class="checkbox-icon">
-            <i class="fas fa-check-square icon-checked"></i>
-            <i class="far fa-square icon-unchecked"></i>
-          </span>
-          <i class="fas fa-atom icon-main"></i>
-          <span>AI-OS</span>
+          <span class="checkbox-icon"><i class="fas fa-check-square icon-checked"></i><i class="far fa-square icon-unchecked"></i></span>
+          <i class="fas fa-atom icon-main"></i><span>AI-OS</span>
         </button>
         <button class="tool-option" data-agent="deepsearch">
-          <span class="checkbox-icon">
-            <i class="fas fa-check-square icon-checked"></i>
-            <i class="far fa-square icon-unchecked"></i>
-          </span>
-          <i class="fas fa-search-plus icon-main"></i>
-          <span>DeepSearch</span>
+          <span class="checkbox-icon"><i class="fas fa-check-square icon-checked"></i><i class="far fa-square icon-unchecked"></i></span>
+          <i class="fas fa-search-plus icon-main"></i><span>DeepSearch</span>
         </button>
       </div>
 
-      <!-- Floating Input Field -->
+      <!-- Floating Input Field (Unchanged) -->
       <div class="floating-input-wrapper">
         <div id="file-previews-container"></div>
         <div class="floating-input-container">
-          <button id="attach-file-btn" class="input-action-btn circular-btn">
-            <i class="fas fa-paperclip"></i>
-          </button>
+          <button id="attach-file-btn" class="input-action-btn circular-btn"><i class="fas fa-paperclip"></i></button>
           <textarea id="floating-input" class="floating-input" placeholder="Hello" rows="1"></textarea>
-          <button id="send-message" class="input-action-btn circular-btn">
-            <i class="fas fa-paper-plane"></i>
-          </button>
+          <button id="send-message" class="input-action-btn circular-btn"><i class="fas fa-paper-plane"></i></button>
         </div>
         <input type="file" id="file-input" style="display: none;" multiple />
       </div>
@@ -102,8 +89,6 @@
   <div id="to-do-list-root"></div>
   <div id="context-root"></div>
   <div class="notification-container"></div>
-
-  <!-- === NEW: Add the File Preview Modal === -->
   <div id="file-preview-modal" class="modal-overlay hidden">
     <div class="preview-modal-content">
       <button class="close-preview-btn">×</button>
@@ -111,7 +96,7 @@
     </div>
   </div>
 
-  <!-- Application Logic -->
+  <!-- Application Logic (Unchanged) -->
   <script type="module">
     import { AIOS } from './js/aios.js';
     import { chatModule } from './js/chat.js';

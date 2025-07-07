@@ -1,13 +1,11 @@
-/* css/style.css (Corrected and Final Version) */
+/* css/style.css (Updated for Notifications and Layout) */
 
 /* Import the foundational styles for the application */
 @import url('design-system.css');
 @import url('mobile.css');
 @import url('modals.css');
 
-/* --- Main Application Body Styles (FIXED) --- */
-/* The body should be a simple block container, not a grid. This allows the */
-/* .app-container to correctly fill the screen as defined in mobile.css. */
+/* --- Main Application Body Styles --- */
 body {
     background: var(--bg-color);
     background-image: 
@@ -16,9 +14,7 @@ body {
     background-attachment: fixed;
 }
 
-/* --- Globally Used Styles (Notifications, etc.) --- */
-
-/* Connection Status */
+/* --- Connection Status --- */
 .connection-error {
     position: fixed;
     top: 1rem;
@@ -33,11 +29,11 @@ body {
     animation: fadeIn 0.3s ease;
 }
 
-/* Animated Notifications Container */
+/* --- Animated Notifications Container (Updated Position & Animation) --- */
 .notification-container {
     position: fixed;
-    bottom: 1.5rem;
-    right: 1.5rem;
+    top: 70px; /* Below transparent header */
+    right: 1rem;
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
@@ -48,28 +44,38 @@ body {
 .notification {
     background-color: var(--elevated-bg);
     border-left: 4px solid var(--accent-color);
-    padding: 1rem;
+    padding: 0.75rem 1rem;
     border-radius: 0.5rem;
     box-shadow: var(--shadow-lg);
     pointer-events: all;
-    animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    font-size: var(--text-sm);
     max-width: 24rem;
     display: flex;
     align-items: flex-start;
     gap: 0.75rem;
+
+    /* New slide-in-from-right animation */
     opacity: 0;
-    transform: translateY(20px);
-    transition: all 0.3s ease-in-out;
+    transform: translateX(100%);
+    transition: all 0.4s cubic-bezier(0.215, 0.610, 0.355, 1);
 }
 
 .notification.show {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(0);
 }
 
+/* Notification types */
 .notification.error { border-left-color: var(--error-500); }
 .notification.success { border-left-color: var(--success-500); }
 .notification.warning { border-left-color: var(--warning-500); }
+.notification.info { border-left-color: var(--accent-color); } /* For info messages */
 
-/* Basic Utility Classes */
+/* --- Utility Classes --- */
 .hidden { display: none !important; }
+
+/* --- Keyframes --- */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}

@@ -1,29 +1,23 @@
-/* chat.css */
-/* Simplified: layout and global styles moved to mobile.css and design-system.css */
-/* This file contains message-specific styles only */
+/* css/chat.css (Corrected for Full-Width Alignment) */
 
-/* Message container */
+/* --- Message Container --- */
 .message {
-    margin-bottom: 20px;
-    max-width: 85%;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1rem;
     line-height: 1.6;
     font-size: 0.95rem;
     animation: messageIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    /* No max-width here – the parent can span full width */
 }
 
-/* Message enter animation */
+/* --- Animation --- */
 @keyframes messageIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
-/* User message styling */
+/* --- User Message Styling --- */
 .user-message {
     align-self: flex-end;
     background-color: var(--message-user-bg);
@@ -31,9 +25,10 @@
     padding: 12px 16px;
     border-radius: 16px 16px 0 16px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    max-width: 85%;
 }
 
-/* Bot message styling */
+/* --- Bot Message Styling --- */
 .bot-message {
     align-self: flex-start;
     background-color: var(--message-bot-bg);
@@ -44,9 +39,10 @@
     word-break: break-word;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     position: relative;
+    max-width: 85%;
 }
 
-/* Code blocks inside messages */
+/* --- Code Blocks --- */
 .bot-message pre,
 .user-message pre {
     background-color: var(--code-bg);
@@ -56,11 +52,10 @@
     overflow-x: auto;
     font-family: 'Courier New', Courier, monospace;
     font-size: 0.9rem;
-    margin-top: 8px;
-    margin-bottom: 8px;
+    margin: 8px 0;
 }
 
-/* Inline code */
+/* --- Inline Code --- */
 .bot-message code,
 .user-message code {
     background-color: var(--inline-code-bg);
@@ -71,7 +66,7 @@
     font-size: 0.92rem;
 }
 
-/* Tables inside messages */
+/* --- Tables --- */
 .bot-message table,
 .user-message table {
     width: 100%;
@@ -97,7 +92,7 @@
     font-weight: bold;
 }
 
-/* List styling */
+/* --- Lists --- */
 .bot-message ul,
 .user-message ul {
     padding-left: 20px;
@@ -110,7 +105,7 @@
     margin: 8px 0;
 }
 
-/* Link styling */
+/* --- Links --- */
 .bot-message a,
 .user-message a {
     color: var(--link-color);
@@ -118,7 +113,7 @@
     word-break: break-word;
 }
 
-/* Image and media */
+/* --- Images --- */
 .bot-message img,
 .user-message img {
     max-width: 100%;
@@ -126,9 +121,10 @@
     margin-top: 10px;
 }
 
-/* Responsive tweak if needed (just in case) */
+/* --- Responsive Adjustment --- */
 @media (max-width: 600px) {
-    .message {
-        max-width: 100%;
+    .user-message,
+    .bot-message {
+        max-width: 90%;
     }
 }

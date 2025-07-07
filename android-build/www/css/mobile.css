@@ -1,3 +1,5 @@
+/* css/mobile.css (Corrected for Full-Width Alignment and UI Consistency) */
+
 /* --- Base Layout --- */
 body, html {
     overflow: hidden;
@@ -14,54 +16,43 @@ body, html {
     overflow: hidden;
 }
 
-/* --- Top Bar --- */
+/* --- Top Bar (Transparent & Simplified) --- */
 .top-bar {
-    position: relative;
+    position: absolute;
+    top: 0;
+    left: 0;
     height: 60px;
     width: 100%;
-    background-color: var(--elevated-bg);
-    border-bottom: 1px solid var(--border-color);
-    flex-shrink: 0;
+    background-color: transparent;
+    border-bottom: none;
     z-index: 100;
     display: flex;
     align-items: center;
-    justify-content: center;
-}
-
-.top-bar-title {
-    font-size: var(--text-lg);
-    font-weight: var(--font-semibold);
-    color: var(--text-color);
+    justify-content: space-between;
+    padding: 0 0.75rem;
 }
 
 .top-bar-btn {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 2;
+    position: static;
+    transform: none;
     background: none;
     border: none;
-    color: var(--text-color);
-    font-size: var(--text-sm);
-    padding: 0.5rem 0.75rem;
+    color: var(--text-secondary);
+    font-size: 1.25rem;
+    padding: 0.5rem;
     cursor: pointer;
-    border-radius: 0.5rem;
-    transition: background-color 0.2s ease;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    justify-content: center;
+    transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-#new-chat-btn {
-    left: 0.75rem;
-}
-
-#hamburger-btn {
-    right: 0.75rem;
-}
-
-#hamburger-btn i {
-    font-size: 1.25rem;
+.top-bar-btn:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-color);
 }
 
 /* --- Sidebar --- */
@@ -108,36 +99,37 @@ body, html {
     flex-grow: 1;
     overflow-y: auto;
     position: relative;
+    padding-top: 60px;
 }
 
-#chat-root {
+#chat-root,
+.chat-window {
     height: 100%;
 }
 
-/* --- Chat Messages (CORRECTED) --- */
+/* --- Chat Messages Container (Full-Width) --- */
 .chat-messages {
     display: flex;
     flex-direction: column;
     width: 100%;
-    max-width: 800px;
-    margin: 0 auto;
     padding: 1rem;
-    padding-bottom: 10rem; /* Extra padding at the bottom */
+    padding-bottom: 10rem;
     gap: 1rem;
 }
 
-/* --- Bottom UI --- */
+/* --- Bottom UI Area --- */
 #bottom-ui-container {
     position: fixed;
     bottom: 0;
     left: 0;
     width: 100%;
     z-index: 100;
-    background-color: var(--elevated-bg);
+    background-color: transparent;
+    border-top: none;
     padding-top: 0.5rem;
-    border-top: 1px solid var(--border-color);
 }
 
+/* --- Bottom Navigation --- */
 .bottom-nav {
     display: flex;
     justify-content: space-around;
@@ -151,24 +143,18 @@ body, html {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--button-secondary-bg);
+    background: none;
     border: none;
     color: var(--text-secondary);
-    font-size: 1.25rem;
-    flex-grow: 1;
-    max-width: 70px;
-    height: 50px;
+    font-size: 1.5rem;
     cursor: pointer;
     transition: all 0.2s ease;
-    border-radius: 1rem;
-    margin: 0 4px;
+    padding: 0.5rem;
 }
 
 .bottom-nav-btn.active {
-    background-color: var(--accent-color);
-    color: white;
-    transform: translateY(-2px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    color: var(--accent-color);
+    transform: scale(1.1);
 }
 
 /* --- Floating Input --- */
@@ -189,8 +175,8 @@ body, html {
     min-height: 52px;
     max-height: 200px;
     border-radius: 1.75rem;
+    background-color: transparent;
     border: 1px solid var(--border-color);
-    background-color: var(--input-bg);
     padding: 0.75rem 55px;
     font-size: 1rem;
     color: var(--text-color);
@@ -198,6 +184,7 @@ body, html {
     line-height: 1.5;
 }
 
+/* --- Input Action Buttons --- */
 .input-action-btn.circular-btn {
     position: absolute;
     top: 50%;
@@ -215,7 +202,8 @@ body, html {
 
 #attach-file-btn {
     left: 6px;
-    background-color: var(--button-secondary-bg);
+    background-color: transparent;
+    border: 1px solid var(--border-color);
     color: var(--text-secondary);
 }
 
@@ -236,60 +224,8 @@ body, html {
 }
 
 .file-preview-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background-color: var(--elevated-bg);
-    padding: 8px 12px;
-    border-radius: 12px;
-    border: 1px solid var(--border-color);
-    font-size: 0.9rem;
-    animation: fadeIn 0.3s ease;
-}
-
-.file-preview-item .file-name {
-    flex-grow: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--text-secondary);
-}
-
-.file-preview-item .file-status .success-icon {
-    color: var(--success-500);
-}
-
-.file-preview-item .file-status .error-icon {
-    color: var(--error-500);
-}
-
-.file-preview-item .remove-file-btn {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    font-size: 1.5rem;
-    line-height: 1;
-    cursor: pointer;
-    padding: 0 4px;
-}
-
-.file-preview-item .remove-file-btn:hover {
-    color: var(--error-500);
-}
-
-/* --- Animations --- */
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-5px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-/* css/mobile.css */
-/* Add these new rules to the END of your existing mobile.css file */
-
-/* --- Updated File Preview Item Layout --- */
-.file-preview-item {
     display: grid;
-    grid-template-columns: 1fr auto auto; /* Name | Actions | Status */
+    grid-template-columns: 1fr auto auto;
     align-items: center;
     gap: 8px;
     background-color: var(--elevated-bg);
@@ -351,8 +287,13 @@ body, html {
     text-align: center;
 }
 
-.file-preview-item .file-status .success-icon { color: var(--success-500); }
-.file-preview-item .file-status .error-icon { color: var(--error-500); }
+.file-preview-item .file-status .success-icon {
+    color: var(--success-500);
+}
+
+.file-preview-item .file-status .error-icon {
+    color: var(--error-500);
+}
 
 /* --- File Preview Modal --- */
 #file-preview-modal {
@@ -414,4 +355,10 @@ body, html {
 #preview-content-area audio {
     width: 100%;
     min-width: 300px;
+}
+
+/* --- Animations --- */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to   { opacity: 1; transform: translateY(0); }
 }

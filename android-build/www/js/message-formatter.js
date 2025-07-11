@@ -4,7 +4,6 @@ class MessageFormatter {
     constructor() {
         this.pendingContent = new Map();
         
-        // FIX: Access mermaid from the global window object
         if (window.mermaid) {
             window.mermaid.initialize({
                 startOnLoad: true,
@@ -34,17 +33,36 @@ class MessageFormatter {
 
         const renderer = {
             code: (code, language) => {
-                if (language === 'mermaid') {
-                    // No need to check for window.mermaid here, as it's handled in the formatting functions
-                    const artifactId = artifactHandler.showArtifact(code, 'mermaid');
+                let codeContent = code;
+                let lang = language;
+
+                // FIX: Intelligently parse the content to find the actual code.
+                try {
+                    const parsed = JSON.parse(code);
+                    if (typeof parsed === 'object' && parsed !== null) {
+                        if (parsed.raw) {
+                            codeContent = parsed.raw;
+                        } else if (parsed.code) {
+                            codeContent = parsed.code;
+                        } else {
+                            codeContent = JSON.stringify(parsed, null, 2);
+                        }
+                        lang = parsed.language || language || 'json';
+                    }
+                } catch (e) {
+                    // Not a JSON string, treat as plain code.
+                }
+
+                if (lang === 'mermaid') {
+                    const artifactId = artifactHandler.createArtifact(codeContent, 'mermaid');
                     return `<button class="artifact-reference" data-artifact-id="${artifactId}">
                         <i class="fas fa-diagram-project"></i>
                         Click to view Mermaid diagram
                     </button>`;
                 }
 
-                const validLanguage = hljs.getLanguage(language) ? language : 'plaintext';
-                const artifactId = artifactHandler.showArtifact(code, validLanguage);
+                const validLanguage = hljs.getLanguage(lang) ? lang : 'plaintext';
+                const artifactId = artifactHandler.createArtifact(codeContent, validLanguage);
                 return `<button class="artifact-reference" data-artifact-id="${artifactId}">
                     <i class="fas fa-code"></i>
                     Click to view ${validLanguage} code
@@ -69,14 +87,14 @@ class MessageFormatter {
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-                    const isDarkMode = mutation.target.classList.contains('dark-mode');
-                    // FIX: Access mermaid from the global window object
                     if (window.mermaid) {
+                        const isDarkMode = mutation.target.classList.contains('dark-mode');
                         window.mermaid.initialize({ 
                             theme: isDarkMode ? 'dark' : 'default'
                         });
-                        if (document.querySelectorAll('.mermaid').length > 0) {
-                            window.mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+                        const mermaidDiagrams = document.querySelectorAll('.mermaid');
+                        if (mermaidDiagrams.length > 0) {
+                            window.mermaid.init(undefined, mermaidDiagrams);
                         }
                     }
                 }
@@ -95,7 +113,6 @@ class MessageFormatter {
 
         setTimeout(() => {
             const mermaidDiagrams = document.querySelectorAll('.mermaid:not([data-processed="true"])');
-            // FIX: Access mermaid from the global window object
             if (window.mermaid && mermaidDiagrams.length > 0) {
                 window.mermaid.init(undefined, mermaidDiagrams);
             }

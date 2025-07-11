@@ -1,4 +1,4 @@
-// js/chat.js (PWA/Mobile Version)
+// js/chat.js (PWA/Mobile Version - Adapted from Desktop Logic)
 
 import { messageFormatter } from './message-formatter.js';
 import { socketService } from './socket-service.js';
@@ -6,12 +6,11 @@ import { socketService } from './socket-service.js';
 let sessionActive = false;
 let contextHandler = null;
 let fileAttachmentHandler = null;
-let contextViewer = null; // To hold the viewer instance
+let contextViewer = null;
 
-// Map to store context for each message
+// This map now stores the DOM element for each message stream
+const ongoingStreams = new Map();
 const sentContexts = new Map();
-
-// --- Private Functions ---
 
 function addUserMessage(message, files = [], sessions = []) {
     const messagesContainer = document.getElementById('chat-messages');
@@ -27,35 +26,22 @@ function addUserMessage(message, files = [], sessions = []) {
     
     wrapperDiv.appendChild(messageDiv);
 
-    // Store the context data and show the context button only if context is present
     if (files.length > 0 || sessions.length > 0) {
         sentContexts.set(messageId, { files, sessions });
-
         const contextButton = document.createElement('button');
         contextButton.className = 'user-message-context-button';
-        
         const fileCount = files.length;
         const sessionCount = sessions.length;
         let buttonText = 'Context';
-
-        if (sessionCount > 0 && fileCount > 0) {
-            buttonText = `Context: ${sessionCount} session(s) & ${fileCount} file(s)`;
-        } else if (sessionCount > 0) {
-            buttonText = `Context: ${sessionCount} session(s)`;
-        } else if (fileCount > 0) {
-            buttonText = `Context: ${fileCount} file(s)`;
-        }
-        
+        if (sessionCount > 0 && fileCount > 0) buttonText = `Context: ${sessionCount} session(s) & ${fileCount} file(s)`;
+        else if (sessionCount > 0) buttonText = `Context: ${sessionCount} session(s)`;
+        else if (fileCount > 0) buttonText = `Context: ${fileCount} file(s)`;
         contextButton.innerHTML = `<i class="fas fa-paperclip"></i> ${buttonText}`;
         contextButton.dataset.contextId = messageId;
-
         contextButton.addEventListener('click', () => {
             const contextData = sentContexts.get(messageId);
-            if (contextViewer && contextData) {
-                contextViewer.show(contextData);
-            }
+            if (contextViewer && contextData) contextViewer.show(contextData);
         });
-
         wrapperDiv.appendChild(contextButton);
     }
 
@@ -63,65 +49,186 @@ function addUserMessage(message, files = [], sessions = []) {
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
+// FIX: This function now creates the more complex structure from your desktop app
 function createBotMessagePlaceholder(messageId) {
     const messagesContainer = document.getElementById('chat-messages');
     if (!messagesContainer) return;
 
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message bot-message';
-    messageDiv.dataset.messageId = messageId;
-    messageDiv.innerHTML = `<div class="loading-dots"><span>.</span><span>.</span><span>.</span></div>`;
+    
+    // This structure exactly mirrors the desktop logic
+    messageDiv.innerHTML = `
+        <div class="thinking-indicator">
+            <div class="thinking-steps-container"></div>
+        </div>
+        <div class="detailed-logs" id="logs-${messageId}"></div>
+        <div class="message-content" id="main-content-${messageId}"></div>
+    `;
+
     messagesContainer.appendChild(messageDiv);
+    ongoingStreams.set(messageId, messageDiv); // Store the DOM element itself
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    return messageDiv;
 }
 
-function updateBotMessage(data) {
-    const { id, content, done, error, message } = data;
-    const messageDiv = document.querySelector(`.bot-message[data-message-id="${id}"]`);
+// FIX: This function is now the intelligent router for all bot content
+function populateBotMessage(data) {
+    const { content, id: messageId, streaming = false, agent_name, team_name, is_log } = data;
+    const messageDiv = ongoingStreams.get(messageId);
     if (!messageDiv) return;
 
-    if (error) {
-        const errorMessage = content || message || 'An unknown error occurred.';
-        messageDiv.innerHTML = `<div class="error-message">${messageFormatter.format(errorMessage)}</div>`;
-        messageFormatter.finishStreaming(id);
-        sessionActive = false;
-        return;
-    }
+    const ownerName = agent_name || team_name;
+    if (!ownerName || !content) return;
 
-    if (content) {
-        messageDiv.innerHTML = messageFormatter.formatStreaming(content, id);
-    }
+    // The core logic: `is_log` determines if it's a "thinking" step or a "final answer"
+    const targetContainer = is_log 
+        ? messageDiv.querySelector(`#logs-${messageId}`)
+        : messageDiv.querySelector(`#main-content-${messageId}`);
 
-    if (done) {
-        const finalContent = messageFormatter.finishStreaming(id);
-        if (finalContent) {
-            messageDiv.innerHTML = finalContent;
-        } else if (messageDiv.innerHTML.includes('loading-dots')) {
-            messageDiv.remove();
+    if (!targetContainer) return;
+
+    const contentBlockId = `content-block-${messageId}-${ownerName}`;
+    let contentBlock = document.getElementById(contentBlockId);
+
+    if (!contentBlock) {
+        contentBlock = document.createElement('div');
+        contentBlock.id = contentBlockId;
+        contentBlock.className = is_log ? 'content-block log-block' : 'content-block';
+        
+        const header = document.createElement('div');
+        header.className = 'content-block-header';
+        header.textContent = ownerName.replace(/_/g, ' ');
+        contentBlock.appendChild(header);
+
+        const innerContent = document.createElement('div');
+        innerContent.className = 'inner-content';
+        contentBlock.appendChild(innerContent);
+
+        targetContainer.appendChild(contentBlock);
+    }
+    
+    const innerContentDiv = contentBlock.querySelector('.inner-content');
+    if (innerContentDiv) {
+        const streamId = `${messageId}-${ownerName}`;
+        const formattedContent = streaming 
+            ? messageFormatter.formatStreaming(content, streamId) 
+            : messageFormatter.format(content);
+        innerContentDiv.innerHTML = formattedContent;
+    }
+}
+
+// FIX: This function now handles the live "Thinking..." steps at the top
+function handleAgentStep(data) {
+    const { id: messageId, type, name, agent_name, team_name } = data;
+    const messageDiv = ongoingStreams.get(messageId);
+    if (!messageDiv) return;
+
+    const toolName = name.replace(/_/g, ' ');
+    const ownerName = agent_name || team_name || 'Assistant';
+    const stepId = `step-${messageId}-${ownerName}-${name}`;
+
+    const logsContainer = messageDiv.querySelector('.detailed-logs');
+    const logEntryId = `log-entry-${stepId}`;
+    let logEntry = logsContainer.querySelector(`#${logEntryId}`);
+
+    if (type === 'tool_start') {
+        if (!logEntry) {
+            logEntry = document.createElement('div');
+            logEntry.id = logEntryId;
+            logEntry.className = 'tool-log-entry';
+            logEntry.innerHTML = `
+                <i class="fas fa-wrench tool-log-icon"></i>
+                <div class="tool-log-details">
+                    <span class="tool-log-owner">${ownerName}</span>
+                    <span class="tool-log-action">Used tool: <strong>${toolName}</strong></span>
+                </div>
+                <span class="tool-log-status in-progress">In progress...</span>
+            `;
+            logsContainer.appendChild(logEntry);
         }
-        sessionActive = false;
+    } else if (type === 'tool_end') {
+        if (logEntry) {
+            const statusEl = logEntry.querySelector('.tool-log-status');
+            if (statusEl) {
+                statusEl.textContent = 'Completed';
+                statusEl.classList.remove('in-progress');
+                statusEl.classList.add('completed');
+            }
+        }
     }
 
-    const messagesContainer = document.getElementById('chat-messages');
-    if (messagesContainer) {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    const liveStepsContainer = messageDiv.querySelector('.thinking-steps-container');
+    if (!liveStepsContainer) return;
+    let liveStepDiv = liveStepsContainer.querySelector(`#${stepId}`);
+
+    if (type === 'tool_start') {
+        if (!liveStepDiv) {
+            liveStepDiv = document.createElement('div');
+            liveStepDiv.id = stepId;
+            liveStepDiv.className = 'thinking-step';
+            liveStepDiv.innerHTML = `<i class="fas fa-cog fa-spin step-icon"></i><span class="step-text"><strong>${ownerName}:</strong> Using ${toolName}...</span>`;
+            liveStepsContainer.appendChild(liveStepDiv);
+        }
+    } else if (type === 'tool_end') {
+        if (liveStepDiv) {
+            liveStepDiv.remove();
+        }
     }
+}
+
+function handleDone(data) {
+    const { id: messageId } = data;
+    if (!messageId || !ongoingStreams.has(messageId)) return;
+
+    const messageDiv = ongoingStreams.get(messageId);
+    const thinkingIndicator = messageDiv.querySelector('.thinking-indicator');
+    
+    // FIX: Only show the reasoning header if there are actual logs.
+    const hasLogs = messageDiv.querySelector('.log-block, .tool-log-entry');
+    if (thinkingIndicator && hasLogs) {
+        thinkingIndicator.classList.add('steps-done');
+        
+        const logCount = messageDiv.querySelectorAll('.log-block').length;
+        const toolLogCount = messageDiv.querySelectorAll('.tool-log-entry').length;
+        
+        let summaryText = "Aetheria AI's Reasoning";
+        if (logCount > 0 || toolLogCount > 0) {
+            const parts = [];
+            if (logCount > 0) parts.push(`${logCount} agent step${logCount > 1 ? 's' : ''}`);
+            if (toolLogCount > 0) parts.push(`${toolLogCount} tool call${toolLogCount > 1 ? 's' : ''}`);
+            summaryText = `Reasoning involved ${parts.join(' and ')}`;
+        }
+
+        thinkingIndicator.innerHTML = `<span class="summary-text">${summaryText}</span><i class="fas fa-chevron-down summary-chevron"></i>`;
+
+        thinkingIndicator.addEventListener('click', () => {
+            messageDiv.classList.toggle('expanded');
+        });
+    } else if (thinkingIndicator) {
+        // If there are no logs, remove the thinking indicator entirely.
+        thinkingIndicator.remove();
+    }
+
+    messageFormatter.finishStreaming(messageId);
+    ongoingStreams.delete(messageId);
+    sessionActive = false;
 }
 
 function setupSocketListeners() {
-    socketService.on('connect', () => {
-        console.log('Socket connected successfully.');
-        chatModule.showNotification('Connected to AI server', 'success');
+    socketService.on('connect', () => console.log('Socket connected successfully.'));
+    socketService.on('disconnect', () => console.error('Socket disconnected.'));
+    
+    socketService.on('response', (data) => {
+        if (data.done) {
+            handleDone(data);
+        }
+        if (data.content) {
+            populateBotMessage(data);
+        }
     });
-    socketService.on('disconnect', () => {
-        console.error('Socket disconnected.');
-        chatModule.showNotification('Connection lost. Attempting to reconnect...', 'error');
-    });
-    socketService.on('response', updateBotMessage);
-    socketService.on('agent_step', (data) => {
-        console.log('Agent Step:', data);
-    });
+
+    socketService.on('agent_step', handleAgentStep);
+    
     socketService.on('error', (err) => {
         console.error('Socket error:', err);
         chatModule.showNotification(err.message || 'A server error occurred.', 'error');
@@ -129,37 +236,29 @@ function setupSocketListeners() {
     });
 }
 
-// --- Public Module ---
-
 export const chatModule = {
     init(contextHandlerInstance, fileAttachmentHandlerInstance, contextViewerInstance) {
         contextHandler = contextHandlerInstance;
         fileAttachmentHandler = fileAttachmentHandlerInstance;
         contextViewer = contextViewerInstance;
-
         socketService.init();
         setupSocketListeners();
-
         console.log('Chat module initialized for PWA.');
     },
 
     async handleSendMessage(isMemoryEnabled = false, agentType = 'aios') {
         const input = document.getElementById('floating-input');
         const message = input.value.trim();
-        
         const attachedFiles = fileAttachmentHandler.getAttachedFiles().map(f => ({ ...f }));
         const selectedSessions = contextHandler.getSelectedSessions();
 
         if ((!message && attachedFiles.length === 0) || sessionActive) {
-            if (sessionActive) {
-                this.showNotification("Please wait for the current response to finish.", "warning");
-            }
+            if (sessionActive) this.showNotification("Please wait for the current response to finish.", "warning");
             return;
         }
         
         sessionActive = true;
 
-        // Add user message to UI if there's a message or files are attached
         if (message || attachedFiles.length > 0) {
             addUserMessage(message || "Attached files", attachedFiles, selectedSessions);
         }
@@ -171,52 +270,35 @@ export const chatModule = {
         const messageId = `msg_${Date.now()}`;
         createBotMessagePlaceholder(messageId);
 
-        // Start with the base payload
         const payload = {
             id: messageId,
             message: message,
             config: {
-                calculator: true,
-                internet_search: true,
-                web_crawler: true,
-                coding_assistant: true,
-                investment_assistant: true,
-                enable_github: true,
-                enable_google_email: true,
-                enable_google_drive: true,
-                use_memory: isMemoryEnabled,
+                calculator: true, internet_search: true, web_crawler: true,
+                coding_assistant: true, investment_assistant: true, enable_github: true,
+                enable_google_email: true, enable_google_drive: true, use_memory: isMemoryEnabled,
             },
             is_deepsearch: agentType === 'deepsearch'
         };
 
-        // Conditionally add context and files to the payload
-        if (selectedSessions.length > 0) {
-            payload.context = JSON.stringify(selectedSessions);
-        }
-        if (attachedFiles.length > 0) {
-            payload.files = attachedFiles.map(f => ({ name: f.name, type: f.type, path: f.path, content: f.content, isText: f.isText }));
-        }
+        if (selectedSessions.length > 0) payload.context = JSON.stringify(selectedSessions);
+        if (attachedFiles.length > 0) payload.files = attachedFiles.map(f => ({ name: f.name, type: f.type, path: f.path, content: f.content, isText: f.isText }));
 
         try {
             await socketService.sendMessage(payload);
-            // Clear context from handlers AFTER sending the message
             fileAttachmentHandler.clearAttachedFiles();
             contextHandler.clearSelectedContext();
         } catch (err) {
             console.error("Failed to send message:", err);
             const errorMsgDiv = document.querySelector(`.bot-message[data-message-id="${messageId}"]`);
-            if (errorMsgDiv) {
-                errorMsgDiv.innerHTML = `<div class="error-message"><strong>Error:</strong> ${err.message}</div>`;
-            }
+            if (errorMsgDiv) errorMsgDiv.innerHTML = `<div class="error-message"><strong>Error:</strong> ${err.message}</div>`;
             sessionActive = false;
         }
     },
 
     clearChat() {
         const messagesContainer = document.getElementById('chat-messages');
-        if (messagesContainer) {
-            messagesContainer.innerHTML = '';
-        }
+        if (messagesContainer) messagesContainer.innerHTML = '';
         if (sessionActive) {
             try {
                 socketService.sendMessage({ type: 'terminate_session', message: 'User started a new chat' });
@@ -225,22 +307,18 @@ export const chatModule = {
             }
         }
         sessionActive = false;
+        ongoingStreams.clear();
         messageFormatter.pendingContent.clear();
     },
 
     showNotification(message, type = 'info', duration = 3000) {
         const container = document.querySelector('.notification-container');
         if (!container) return;
-
         const notification = document.createElement('div');
         notification.className = `notification notification-${type}`;
         notification.textContent = message;
         container.appendChild(notification);
-
-        setTimeout(() => {
-            notification.classList.add('show');
-        }, 10);
-
+        setTimeout(() => notification.classList.add('show'), 10);
         setTimeout(() => {
             notification.classList.remove('show');
             notification.addEventListener('transitionend', () => notification.remove());

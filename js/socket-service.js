@@ -10,7 +10,7 @@ let socket = null;
 // Store callbacks for different events.
 const eventListeners = {
     'response': [],
-    'agent_step': [],
+    'agent_step': [], // <-- NEW: Added listener for agent steps
     'error': [],
     'status': [],
     'connect': [],
@@ -29,7 +29,7 @@ function setupSocketHandlers() {
     });
 
     socket.on('response', (data) => emitEvent('response', data));
-    socket.on('agent_step', (data) => emitEvent('agent_step', data));
+    socket.on('agent_step', (data) => emitEvent('agent_step', data)); // <-- NEW: Handle the event
     socket.on('error', (data) => emitEvent('error', data));
     socket.on('status', (data) => emitEvent('status', data));
 }

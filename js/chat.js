@@ -27,35 +27,37 @@ function addUserMessage(message, files = [], sessions = []) {
     
     wrapperDiv.appendChild(messageDiv);
 
-    // Store the context data regardless of whether it's empty
-    sentContexts.set(messageId, { files, sessions });
+    // Store the context data and show the context button only if context is present
+    if (files.length > 0 || sessions.length > 0) {
+        sentContexts.set(messageId, { files, sessions });
 
-    const contextButton = document.createElement('button');
-    contextButton.className = 'user-message-context-button';
-    
-    const fileCount = files.length;
-    const sessionCount = sessions.length;
-    let buttonText = 'Context'; // Default text
+        const contextButton = document.createElement('button');
+        contextButton.className = 'user-message-context-button';
+        
+        const fileCount = files.length;
+        const sessionCount = sessions.length;
+        let buttonText = 'Context';
 
-    if (sessionCount > 0 && fileCount > 0) {
-        buttonText = `Context: ${sessionCount} session & ${fileCount} file(s)`;
-    } else if (sessionCount > 0) {
-        buttonText = `Context: ${sessionCount} session(s)`;
-    } else if (fileCount > 0) {
-        buttonText = `Context: ${fileCount} file(s)`;
-    }
-    
-    contextButton.innerHTML = `<i class="fas fa-paperclip"></i> ${buttonText}`;
-    contextButton.dataset.contextId = messageId;
-
-    contextButton.addEventListener('click', () => {
-        const contextData = sentContexts.get(messageId);
-        if (contextViewer && contextData) {
-            contextViewer.show(contextData);
+        if (sessionCount > 0 && fileCount > 0) {
+            buttonText = `Context: ${sessionCount} session(s) & ${fileCount} file(s)`;
+        } else if (sessionCount > 0) {
+            buttonText = `Context: ${sessionCount} session(s)`;
+        } else if (fileCount > 0) {
+            buttonText = `Context: ${fileCount} file(s)`;
         }
-    });
+        
+        contextButton.innerHTML = `<i class="fas fa-paperclip"></i> ${buttonText}`;
+        contextButton.dataset.contextId = messageId;
 
-    wrapperDiv.appendChild(contextButton);
+        contextButton.addEventListener('click', () => {
+            const contextData = sentContexts.get(messageId);
+            if (contextViewer && contextData) {
+                contextViewer.show(contextData);
+            }
+        });
+
+        wrapperDiv.appendChild(contextButton);
+    }
 
     messagesContainer.appendChild(wrapperDiv);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -145,9 +147,8 @@ export const chatModule = {
         const input = document.getElementById('floating-input');
         const message = input.value.trim();
         
-        // ★★★ FIX: Correctly copy file objects to preserve the previewUrl ★★★
         const attachedFiles = fileAttachmentHandler.getAttachedFiles().map(f => ({ ...f }));
-        const selectedSessions = JSON.parse(JSON.stringify(contextHandler.getSelectedSessions()));
+        const selectedSessions = contextHandler.getSelectedSessions();
 
         if ((!message && attachedFiles.length === 0) || sessionActive) {
             if (sessionActive) {
@@ -158,8 +159,9 @@ export const chatModule = {
         
         sessionActive = true;
 
-        if (message) {
-            addUserMessage(message, attachedFiles, selectedSessions);
+        // Add user message to UI if there's a message or files are attached
+        if (message || attachedFiles.length > 0) {
+            addUserMessage(message || "Attached files", attachedFiles, selectedSessions);
         }
 
         input.value = '';
@@ -169,11 +171,10 @@ export const chatModule = {
         const messageId = `msg_${Date.now()}`;
         createBotMessagePlaceholder(messageId);
 
+        // Start with the base payload
         const payload = {
             id: messageId,
             message: message,
-            context: JSON.stringify(selectedSessions),
-            files: attachedFiles.map(f => ({ name: f.name, type: f.type, path: f.path, content: f.content, isText: f.isText })),
             config: {
                 calculator: true,
                 internet_search: true,
@@ -188,8 +189,17 @@ export const chatModule = {
             is_deepsearch: agentType === 'deepsearch'
         };
 
+        // Conditionally add context and files to the payload
+        if (selectedSessions.length > 0) {
+            payload.context = JSON.stringify(selectedSessions);
+        }
+        if (attachedFiles.length > 0) {
+            payload.files = attachedFiles.map(f => ({ name: f.name, type: f.type, path: f.path, content: f.content, isText: f.isText }));
+        }
+
         try {
             await socketService.sendMessage(payload);
+            // Clear context from handlers AFTER sending the message
             fileAttachmentHandler.clearAttachedFiles();
             contextHandler.clearSelectedContext();
         } catch (err) {

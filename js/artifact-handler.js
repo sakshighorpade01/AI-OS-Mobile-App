@@ -35,7 +35,20 @@ class ArtifactHandler {
 
     createArtifact(content, type) {
         const id = `artifact-${this.currentId++}`;
-        this.artifacts.set(id, { content, type });
+        
+        // Ensure content is always a string
+        let stringContent = content;
+        if (typeof content === 'object' && content !== null) {
+            try {
+                stringContent = JSON.stringify(content, null, 2);
+            } catch (e) {
+                stringContent = '[object Object]';
+            }
+        } else if (typeof content !== 'string') {
+            stringContent = String(content);
+        }
+        
+        this.artifacts.set(id, { content: stringContent, type });
         return id;
     }
 
@@ -49,10 +62,14 @@ class ArtifactHandler {
         contentDiv.innerHTML = '';
         titleDiv.textContent = type === 'mermaid' ? 'Mermaid Diagram' : `Code: ${type}`;
 
+        // Get the artifact content (which should now always be a string)
+        const artifact = this.artifacts.get(this.currentArtifactId);
+        const displayContent = artifact ? artifact.content : (typeof content === 'string' ? content : JSON.stringify(content, null, 2));
+
         if (type === 'mermaid') {
             const mermaidDiv = document.createElement('div');
             mermaidDiv.className = 'mermaid';
-            mermaidDiv.textContent = content;
+            mermaidDiv.textContent = displayContent;
             contentDiv.appendChild(mermaidDiv);
             setTimeout(() => mermaid.init(undefined, mermaidDiv), 0);
 
@@ -71,7 +88,7 @@ class ArtifactHandler {
             const pre = document.createElement('pre');
             const code = document.createElement('code');
             code.className = `language-${type}`;
-            code.textContent = content;
+            code.textContent = displayContent;
             pre.appendChild(code);
             contentDiv.appendChild(pre);
             hljs.highlightElement(code);

@@ -36,21 +36,28 @@ class MessageFormatter {
                 let codeContent = code;
                 let lang = language;
 
-                // FIX: Intelligently parse the content to find the actual code.
+                // Try to parse as JSON and extract code
                 try {
-                    const parsed = JSON.parse(code);
+                    const parsed = JSON.parse(codeContent);
                     if (typeof parsed === 'object' && parsed !== null) {
-                        if (parsed.raw) {
-                            codeContent = parsed.raw;
-                        } else if (parsed.code) {
-                            codeContent = parsed.code;
-                        } else {
-                            codeContent = JSON.stringify(parsed, null, 2);
+                        const potentialKeys = ['raw', 'code', 'content', 'text', 'output'];
+                        for (const key of potentialKeys) {
+                            if (parsed[key]) {
+                                let val = parsed[key];
+                                // If it's a markdown code block, strip the backticks and language
+                                const codeBlockMatch = val.match(/^```[a-zA-Z0-9]*\n([\s\S]*?)```$/);
+                                if (codeBlockMatch) {
+                                    codeContent = codeBlockMatch[1].trim();
+                                } else {
+                                    codeContent = val;
+                                }
+                                lang = parsed.language || parsed.lang || lang || 'plaintext';
+                                break;
+                            }
                         }
-                        lang = parsed.language || language || 'json';
                     }
                 } catch (e) {
-                    // Not a JSON string, treat as plain code.
+                    // Not JSON, use as-is
                 }
 
                 if (lang === 'mermaid') {
@@ -114,7 +121,7 @@ class MessageFormatter {
         setTimeout(() => {
             const mermaidDiagrams = document.querySelectorAll('.mermaid:not([data-processed="true"])');
             if (window.mermaid && mermaidDiagrams.length > 0) {
-                window.mermaid.init(undefined, mermaidDiagrams);
+                mermaid.init(undefined, mermaidDiagrams);
             }
         }, 0);
 
@@ -123,7 +130,26 @@ class MessageFormatter {
 
     format(content) {
         if (!content) return '';
-        const cleanContent = DOMPurify.sanitize(content);
+
+        // ★★★ THIS IS THE DEFINITIVE FIX ★★★
+        // This block makes the format function robust. It checks if the input `content`
+        // is an object. If it is, it converts it into a markdown-formatted string
+        // before any other processing happens. This prevents the crash.
+        let contentToParse = content;
+        if (typeof contentToParse === 'object' && contentToParse !== null) {
+            try {
+                // Convert the object into a markdown code block containing a JSON string.
+                const jsonString = JSON.stringify(contentToParse, null, 2);
+                contentToParse = "```json\n" + jsonString + "\n```";
+            } catch (e) {
+                // If stringify fails (e.g., circular reference), use the default object string.
+                contentToParse = "[object Object]";
+            }
+        }
+        // ★★★ END OF FIX ★★★
+
+        // Now, we can be sure that `contentToParse` is a string before it's passed to marked.
+        const cleanContent = DOMPurify.sanitize(String(contentToParse));
         return marked.parse(cleanContent);
     }
 

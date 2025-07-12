@@ -49,7 +49,6 @@ function addUserMessage(message, files = [], sessions = []) {
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
-// FIX: This function now creates the more complex structure from your desktop app
 function createBotMessagePlaceholder(messageId) {
     const messagesContainer = document.getElementById('chat-messages');
     if (!messagesContainer) return;
@@ -57,7 +56,6 @@ function createBotMessagePlaceholder(messageId) {
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message bot-message';
     
-    // This structure exactly mirrors the desktop logic
     messageDiv.innerHTML = `
         <div class="thinking-indicator">
             <div class="thinking-steps-container"></div>
@@ -67,20 +65,56 @@ function createBotMessagePlaceholder(messageId) {
     `;
 
     messagesContainer.appendChild(messageDiv);
-    ongoingStreams.set(messageId, messageDiv); // Store the DOM element itself
+    ongoingStreams.set(messageId, messageDiv);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
-// FIX: This function is now the intelligent router for all bot content
+// Helper to extract code from object and strip markdown code block formatting
+function extractCodeFromObject(obj) {
+    const potentialKeys = ['raw', 'code', 'content', 'text', 'output'];
+    for (const key of potentialKeys) {
+        if (obj[key]) {
+            let val = obj[key];
+            // If it's a markdown code block, strip the backticks and language
+            const codeBlockMatch = val.match(/^```[a-zA-Z0-9]*\n([\s\S]*?)```$/);
+            if (codeBlockMatch) {
+                return codeBlockMatch[1].trim();
+            }
+            return val;
+        }
+    }
+    return JSON.stringify(obj, null, 2);
+}
+
 function populateBotMessage(data) {
-    const { content, id: messageId, streaming = false, agent_name, team_name, is_log } = data;
+    // Use 'let' for content so it can be modified.
+    let { content, id: messageId, streaming = false, agent_name, team_name, is_log } = data;
     const messageDiv = ongoingStreams.get(messageId);
     if (!messageDiv) return;
+
+    // If the content from the backend is an object, extract the code
+    if (typeof content === 'object' && content !== null) {
+        content = extractCodeFromObject(content);
+    }
+    // ★★★ THIS IS THE CRITICAL FIX ★★★
+    // If the content from the backend is an object (which causes the '[object Object]' error),
+    // we must convert it into a markdown code block string *before* it's sent to the formatter.
+    if (typeof content === 'object' && content !== null) {
+        try {
+            // The message-formatter expects a JSON string inside a markdown code block.
+            // We construct that string here.
+            const jsonString = JSON.stringify(content, null, 2);
+            content = "```json\n" + jsonString + "\n```";
+        } catch (e) {
+            // Fallback in case of a circular object, though unlikely.
+            content = "Error: Could not display complex object from server.";
+        }
+    }
+    // ★★★ END OF FIX ★★★
 
     const ownerName = agent_name || team_name;
     if (!ownerName || !content) return;
 
-    // The core logic: `is_log` determines if it's a "thinking" step or a "final answer"
     const targetContainer = is_log 
         ? messageDiv.querySelector(`#logs-${messageId}`)
         : messageDiv.querySelector(`#main-content-${messageId}`);
@@ -117,7 +151,6 @@ function populateBotMessage(data) {
     }
 }
 
-// FIX: This function now handles the live "Thinking..." steps at the top
 function handleAgentStep(data) {
     const { id: messageId, type, name, agent_name, team_name } = data;
     const messageDiv = ongoingStreams.get(messageId);
@@ -183,7 +216,6 @@ function handleDone(data) {
     const messageDiv = ongoingStreams.get(messageId);
     const thinkingIndicator = messageDiv.querySelector('.thinking-indicator');
     
-    // FIX: Only show the reasoning header if there are actual logs.
     const hasLogs = messageDiv.querySelector('.log-block, .tool-log-entry');
     if (thinkingIndicator && hasLogs) {
         thinkingIndicator.classList.add('steps-done');
@@ -205,7 +237,6 @@ function handleDone(data) {
             messageDiv.classList.toggle('expanded');
         });
     } else if (thinkingIndicator) {
-        // If there are no logs, remove the thinking indicator entirely.
         thinkingIndicator.remove();
     }
 

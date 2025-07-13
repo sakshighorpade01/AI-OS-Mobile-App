@@ -1,7 +1,10 @@
+// js/aios.js
+
 import { supabase } from './supabase-client.js';
 
 const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname.startsWith('192.168');
-const BACKEND_URL = IS_LOCAL ? 'https://ai-os-yjbb.onrender.com' : '';
+// This BACKEND_URL is for the popup window, NOT for the initial fetch.
+const BACKEND_URL = 'https://ai-os-yjbb.onrender.com';
 
 export class AIOS {
     constructor() {
@@ -198,7 +201,6 @@ export class AIOS {
         if (isAuthenticated) {
             this.elements.userEmail.textContent = user.email;
             this.elements.userName.textContent = user.user_metadata?.name || 'User';
-            // ❌ Removed updateIntegrationStatus() here to avoid unnecessary calls
         } else {
             this.updateIntegrationStatus(); // safe to clear buttons
         }
@@ -217,15 +219,51 @@ export class AIOS {
     }
 
     async handleIntegrationConnect(provider) {
+        this.showNotification(`Connecting to ${provider}...`, 'info');
         await supabase.auth.refreshSession();
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-            alert("You must be logged in to connect an integration.");
+            this.showNotification("You must be logged in to connect an integration.", 'error');
             return;
         }
 
-        const authUrl = `${BACKEND_URL}/login/${provider}?token=${session.access_token}`;
-        window.open(authUrl, 'authWindow', 'width=600,height=700,scrollbars=yes');
+        // --- START OF THE FIX ---
+
+        // URL for the initial fetch request. This is a RELATIVE path.
+        // It will be proxied by Vercel as defined in vercel.json.
+        // This makes it a same-origin request from the browser's perspective.
+        const proxyLoginUrl = `/login/${provider}?token=${session.access_token}`;
+
+        // URL for the popup window. This is the ABSOLUTE path to the backend.
+        // The popup needs to navigate to the actual Render domain.
+        const absoluteLoginUrl = `${BACKEND_URL}/login/${provider}?token=${session.access_token}`;
+
+        try {
+            // Step 1: Make a background request to the PROXY URL.
+            // `redirect: 'manual'` prevents the browser from following the redirect.
+            // Its only job is to get the session cookie from the backend.
+            const response = await fetch(proxyLoginUrl, {
+                method: 'GET',
+                redirect: 'manual'
+            });
+
+            // Step 2: Check if the backend is trying to redirect us.
+            // This is the expected successful outcome.
+            if (response.type === 'opaqueredirect') {
+                // The cookie is now set for the backend domain.
+                // We can now safely open the auth window using the ABSOLUTE URL.
+                window.open(absoluteLoginUrl, 'authWindow', 'width=600,height=700,scrollbars=yes');
+            } else {
+                // If we get here, the backend returned an error instead of a redirect.
+                const errorText = await response.text();
+                throw new Error(`Failed to initiate login. Server responded with: ${errorText}`);
+            }
+            // --- END OF THE FIX ---
+
+        } catch (error) {
+            console.error('Integration connection error:', error);
+            this.showNotification(`Error connecting to ${provider}: ${error.message}`, 'error');
+        }
     }
 
     async handleIntegrationDisconnect(provider) {
@@ -239,7 +277,8 @@ export class AIOS {
         }
 
         try {
-            const response = await fetch(`${BACKEND_URL}/api/integrations/disconnect`, {
+            // Use a relative path here as well to leverage the proxy
+            const response = await fetch(`/api/integrations/disconnect`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -266,7 +305,8 @@ export class AIOS {
         }
 
         try {
-            const response = await fetch(`${BACKEND_URL}/api/integrations`, {
+            // Use a relative path here to leverage the proxy
+            const response = await fetch(`/api/integrations`, {
                 headers: { 'Authorization': `Bearer ${session.access_token}` }
             });
 

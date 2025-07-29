@@ -1,4 +1,4 @@
-# The proguard configuration file for the following section is C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\build\intermediates\aapt_proguard_file\release\processReleaseResources\aapt_rules.txt
+# The proguard configuration file for the following section is C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\build\intermediates\aapt_proguard_file\release\processReleaseResources\aapt_rules.txt
 -keep class androidx.core.app.CoreComponentFactory { <init>(); }
 -keep class androidx.core.content.FileProvider { <init>(); }
 -keep class androidx.profileinstaller.ProfileInstallReceiver { <init>(); }
@@ -62,8 +62,8 @@
 -keep class androidx.core.widget.NestedScrollView { <init>(android.content.Context, android.util.AttributeSet); }
 
 
-# End of content from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\build\intermediates\aapt_proguard_file\release\processReleaseResources\aapt_rules.txt
-# The proguard configuration file for the following section is C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\build\intermediates\default_proguard_files\global\proguard-android.txt-8.9.1
+# End of content from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\build\intermediates\aapt_proguard_file\release\processReleaseResources\aapt_rules.txt
+# The proguard configuration file for the following section is C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\build\intermediates\default_proguard_files\global\proguard-android.txt-8.9.1
 # This is a configuration file for ProGuard.
 # http://proguard.sourceforge.net/index.html#manual/usage.html
 #
@@ -160,7 +160,7 @@
 # These classes are duplicated between android.jar and core-lambda-stubs.jar.
 -dontnote java.lang.invoke.**
 
-# End of content from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\build\intermediates\default_proguard_files\global\proguard-android.txt-8.9.1
+# End of content from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\build\intermediates\default_proguard_files\global\proguard-android.txt-8.9.1
 # The proguard configuration file for the following section is C:\Users\saksh\.gradle\caches\8.11.1\transforms\6215e13210b05cc5715af15b5940fb9f\transformed\locationdelegation-1.1.2\proguard.txt
 
 # End of content from C:\Users\saksh\.gradle\caches\8.11.1\transforms\6215e13210b05cc5715af15b5940fb9f\transformed\locationdelegation-1.1.2\proguard.txt

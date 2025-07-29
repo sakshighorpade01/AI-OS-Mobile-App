@@ -1780,23 +1780,6 @@
             "outputFile": "app.vercel.aios_mobile_app.twa.app-release-29:/values_values.arsc.flat",
             "map": [
                 {
-                    "source": "C:\\Users\\saksh\\Desktop\\AI-OS\\AI-OS\\android-build\\app\\build\\generated\\res\\resValues\\release\\values\\gradleResValues.xml",
-                    "from": {
-                        "startLines": "6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44",
-                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
-                        "startOffsets": "159,249,347,439,528,621,713,809,908,1011,1115,1226,1341,1481,1600,1727,1864,1977,2088,2241",
-                        "endColumns": "47,55,49,46,50,49,53,56,60,61,68,72,97,76,84,94,70,68,110,112",
-                        "endOffsets": "202,300,392,481,574,666,762,861,964,1068,1179,1294,1434,1553,1680,1817,1930,2041,2194,2349"
-                    },
-                    "to": {
-                        "startLines": "9,10,20,39,40,71,72,73,74,295,325,363,367,368,369,370,371,375,376,380",
-                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
-                        "startOffsets": "472,520,1237,2627,2674,4749,4799,4853,4910,19069,21150,24449,24737,24835,24912,24997,25092,25436,25505,25832",
-                        "endColumns": "47,55,49,46,50,49,53,56,60,61,68,72,97,76,84,94,70,68,110,112",
-                        "endOffsets": "515,571,1282,2669,2720,4794,4848,4905,4966,19126,21214,24517,24830,24907,24992,25087,25158,25500,25611,25940"
-                    }
-                },
-                {
                     "source": "C:\\Users\\saksh\\.gradle\\caches\\8.11.1\\transforms\\d6f2e3c3aeb152384c7f6efcc9d99697\\transformed\\appcompat-resources-1.7.0\\res\\values\\values.xml",
                     "from": {
                         "startLines": "2,18,24,34,50",
@@ -1813,23 +1796,6 @@
                         "endLines": "2025,2031,2041,3044,3048",
                         "endColumns": "24,24,24,24,24",
                         "endOffsets": "132923,133101,133385,166579,166706"
-                    }
-                },
-                {
-                    "source": "C:\\Users\\saksh\\Desktop\\AI-OS\\AI-OS\\android-build\\app\\src\\main\\res\\values\\colors.xml",
-                    "from": {
-                        "startLines": "16",
-                        "startColumns": "4",
-                        "startOffsets": "647",
-                        "endColumns": "53",
-                        "endOffsets": "696"
-                    },
-                    "to": {
-                        "startLines": "91",
-                        "startColumns": "4",
-                        "startOffsets": "6102",
-                        "endColumns": "53",
-                        "endOffsets": "6151"
                     }
                 },
                 {
@@ -1922,25 +1888,6 @@
                     }
                 },
                 {
-                    "source": "C:\\Users\\saksh\\Desktop\\AI-OS\\AI-OS\\android-build\\app\\src\\main\\res\\values\\strings.xml",
-                    "from": {
-                        "startLines": "25",
-                        "startColumns": "2",
-                        "startOffsets": "986",
-                        "endLines": "34",
-                        "endColumns": "11",
-                        "endOffsets": "1249"
-                    },
-                    "to": {
-                        "startLines": "327",
-                        "startColumns": "4",
-                        "startOffsets": "21269",
-                        "endLines": "336",
-                        "endColumns": "11",
-                        "endOffsets": "21532"
-                    }
-                },
-                {
                     "source": "C:\\Users\\saksh\\.gradle\\caches\\8.11.1\\transforms\\73e438e4ffd9a9c654a75a534a83094f\\transformed\\activity-1.9.0\\res\\values\\values.xml",
                     "from": {
                         "startLines": "2,3",
@@ -1991,6 +1938,23 @@
                         "startOffsets": "25163,25251,25348,25740",
                         "endColumns": "87,96,87,91",
                         "endOffsets": "25246,25343,25431,25827"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\saksh\\Desktop\\AI-OS\\AI-OS-new\\AI-OS-Mobile-App\\android-build\\app\\src\\main\\res\\values\\colors.xml",
+                    "from": {
+                        "startLines": "16",
+                        "startColumns": "4",
+                        "startOffsets": "647",
+                        "endColumns": "53",
+                        "endOffsets": "696"
+                    },
+                    "to": {
+                        "startLines": "91",
+                        "startColumns": "4",
+                        "startOffsets": "6102",
+                        "endColumns": "53",
+                        "endOffsets": "6151"
                     }
                 },
                 {
@@ -2061,6 +2025,42 @@
                         "startOffsets": "21219",
                         "endColumns": "49",
                         "endOffsets": "21264"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\saksh\\Desktop\\AI-OS\\AI-OS-new\\AI-OS-Mobile-App\\android-build\\app\\src\\main\\res\\values\\strings.xml",
+                    "from": {
+                        "startLines": "25",
+                        "startColumns": "2",
+                        "startOffsets": "986",
+                        "endLines": "34",
+                        "endColumns": "11",
+                        "endOffsets": "1249"
+                    },
+                    "to": {
+                        "startLines": "327",
+                        "startColumns": "4",
+                        "startOffsets": "21269",
+                        "endLines": "336",
+                        "endColumns": "11",
+                        "endOffsets": "21532"
+                    }
+                },
+                {
+                    "source": "C:\\Users\\saksh\\Desktop\\AI-OS\\AI-OS-new\\AI-OS-Mobile-App\\android-build\\app\\build\\generated\\res\\resValues\\release\\values\\gradleResValues.xml",
+                    "from": {
+                        "startLines": "6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "159,249,347,439,528,621,713,809,908,1011,1115,1226,1341,1481,1600,1727,1864,1977,2088,2241",
+                        "endColumns": "47,55,49,46,50,49,53,56,60,61,68,72,97,76,84,94,70,68,110,112",
+                        "endOffsets": "202,300,392,481,574,666,762,861,964,1068,1179,1294,1434,1553,1680,1817,1930,2041,2194,2349"
+                    },
+                    "to": {
+                        "startLines": "9,10,20,39,40,71,72,73,74,295,325,363,367,368,369,370,371,375,376,380",
+                        "startColumns": "4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4",
+                        "startOffsets": "472,520,1237,2627,2674,4749,4799,4853,4910,19069,21150,24449,24737,24835,24912,24997,25092,25436,25505,25832",
+                        "endColumns": "47,55,49,46,50,49,53,56,60,61,68,72,97,76,84,94,70,68,110,112",
+                        "endOffsets": "515,571,1282,2669,2720,4794,4848,4905,4966,19126,21214,24517,24830,24907,24992,25087,25158,25500,25611,25940"
                     }
                 },
                 {

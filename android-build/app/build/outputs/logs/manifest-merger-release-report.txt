@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:22:1-219:12
-INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:22:1-219:12
-INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:22:1-219:12
-INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:22:1-219:12
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:22:1-219:12
+INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:22:1-219:12
+INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:22:1-219:12
+INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:22:1-219:12
 MERGED from [com.google.androidbrowserhelper:locationdelegation:1.1.2] C:\Users\saksh\.gradle\caches\8.11.1\transforms\6215e13210b05cc5715af15b5940fb9f\transformed\locationdelegation-1.1.2\AndroidManifest.xml:2:1-14:12
 MERGED from [com.google.androidbrowserhelper:billing:1.1.0] C:\Users\saksh\.gradle\caches\8.11.1\transforms\86daebdf1ac5a298358120b63e4f1cb9\transformed\billing-1.1.0\AndroidManifest.xml:2:1-7:12
 MERGED from [com.google.androidbrowserhelper:androidbrowserhelper:2.6.2] C:\Users\saksh\.gradle\caches\8.11.1\transforms\5053e02be90783e54992393be394bb70\transformed\androidbrowserhelper-2.6.2\AndroidManifest.xml:17:1-32:12
@@ -47,21 +47,21 @@ MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\sa
 MERGED from [androidx.arch.core:core-runtime:2.2.0] C:\Users\saksh\.gradle\caches\8.11.1\transforms\09558f1b9b56a339611f1f3ff5685123\transformed\core-runtime-2.2.0\AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.annotation:annotation-experimental:1.4.1] C:\Users\saksh\.gradle\caches\8.11.1\transforms\7880efad619dc72d569f5e6e2c17444b\transformed\annotation-experimental-1.4.1\AndroidManifest.xml:2:1-7:12
 	package
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:23:5-45
-		INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:23:5-45
+		INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml
 	android:versionName
-		INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml
+		INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml
 	android:versionCode
-		INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml
+		INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml
 	xmlns:android
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:22:11-69
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:22:11-69
 uses-permission#android.permission.POST_NOTIFICATIONS
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:26:9-80
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:26:9-80
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:26:26-78
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:26:26-78
 application
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:35:5-218:19
-INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:35:5-218:19
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:35:5-218:19
+INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:35:5-218:19
 MERGED from [com.google.androidbrowserhelper:locationdelegation:1.1.2] C:\Users\saksh\.gradle\caches\8.11.1\transforms\6215e13210b05cc5715af15b5940fb9f\transformed\locationdelegation-1.1.2\AndroidManifest.xml:10:5-12:19
 MERGED from [com.google.androidbrowserhelper:locationdelegation:1.1.2] C:\Users\saksh\.gradle\caches\8.11.1\transforms\6215e13210b05cc5715af15b5940fb9f\transformed\locationdelegation-1.1.2\AndroidManifest.xml:10:5-12:19
 MERGED from [com.android.billingclient:billing:7.1.1] C:\Users\saksh\.gradle\caches\8.11.1\transforms\1dcabcea90c9508775a51aeea5d7fca7\transformed\billing-7.1.1\AndroidManifest.xml:21:5-36:19
@@ -91,271 +91,271 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\saksh\.gradle\cach
 MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\saksh\.gradle\caches\8.11.1\transforms\80cbc4dba6c47357d96551e666b341e2\transformed\versionedparcelable-1.1.1\AndroidManifest.xml:24:5-25:19
 MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\saksh\.gradle\caches\8.11.1\transforms\80cbc4dba6c47357d96551e666b341e2\transformed\versionedparcelable-1.1.1\AndroidManifest.xml:24:5-25:19
 	android:extractNativeLibs
-		INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml
+		INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.13.0] C:\Users\saksh\.gradle\caches\8.11.1\transforms\a5429f7b20c607b890f08b5283ad4ec0\transformed\core-1.13.0\AndroidManifest.xml:28:18-86
 	android:supportsRtl
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:43:9-35
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:43:9-35
 	android:label
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:39:9-40
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:39:9-40
 	android:manageSpaceActivity
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:41:9-105
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:41:9-105
 	android:icon
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:38:9-43
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:38:9-43
 	android:allowBackup
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:37:9-35
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:37:9-35
 	android:theme
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:44:9-68
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:44:9-68
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:36:9-35
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:36:9-35
 meta-data#asset_statements
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:46:9-48:58
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:46:9-48:58
 	android:resource
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:48:13-55
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:48:13-55
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:47:13-44
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:47:13-44
 meta-data#web_manifest_url
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:51:13-53:58
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:51:13-53:58
 	android:value
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:53:17-55
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:53:17-55
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:52:17-48
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:52:17-48
 meta-data#twa_generator
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:56:9-58:52
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:56:9-58:52
 	android:value
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:58:13-49
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:58:13-49
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:57:13-41
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:57:13-41
 activity#com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:65:13-69:24
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:65:13-69:24
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:65:23-104
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:65:23-104
 meta-data#android.support.customtabs.trusted.MANAGE_SPACE_URL
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:66:13-68:53
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:66:13-68:53
 	android:value
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:68:17-50
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:68:17-50
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:67:17-83
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:67:17-83
 activity#app.vercel.aios_mobile_app.twa.LauncherActivity
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:72:9-151:20
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:72:9-151:20
 	android:label
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:74:13-49
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:74:13-49
 	android:exported
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:75:13-36
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:75:13-36
 	android:alwaysRetainTaskState
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:73:13-49
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:73:13-49
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:72:19-50
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:72:19-50
 meta-data#android.support.customtabs.trusted.DEFAULT_URL
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:76:13-77:53
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:76:13-77:53
 	android:value
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:77:17-50
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:77:17-50
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:76:24-85
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:76:24-85
 meta-data#android.support.customtabs.trusted.STATUS_BAR_COLOR
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:79:13-81:58
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:79:13-81:58
 	android:resource
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:81:17-55
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:81:17-55
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:80:17-83
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:80:17-83
 meta-data#android.support.customtabs.trusted.STATUS_BAR_COLOR_DARK
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:85:13-87:62
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:85:13-87:62
 	android:resource
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:87:17-59
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:87:17-59
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:86:17-88
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:86:17-88
 meta-data#android.support.customtabs.trusted.NAVIGATION_BAR_COLOR
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:89:13-91:61
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:89:13-91:61
 	android:resource
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:91:17-58
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:91:17-58
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:90:17-87
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:90:17-87
 meta-data#android.support.customtabs.trusted.NAVIGATION_BAR_COLOR_DARK
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:93:13-95:65
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:93:13-95:65
 	android:resource
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:95:17-62
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:95:17-62
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:94:17-92
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:94:17-92
 meta-data#androix.browser.trusted.NAVIGATION_BAR_DIVIDER_COLOR
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:97:13-99:68
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:97:13-99:68
 	android:resource
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:99:17-65
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:99:17-65
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:98:17-84
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:98:17-84
 meta-data#androix.browser.trusted.NAVIGATION_BAR_DIVIDER_COLOR_DARK
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:101:13-103:72
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:101:13-103:72
 	android:resource
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:103:17-69
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:103:17-69
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:102:17-89
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:102:17-89
 meta-data#android.support.customtabs.trusted.SPLASH_IMAGE_DRAWABLE
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:105:13-106:54
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:105:13-106:54
 	android:resource
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:106:17-52
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:106:17-52
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:105:24-95
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:105:24-95
 meta-data#android.support.customtabs.trusted.SPLASH_SCREEN_BACKGROUND_COLOR
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:108:13-109:60
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:108:13-109:60
 	android:resource
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:109:17-58
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:109:17-58
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:108:24-104
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:108:24-104
 meta-data#android.support.customtabs.trusted.SPLASH_SCREEN_FADE_OUT_DURATION
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:111:13-112:71
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:111:13-112:71
 	android:value
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:112:17-69
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:112:17-69
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:111:24-105
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:111:24-105
 meta-data#android.support.customtabs.trusted.FILE_PROVIDER_AUTHORITY
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:114:13-115:60
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:114:13-115:60
 	android:value
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:115:17-58
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:115:17-58
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:114:24-97
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:114:24-97
 meta-data#android.app.shortcuts
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:117:13-97
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:117:13-97
 	android:resource
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:117:61-94
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:117:61-94
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:117:24-60
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:117:24-60
 meta-data#android.support.customtabs.trusted.FALLBACK_STRATEGY
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:119:13-120:56
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:119:13-120:56
 	android:value
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:120:17-53
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:120:17-53
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:119:24-91
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:119:24-91
 meta-data#android.support.customtabs.trusted.SCREEN_ORIENTATION
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:126:13-127:54
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:126:13-127:54
 	android:value
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:127:17-52
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:127:17-52
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:126:24-92
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:126:24-92
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:133:13-136:29
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:133:13-136:29
 action#android.intent.action.MAIN
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:134:17-69
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:134:17-69
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:134:25-66
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:134:25-66
 category#android.intent.category.LAUNCHER
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:135:17-77
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:135:17-77
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:135:27-74
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:135:27-74
 intent-filter#action:name:android.intent.action.VIEW+category:name:android.intent.category.BROWSABLE+category:name:android.intent.category.DEFAULT+data:host:@string/hostName+data:scheme:https
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:138:13-146:29
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:138:13-146:29
 	android:autoVerify
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:138:28-53
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:138:28-53
 action#android.intent.action.VIEW
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:139:17-68
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:139:17-68
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:139:25-66
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:139:25-66
 category#android.intent.category.DEFAULT
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:140:17-76
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:140:17-76
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:140:27-73
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:140:27-73
 category#android.intent.category.BROWSABLE
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:141:17-77
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:141:17-77
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:141:27-75
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:141:27-75
 data
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:142:17-145:19
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:142:17-145:19
 	android:host
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:143:21-52
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:143:21-52
 	android:scheme
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:142:23-45
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:142:23-45
 activity#com.google.androidbrowserhelper.trusted.FocusActivity
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:153:9-90
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:153:9-90
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:153:19-87
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:153:19-87
 activity#com.google.androidbrowserhelper.trusted.WebViewFallbackActivity
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:155:9-156:62
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:155:9-156:62
 	android:configChanges
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:156:13-59
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:156:13-59
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:155:19-97
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:155:19-97
 provider#androidx.core.content.FileProvider
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:158:9-166:20
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:158:9-166:20
 	android:grantUriPermissions
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:161:13-47
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:161:13-47
 	android:authorities
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:160:13-60
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:160:13-60
 	android:exported
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:162:13-37
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:162:13-37
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:159:13-62
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:159:13-62
 meta-data#android.support.FILE_PROVIDER_PATHS
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:163:13-165:53
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:163:13-165:53
 	android:resource
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:165:17-50
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:165:17-50
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:164:17-67
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:164:17-67
 service#app.vercel.aios_mobile_app.twa.DelegationService
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:168:9-183:19
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:168:9-183:19
 	android:enabled
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:170:13-55
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:170:13-55
 	android:exported
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:171:13-56
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:171:13-56
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:169:13-46
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:169:13-46
 meta-data#android.support.customtabs.trusted.SMALL_ICON
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:174:17-176:73
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:174:17-176:73
 	android:resource
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:176:21-70
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:176:21-70
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:175:21-81
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:175:21-81
 intent-filter#action:name:android.support.customtabs.trusted.TRUSTED_WEB_ACTIVITY_SERVICE+category:name:android.intent.category.DEFAULT
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:179:13-182:29
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:179:13-182:29
 action#android.support.customtabs.trusted.TRUSTED_WEB_ACTIVITY_SERVICE
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:180:17-105
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:180:17-105
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:180:25-103
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:180:25-103
 activity#com.google.androidbrowserhelper.trusted.NotificationPermissionRequestActivity
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:186:13-118
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:186:13-118
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:186:23-115
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:186:23-115
 activity#com.google.androidbrowserhelper.locationdelegation.PermissionRequestActivity
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:190:13-191:89
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:190:13-191:89
 MERGED from [com.google.androidbrowserhelper:locationdelegation:1.1.2] C:\Users\saksh\.gradle\caches\8.11.1\transforms\6215e13210b05cc5715af15b5940fb9f\transformed\locationdelegation-1.1.2\AndroidManifest.xml:11:9-113
 MERGED from [com.google.androidbrowserhelper:locationdelegation:1.1.2] C:\Users\saksh\.gradle\caches\8.11.1\transforms\6215e13210b05cc5715af15b5940fb9f\transformed\locationdelegation-1.1.2\AndroidManifest.xml:11:9-113
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:190:23-123
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:190:23-123
 activity#com.google.androidbrowserhelper.playbilling.provider.PaymentActivity
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:194:9-207:20
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:194:9-207:20
 	android:exported
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:198:13-36
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:198:13-36
 	android:configChanges
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:197:13-96
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:197:13-96
 	android:theme
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:196:13-72
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:196:13-72
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:195:13-96
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:195:13-96
 intent-filter#action:name:org.chromium.intent.action.PAY
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:200:13-202:29
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:200:13-202:29
 action#org.chromium.intent.action.PAY
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:201:17-73
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:201:17-73
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:201:25-70
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:201:25-70
 meta-data#org.chromium.default_payment_method_name
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:204:13-206:67
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:204:13-206:67
 	android:value
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:206:17-64
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:206:17-64
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:205:17-72
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:205:17-72
 service#com.google.androidbrowserhelper.playbilling.provider.PaymentService
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:210:9-216:19
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:210:9-216:19
 	android:exported
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:212:13-36
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:212:13-36
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:211:13-95
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:211:13-95
 intent-filter#action:name:org.chromium.intent.action.IS_READY_TO_PAY
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:213:13-215:29
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:213:13-215:29
 action#org.chromium.intent.action.IS_READY_TO_PAY
-ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:214:17-85
+ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:214:17-85
 	android:name
-		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml:214:25-82
+		ADDED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml:214:25-82
 uses-sdk
-INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
-INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml
-INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml
+INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml
+INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml
 MERGED from [com.google.androidbrowserhelper:locationdelegation:1.1.2] C:\Users\saksh\.gradle\caches\8.11.1\transforms\6215e13210b05cc5715af15b5940fb9f\transformed\locationdelegation-1.1.2\AndroidManifest.xml:5:5-44
 MERGED from [com.google.androidbrowserhelper:locationdelegation:1.1.2] C:\Users\saksh\.gradle\caches\8.11.1\transforms\6215e13210b05cc5715af15b5940fb9f\transformed\locationdelegation-1.1.2\AndroidManifest.xml:5:5-44
 MERGED from [com.google.androidbrowserhelper:billing:1.1.0] C:\Users\saksh\.gradle\caches\8.11.1\transforms\86daebdf1ac5a298358120b63e4f1cb9\transformed\billing-1.1.0\AndroidManifest.xml:5:5-44
@@ -441,9 +441,9 @@ MERGED from [androidx.arch.core:core-runtime:2.2.0] C:\Users\saksh\.gradle\cache
 MERGED from [androidx.annotation:annotation-experimental:1.4.1] C:\Users\saksh\.gradle\caches\8.11.1\transforms\7880efad619dc72d569f5e6e2c17444b\transformed\annotation-experimental-1.4.1\AndroidManifest.xml:5:5-44
 MERGED from [androidx.annotation:annotation-experimental:1.4.1] C:\Users\saksh\.gradle\caches\8.11.1\transforms\7880efad619dc72d569f5e6e2c17444b\transformed\annotation-experimental-1.4.1\AndroidManifest.xml:5:5-44
 	android:targetSdkVersion
-		INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml
+		INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml
 	android:minSdkVersion
-		INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\AndroidManifest.xml
+		INJECTED from C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\AndroidManifest.xml
 uses-permission#android.permission.ACCESS_FINE_LOCATION
 ADDED from [com.google.androidbrowserhelper:locationdelegation:1.1.2] C:\Users\saksh\.gradle\caches\8.11.1\transforms\6215e13210b05cc5715af15b5940fb9f\transformed\locationdelegation-1.1.2\AndroidManifest.xml:7:5-79
 	android:name

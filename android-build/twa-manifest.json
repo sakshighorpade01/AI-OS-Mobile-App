@@ -17,11 +17,11 @@
   "maskableIconUrl": "https://aios-mobile-app.vercel.app/assets/icon.png?v=2",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
-    "path": "C:\\Users\\saksh\\Desktop\\AI-OS\\AI-OS\\android-build\\android.keystore",
+    "path": "C:\\Users\\saksh\\Desktop\\AI-OS\\AI-OS-new\\AI-OS-Mobile-App\\android-build\\android.keystore",
     "alias": "android"
   },
-  "appVersionName": "2",
-  "appVersionCode": 3,
+  "appVersionName": "4",
+  "appVersionCode": 5,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
   "webManifestUrl": "https://aios-mobile-app.vercel.app/manifest.json",
@@ -49,5 +49,5 @@
   "protocolHandlers": [],
   "fileHandlers": [],
   "launchHandlerClientMode": "",
-  "appVersion": "2"
+  "appVersion": "4"
 }

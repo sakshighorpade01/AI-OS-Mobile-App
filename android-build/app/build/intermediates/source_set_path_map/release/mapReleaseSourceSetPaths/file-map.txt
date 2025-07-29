@@ -23,10 +23,10 @@ app.vercel.aios_mobile_app.twa.app-play-services-basement-18.4.0-21 C:\Users\sak
 app.vercel.aios_mobile_app.twa.app-profileinstaller-1.3.1-22 C:\Users\saksh\.gradle\caches\8.11.1\transforms\bb4a0d32d1b17a1dcea0cf71d2bde5e0\transformed\profileinstaller-1.3.1\res
 app.vercel.aios_mobile_app.twa.app-browser-1.9.0-alpha04-23 C:\Users\saksh\.gradle\caches\8.11.1\transforms\be57bd43967b699c12a0f6b8bd2f21c6\transformed\browser-1.9.0-alpha04\res
 app.vercel.aios_mobile_app.twa.app-appcompat-resources-1.7.0-24 C:\Users\saksh\.gradle\caches\8.11.1\transforms\d6f2e3c3aeb152384c7f6efcc9d99697\transformed\appcompat-resources-1.7.0\res
-app.vercel.aios_mobile_app.twa.app-pngs-25 C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\build\generated\res\pngs\release
-app.vercel.aios_mobile_app.twa.app-resValues-26 C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\build\generated\res\resValues\release
-app.vercel.aios_mobile_app.twa.app-packageReleaseResources-27 C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\build\intermediates\incremental\release\packageReleaseResources\merged.dir
-app.vercel.aios_mobile_app.twa.app-packageReleaseResources-28 C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\build\intermediates\incremental\release\packageReleaseResources\stripped.dir
-app.vercel.aios_mobile_app.twa.app-release-29 C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\build\intermediates\merged_res\release\mergeReleaseResources
-app.vercel.aios_mobile_app.twa.app-main-30 C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\main\res
-app.vercel.aios_mobile_app.twa.app-release-31 C:\Users\saksh\Desktop\AI-OS\AI-OS\android-build\app\src\release\res
+app.vercel.aios_mobile_app.twa.app-pngs-25 C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\build\generated\res\pngs\release
+app.vercel.aios_mobile_app.twa.app-resValues-26 C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\build\generated\res\resValues\release
+app.vercel.aios_mobile_app.twa.app-packageReleaseResources-27 C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\build\intermediates\incremental\release\packageReleaseResources\merged.dir
+app.vercel.aios_mobile_app.twa.app-packageReleaseResources-28 C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\build\intermediates\incremental\release\packageReleaseResources\stripped.dir
+app.vercel.aios_mobile_app.twa.app-release-29 C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\build\intermediates\merged_res\release\mergeReleaseResources
+app.vercel.aios_mobile_app.twa.app-main-30 C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\main\res
+app.vercel.aios_mobile_app.twa.app-release-31 C:\Users\saksh\Desktop\AI-OS\AI-OS-new\AI-OS-Mobile-App\android-build\app\src\release\res
